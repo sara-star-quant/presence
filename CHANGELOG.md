@@ -28,6 +28,7 @@ Zero-friction first install. Fixes a real bug (the installer accepted Python 3.1
 - **`.github/ISSUE_TEMPLATE/security.yml`**: redirect to the private security advisory flow (forbids public security disclosures via issues).
 - **`.github/ISSUE_TEMPLATE/config.yml`**: disables blank issues; lists external links (security advisory, threat model doc, architecture doc).
 - **`.github/pull_request_template.md`**: short template (summary, what changed, test plan checklist, backward-compat statement, ASCII / em-dash / stdlib / CHANGELOG / MANIFEST checklist).
+- **`docs/roadmap.md`**: written record of six items the maintainer has decided not to ship now and why, with realistic shape sketches for each: multi-tool adapter architecture, native Windows support, release automation on tag push, cross-machine state snapshot/migration, preset JSON schema validation, side-by-side install support. Each item gets (or will get) a tracking GitHub issue with the same title for discussion; this doc is the durable in-repo summary.
 
 ### Changed
 
