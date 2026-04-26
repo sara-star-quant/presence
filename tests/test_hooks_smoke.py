@@ -121,6 +121,46 @@ def test_stop_runs_with_no_transcript(hook_env):
     assert not r.stdout.strip(), f"expected silent exit, got: {r.stdout}"
 
 
+def test_python_version_check_cached_across_hook_fires(hook_env):
+    """The wrapper's _common.sh writes a marker (.python_version_ok) on first
+    fire so subsequent fires skip the per-invocation `python3 -c '...'` probe.
+    This is the v0.3.0 cold-hook latency fix; if the marker stops being written
+    we silently regress by ~20 ms on every hook.
+    """
+    env, state, fake_repo = hook_env
+    marker = state / ".python_version_ok"
+    assert not marker.exists(), "fresh state must not have marker yet"
+    r = _run("user-prompt-submit.sh", {"cwd": str(fake_repo), "prompt": "x"}, env)
+    assert r.returncode == 0
+    assert marker.exists(), "first hook fire must write the python-version cache marker"
+    contents = marker.read_text(encoding="utf-8").strip()
+    assert ":" in contents, "marker format must be <python_bin>:<mtime>"
+    bin_path, _mtime = contents.split(":", 1)
+    assert bin_path.endswith("python3") or "python" in bin_path
+    # Second fire should still work (marker reused, version probe skipped).
+    r2 = _run("user-prompt-submit.sh", {"cwd": str(fake_repo), "prompt": "y"}, env)
+    assert r2.returncode == 0
+    # Marker contents unchanged after a cache hit.
+    assert marker.read_text(encoding="utf-8").strip() == contents
+
+
+def test_python_version_marker_invalidates_when_python_changes(hook_env):
+    """If the cached marker references a different python binary or mtime, the
+    wrapper re-runs the version probe and rewrites the marker. Simulates a
+    python upgrade between hook fires.
+    """
+    env, state, fake_repo = hook_env
+    marker = state / ".python_version_ok"
+    # Pre-seed a stale marker pointing at a fake binary.
+    marker.write_text("/nonexistent/python3:0\n", encoding="utf-8")
+    r = _run("user-prompt-submit.sh", {"cwd": str(fake_repo), "prompt": "z"}, env)
+    assert r.returncode == 0
+    # Marker should have been rewritten with the real python binary.
+    contents = marker.read_text(encoding="utf-8").strip()
+    assert "/nonexistent/python3" not in contents
+    assert ":" in contents
+
+
 def test_python_missing_warning_format(tmp_path, fake_repo):
     """When python3 isn't on PATH, the SessionStart wrapper must emit a one-time
     advisory JSON object that Claude Code can parse. Other wrappers just exit 0.
