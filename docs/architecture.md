@@ -97,6 +97,20 @@ Stop
 
 Dotted-path overrides walk N levels (`a.b.c = v` creates nested dicts). Built-in presets live in the plugin at `presets/*.json`. User presets live in `~/.claude/presence/presets/*.json` and override built-ins by name.
 
+## Context schema (XML tags emitted to Claude)
+
+When `SessionStart` injects `additionalContext`, it wraps the assembled summary in named XML-style tags. This is intentional structure for the model to parse, not Markdown.
+
+| Tag | Source | When emitted |
+|---|---|---|
+| `<presence_context>` | outer wrapper around everything | whenever any inner section is non-empty |
+| `<presence_status>` | `gather_warnings` in `hook_session_start.py` | when error or warning counters were non-zero since last session |
+| `<project_model>` | `gather_model` in `hook_session_start.py` | when `model.md` for this repo is non-empty |
+| `<telemetry_digest>` | `gather_telemetry` in `hook_session_start.py` | when `git log` since `last_seen` shows reverts of tracked SHAs |
+| `<recent_events>` | `gather_events` in `hook_session_start.py` | when the pending event queue had drained content |
+
+`UserPromptSubmit` and `Stop` hooks emit single-purpose `additionalContext` strings without the wrapper (they have one logical block of content, not a composite). The schema is stable: tag names are part of the public contract for any downstream skill that wants to parse or cross-reference presence's output.
+
 ## Failure modes
 
 Every hook entry point is wrapped in `safe_main`. On any exception:

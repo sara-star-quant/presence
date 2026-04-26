@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,7 @@ def hook_env(tmp_path, fake_repo):
         **os.environ,
         "PRESENCE_STATE": str(state),
         "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
-        "PATH": os.environ.get("PATH", ""),
+        "PATH": os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", ""),
     }
     return env, state, fake_repo
 

@@ -29,10 +29,10 @@ def _safe_transcript_path(transcript_path: str | None, cfg: dict) -> Path | None
         return None
     p = Path(transcript_path)
     try:
-        p = p.resolve()
+        p = p.resolve(strict=True)
     except OSError:
         return None
-    if not p.exists() or not p.is_file():
+    if not p.is_file():
         return None
     if (cfg.get("transcript") or {}).get("restrict_to_claude_projects"):
         # Zero-Trust: refuse paths outside ~/.claude/projects/
@@ -135,4 +135,5 @@ def main() -> None:
     emit({"decision": "block", "reason": msg})
 
 
-safe_main(main)
+if __name__ == "__main__":
+    safe_main(main)

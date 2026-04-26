@@ -7,6 +7,7 @@ from pathlib import Path
 from _common import (
     DEFAULT_GIT_TIMEOUT,
     append_jsonl_rotating,
+    async_git_run_safe,
     git_run_safe,
     now_ts,
     read_jsonl,
@@ -109,6 +110,47 @@ def scan_for_revert(cwd, since_ts: int) -> list[dict]:
     if not tracked:
         return []
     out = git_run_safe(
+        cwd, "log", f"--since=@{since_ts}", "--max-count=500", "--format=%H%x09%s%x09%ct",
+        timeout=_git_timeout(),
+    )
+    if not out:
+        return []
+    findings: list[dict] = []
+    for line in out.splitlines():
+        if not line:
+            continue
+        try:
+            sha, msg, ct = line.split("\t", 2)
+        except ValueError:
+            continue
+        if not msg.lower().startswith("revert "):
+            continue
+        for tracked_sha in tracked:
+            if tracked_sha[:7] in msg or tracked_sha in msg:
+                findings.append({
+                    "kind": "revert",
+                    "tracked": tracked_sha,
+                    "by": sha,
+                    "ts": int(ct),
+                    "message": msg,
+                })
+                break
+    return findings
+
+
+async def async_scan_for_revert(cwd, since_ts: int) -> list[dict]:
+    """Look at git log since ``since_ts`` for revert commits touching tracked SHAs (async)."""
+    import asyncio
+
+    if not since_ts:
+        return []
+    rid = repo_id(cwd)
+    # Read the claims log in a thread to keep the event loop responsive
+    claims_rows = await asyncio.to_thread(read_jsonl, claims_path())
+    tracked = {c["sha"] for c in claims_rows if c.get("kind") == "commit" and c.get("repo") == rid}
+    if not tracked:
+        return []
+    out = await async_git_run_safe(
         cwd, "log", f"--since=@{since_ts}", "--max-count=500", "--format=%H%x09%s%x09%ct",
         timeout=_git_timeout(),
     )

@@ -22,4 +22,5 @@ def main() -> None:
     append_event({"kind": "edit", "tool": tool_name, "path": str(path)}, cwd=cwd)
 
 
-safe_main(main)
+if __name__ == "__main__":
+    safe_main(main)

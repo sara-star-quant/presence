@@ -9,6 +9,7 @@ Module never raises at import time on any platform: ``fcntl`` is lazily imported
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -119,6 +120,46 @@ def git_run_safe(cwd: str | os.PathLike[str], *args: str, timeout: int | None = 
         return None
     except GitFailed:
         # Common case: not a git repo. Don't warn (too noisy).
+        return None
+
+
+async def async_git_run(cwd: str | os.PathLike[str], *args: str, timeout: int | None = None) -> str:
+    """Async variant of git_run."""
+    timeout = timeout or DEFAULT_GIT_TIMEOUT
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", str(cwd), *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except TimeoutError as exc:
+            proc.kill()
+            await proc.wait()
+            raise GitTimeout(f"git {' '.join(args)} timed out after {timeout}s") from exc
+
+        if proc.returncode != 0:
+            raise GitFailed(f"git {' '.join(args)} exited {proc.returncode}")
+
+        return stdout.decode("utf-8", errors="replace").strip()
+    except FileNotFoundError as exc:
+        raise GitNotInstalled("git binary not on PATH") from exc
+
+
+async def async_git_run_safe(cwd: str | os.PathLike[str], *args: str, timeout: int | None = None) -> str | None:
+    """Async variant of git_run_safe."""
+    from warnings_log import warn  # local import to avoid cycle at module load
+
+    try:
+        return await async_git_run(cwd, *args, timeout=timeout)
+    except GitNotInstalled:
+        warn("git_missing", "git binary not found on PATH; commit telemetry disabled")
+        return None
+    except GitTimeout as exc:
+        warn("git_timeout", str(exc), cmd=list(args))
+        return None
+    except GitFailed:
         return None
 
 

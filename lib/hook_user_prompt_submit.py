@@ -24,4 +24,5 @@ def main() -> None:
         )
 
 
-safe_main(main)
+if __name__ == "__main__":
+    safe_main(main)

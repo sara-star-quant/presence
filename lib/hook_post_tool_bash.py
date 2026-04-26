@@ -104,4 +104,5 @@ def main() -> None:
         record_push_claim(session_cwd, intent="pr_create: " + cmd[:200])
 
 
-safe_main(main)
+if __name__ == "__main__":
+    safe_main(main)

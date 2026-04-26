@@ -28,12 +28,20 @@ def read_model(cwd=None, max_chars: int | None = None) -> str:
     except OSError:
         return ""
     if max_chars and len(text) > max_chars:
-        # Keep header + most-recent tail
-        header_end = text.find("\n\n")
-        head = text[: header_end + 2] if header_end > 0 else ""
+        # Better truncation by structural chunks
+        chunks = text.split("\n## ")
+        head = chunks[0]
+        tail = []
         budget = max(0, max_chars - len(head) - 100)
-        tail = text[-budget:] if budget else ""
-        return head + "\n\n[...older entries elided; run /presence-doctor to compress...]\n\n" + tail
+
+        for chunk in reversed(chunks[1:]):
+            if len(chunk) <= budget:
+                tail.insert(0, "\n## " + chunk)
+                budget -= len(chunk) + 4
+            else:
+                break
+
+        return head + "\n\n[...older entries elided; run /presence-doctor to compress...]\n" + "".join(tail)
     return text
 
 

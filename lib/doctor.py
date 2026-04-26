@@ -23,7 +23,7 @@ from presets import active_preset_name, list_presets
 
 def python_version_ok() -> tuple[bool, str]:
     v = sys.version_info
-    return ((v.major, v.minor) >= (3, 10), f"{v.major}.{v.minor}.{v.micro}")
+    return ((v.major, v.minor) >= (3, 12), f"{v.major}.{v.minor}.{v.micro}")
 
 
 def has_git() -> bool:
@@ -89,7 +89,7 @@ def render(rep: dict) -> str:
         f"presets      : {', '.join(rep['available_presets']) or '(none)'}",
         f"repo id      : {rep['current_repo_id']}",
         "",
-        f"python       : {rep['python_version']} {'OK' if rep['python_ok'] else 'FAIL (need 3.10+)'}",
+        f"python       : {rep['python_version']} {'OK' if rep['python_ok'] else 'FAIL (need 3.12+)'}",
         f"git on PATH  : {'OK' if rep['git_available'] else 'FAIL (telemetry disabled)'}",
         f"integrity    : {rep['integrity']}",
         "",
