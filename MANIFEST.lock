@@ -1,7 +1,7 @@
 {
   "_format": 1,
   "files": {
-    ".claude-plugin/plugin.json": "bca7a0e98db60d5353517a2484f1b325438a45297fee9ea6319b8fba16f89c30",
+    ".claude-plugin/plugin.json": "8efaf5f279a50c3fd7734555a0a1c99dc1e8c098e647ba7c4bee3760b72e2733",
     "agents/model-curator.md": "1b8381997ea4c29944e1388b7467ca38787c893801e8bfd79460c103d0e169d5",
     "commands/presence-curate.md": "9295204486515a9dfd1a66ee77b64b067fdcb04ca436f182106659b33d504986",
     "commands/presence-doctor.md": "36bf525442fa906811f7a67b654c09b4254f961ea4953365a890aff1456e2398",
@@ -17,7 +17,7 @@
     "hooks/scripts/session-start.sh": "8d1c7ae9ae0884fb88bc9e18f949dc9d5bd1c3ce1aff40da14088128917b09fb",
     "hooks/scripts/stop.sh": "54ead2f0f29aefcf9120f44f99f9c7f5357fbbacc9330d28e942200947595267",
     "hooks/scripts/user-prompt-submit.sh": "006cc582419f061934dc94842de6240722b48ac23578c1b0c84ae1ceaad6df60",
-    "lib/__init__.py": "a9eb3d3caec0e2091f4ad87f31a78bc2fc85ac908e776f77eafe61d6d61ff167",
+    "lib/__init__.py": "3924e6140f824621834055e1720aa9104fc10bf54c4af5f0f0cf1121a27b6aa9",
     "lib/_common.py": "843a6533ba284a7843380914c0d37aa85d348adc08f3354a71067f75ef2e8628",
     "lib/audit.py": "d71dada0ad335a0495e17afd04bbcb2f7c6e81fd163d8d3036ba83b5dbc1fa2a",
     "lib/cmdparse.py": "30f4562a191ad3a854e66d41cf6760a8e8c959761d4717ff4f024f3f773df1e3",
