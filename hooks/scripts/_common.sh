@@ -24,8 +24,11 @@ _presence_state_dir() {
 }
 
 _presence_mtime() {
-  # macOS uses stat -f %m; GNU stat uses -c %Y. Try both, return empty on failure.
-  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || printf ''
+  # Try GNU stat first, BSD second. Reverse order is unsafe on Linux: GNU
+  # stat treats `-f` as `--file-system` and dumps multi-line filesystem stats
+  # to stdout when called as `-f %m <file>`, which corrupts the cache marker.
+  # BSD stat rejects `-c` cleanly with empty stdout, so GNU-first works on macOS too.
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || printf ''
 }
 
 _presence_python_ok_cached() {

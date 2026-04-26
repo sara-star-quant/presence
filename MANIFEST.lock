@@ -10,7 +10,7 @@
     "commands/presence-status.md": "639ee3567b8ce59320dfaf6fbe27fff9de6089f74928c79feb3b8fb84380c352",
     "commands/presence-unlock.md": "d2359d143b019143a96d87d18c676ad5b28a9d940997ccfedb8f671f27462594",
     "hooks/hooks.json": "40effcbf1648f374a4f2f5766fb50090b5f7825887beaa4412f7fb67704f7c93",
-    "hooks/scripts/_common.sh": "49a6bd2625e77930393102e21e897e223b95a4542d7063fb2e0ac172e2cccc1b",
+    "hooks/scripts/_common.sh": "84a7bee3174c7410a275dbb123d5cd1e774c4c319ec2732f8146623ccfe58605",
     "hooks/scripts/post-tool-bash.sh": "6d27b03b211e0abe02eb3fad68f9ab2135907b5ee93ea62fad1aa01fa72cc445",
     "hooks/scripts/post-tool-edit.sh": "1dfb1213924a51a0e92bd0da5e19d660cb423e023543402544b7068b784bfa6e",
     "hooks/scripts/pre-tool-bash.sh": "6f31ce0896950ad03e5da8e06809c41029b7068c781e42e8d3c8045add91b3eb",
