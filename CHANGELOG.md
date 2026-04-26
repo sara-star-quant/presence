@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.3.3
+
+Zero-friction first install. Fixes a real bug (the installer accepted Python 3.10/3.11 even though the runtime requires 3.12+, so users on those versions got `ok` from install.sh and then every hook silently no-op'd). Adds a pre-Claude-Code health check, an opt-in Python bootstrap via uv, and a docs pass for first-time users. Plus governance docs (SECURITY.md, CONTRIBUTING.md, bench/README.md, GitHub issue + PR templates).
+
+### Fixed
+
+- **Python version contract corrected from 3.10 to 3.12 in install.sh + commands/presence-doctor.md.** The runtime (`hooks/scripts/_common.sh`, `lib/doctor.py`) has always required 3.12+; the installer was lying. Users on 3.10/3.11 will now see a clear message instead of silent no-op hooks. Four sites fixed: `install.sh` header comment, missing-python warning, version case statement, upgrade message; `commands/presence-doctor.md` doctor-failure advice line.
+
+### Added
+
+- **`install.sh --verify`**: pre-Claude-Code health check. Validates symlink, Python (using the same resolution runtime hooks do), all 6 hook scripts executable, state perms (0o700), `MANIFEST.lock` integrity, and synthetically fires all 6 hooks (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`(Bash), `PostToolUse`(Edit), `Stop`) against the real `lib/` tree. Exit 0 means ready; any FAIL line names exactly what is missing. The synthetic-fire-of-all-6-hooks check catches import regressions in any hook entry point (the original ultraplan only fired `SessionStart`, which would let a broken `hook_post_tool_bash.py` pass the check).
+- **`install.sh --verify --json`**: machine-readable variant. Emits `{"ok": bool, "checks": [{"name", "ok", "detail"}], "doctor": {...}}`. Useful for CI scripts wrapping install + a sanity check.
+- **`install.sh --bootstrap`**: opt-in Python bootstrap via uv. Skips silently when Python 3.12+ is already on PATH. When triggered: downloads uv from https://astral.sh (if not already installed), runs `uv python install 3.13`, resolves the binary path, writes it to `~/.claude/presence/.python_bin`, and pins it. The runtime hook wrapper (`hooks/scripts/_common.sh::_presence_pinned_python`) honors the marker so the pinned interpreter is used even when the user's PATH still points at an older python3. **Opt-in by design**: presence's "no network egress in default presets" stance applies to the installer too; the user must explicitly pass `--bootstrap`.
+- **`lib/doctor.py --fix`**: auto-corrects recoverable issues (state directory or file perms drifted from 0o700 / 0o600; `MANIFEST.lock` missing; stale `.integrity-blocked` marker present but the manifest now verifies). **Refuses to silently regenerate a MISMATCHED manifest** because that would mask tampering under zerotrust; the user has to investigate and run `python3 lib/integrity.py --write` themselves. Reports every action taken.
+- **`pinned_python` field in `lib/doctor.py::report()`**: surfaces the contents of `~/.claude/presence/.python_bin` so `/presence-doctor` shows which interpreter hooks will actually use (vs the one currently running doctor).
+- **Five new `--verify` tests in `tests/test_install_update.py`**: --help mentions --verify and --bootstrap, --verify passes on a healthy install, --verify fails when symlink is missing, --verify --json emits valid JSON, --verify covers all 6 hooks (asserts the `hook_synthetic_fire` check is present and passes).
+- **Five new `--fix` tests in `tests/test_doctor_fix.py`** (new file): chmods state dir to 0o700, chmods state files to 0o600, refuses to regenerate a mismatched manifest (the zerotrust safety guarantee), regenerates a missing manifest, clears a stale `.integrity-blocked` marker.
+
+### Added (governance docs)
+
+- **`SECURITY.md`**: vulnerability disclosure policy (use GitHub Security Advisory; do not file public issues), supported versions table, what is in-scope vs out-of-scope. Crosslinks `docs/security.md` and `docs/zerotrust.md`.
+- **`CONTRIBUTING.md`**: hard constraints (stdlib-only runtime, ASCII-only outside two intentional unicode test fixtures, no em-dashes, branch + PR + wait-for-merge), dev environment via PEP 735 (`pip install --group dev`), local check matrix (pytest + ruff + shellcheck + integrity verify), MANIFEST regeneration triggers, slash command / skill / agent / preset additions, release flow, performance work convention.
+- **`bench/README.md`**: what each of the 4 bench scripts measures, the warm-up / sample-discard convention, the `assert_all_ok` crash guard, reference numbers from v0.3.2, when to add a new bench, anti-patterns.
+- **`.github/ISSUE_TEMPLATE/bug.yml`**: structured bug report (version, preset, Python, platform, expected, actual, doctor output, steps).
+- **`.github/ISSUE_TEMPLATE/feature.yml`**: structured feature request (what, why, scope, alternatives) with a pointer to the `roadmap`-labeled issues so users see what is already deferred.
+- **`.github/ISSUE_TEMPLATE/security.yml`**: redirect to the private security advisory flow (forbids public security disclosures via issues).
+- **`.github/ISSUE_TEMPLATE/config.yml`**: disables blank issues; lists external links (security advisory, threat model doc, architecture doc).
+- **`.github/pull_request_template.md`**: short template (summary, what changed, test plan checklist, backward-compat statement, ASCII / em-dash / stdlib / CHANGELOG / MANIFEST checklist).
+
+### Changed
+
+- **`hooks/scripts/_common.sh::exec_hook`**: now prefers `~/.claude/presence/.python_bin` over `command -v python3`. Stale-marker handling is automatic (non-executable path -> fall through to PATH lookup). The cache marker (`.python_version_ok`) keys on the resolved binary so a uv-bootstrapped path participates in the same cache.
+- **`pyproject.toml`**: PEP 735 `[dependency-groups]` `dev` group (pytest, cryptography, ruff). Install with `pip install --group dev`.
+- **`README.md`**: install section restructured into a **Quickstart** with two commands (install + verify) for first-time users; existing marketplace + git clone alternatives moved under "Other install methods". New "Platforms" row in the By-the-numbers table makes Linux support explicit and points Windows users at WSL2.
+- **`llms.txt`**: install one-liner mentions `--bootstrap` and `--verify`; quick facts list adds the platforms row.
+- **`commands/presence-doctor.md`**: mentions the new `--fix` flag.
+- **`install.sh`** post-install "Next steps": first step is now `--verify` rather than "open Claude Code and hope".
+
+### Quality gates (this release)
+
+- 187 tests passing on Python 3.12 / 3.13 / 3.14 (was 177 in v0.3.2; +10 across `--verify` and `--fix` tests)
+- ruff clean
+- shellcheck clean
+- ASCII-only outside the two intentional unicode test fixtures
+- MANIFEST.lock verifies OK
+- Backward compat: every v0.3.x state file remains readable. The `.python_bin` marker is a new sibling, not a schema change. The wrapper falls through to PATH lookup when the marker is absent or stale; existing installs work unchanged.
+
 ## v0.3.2
 
 Distribution release: the plugin can now be installed via the `/plugin marketplace add` flow that the README has always advertised, and a real `--update` flag in `install.sh` makes the existing flow easier to keep current. No runtime behavior changes; only install/update plumbing and tests.

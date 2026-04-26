@@ -51,6 +51,23 @@ def _file_size(p: Path) -> int:
         return 0
 
 
+def _pinned_python() -> str | None:
+    """Return the contents of $state_dir/.python_bin if the file exists.
+
+    This is what install.sh --bootstrap writes when it auto-installs a Python
+    via uv. The runtime hook wrapper (_common.sh::_presence_pinned_python)
+    honors the same marker; surfacing it here lets /presence-doctor confirm
+    which interpreter hooks will actually use.
+    """
+    p = state_dir() / ".python_bin"
+    if not p.exists():
+        return None
+    try:
+        return p.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
 def report(cwd: str | None = None) -> dict:
     cwd = cwd or "."
     rid = repo_id(cwd)
@@ -74,6 +91,7 @@ def report(cwd: str | None = None) -> dict:
         "warnings_log_bytes": _file_size(logs_dir() / "warnings.log"),
         "python_ok": py_ok,
         "python_version": py_ver,
+        "pinned_python": _pinned_python(),
         "git_available": has_git(),
         "integrity": integrity_status(),
     }
@@ -90,6 +108,7 @@ def render(rep: dict) -> str:
         f"repo id      : {rep['current_repo_id']}",
         "",
         f"python       : {rep['python_version']} {'OK' if rep['python_ok'] else 'FAIL (need 3.12+)'}",
+        f"pinned python: {rep['pinned_python'] or '(none; using PATH python3)'}",
         f"git on PATH  : {'OK' if rep['git_available'] else 'FAIL (telemetry disabled)'}",
         f"integrity    : {rep['integrity']}",
         "",
@@ -113,13 +132,113 @@ def render(rep: dict) -> str:
     return "\n".join(lines)
 
 
+def fix() -> tuple[list[str], list[str]]:
+    """Auto-correct recoverable issues. Returns (actions_taken, issues_remaining).
+
+    Safe fixes only - never touches things that need user judgment (settings.json
+    corruption, missing lib/ files, encryption key mismatches):
+      - state directory or file perms drifted from 0o700/0o600
+      - MANIFEST.lock missing OR mismatched (regenerate; the tampered case is
+        not distinguishable from "user is on a fresh checkout that hasn't run
+        --write yet", so we always regenerate when --fix is asked)
+      - .integrity-blocked marker present but the regenerated manifest verifies
+    """
+    import os
+    import stat as stat_mod
+
+    actions: list[str] = []
+    remaining: list[str] = []
+
+    # 1. Perms drift on state dir + everything under it.
+    sd = state_dir()
+    try:
+        cur = stat_mod.S_IMODE(sd.stat().st_mode)
+        if cur != 0o700:
+            sd.chmod(0o700)
+            actions.append(f"chmod 0o700 {sd}")
+    except OSError as exc:
+        remaining.append(f"could not chmod {sd}: {exc}")
+
+    for root, dirs, files in os.walk(sd):
+        for d in dirs:
+            p = Path(root) / d
+            try:
+                cur = stat_mod.S_IMODE(p.stat().st_mode)
+                if cur != 0o700:
+                    p.chmod(0o700)
+                    actions.append(f"chmod 0o700 {p}")
+            except OSError:
+                pass
+        for f in files:
+            p = Path(root) / f
+            try:
+                cur = stat_mod.S_IMODE(p.stat().st_mode)
+                if cur != 0o600:
+                    p.chmod(0o600)
+                    actions.append(f"chmod 0o600 {p}")
+            except OSError:
+                pass
+
+    # 2. Manifest: regenerate ONLY when missing. A mismatched manifest is
+    # ambiguous (could be local edits OR tampering); silently regenerating
+    # would mask the tampering case under zerotrust. The user has to
+    # investigate and run `python3 lib/integrity.py --write` themselves once
+    # they've confirmed the files are intact.
+    try:
+        from integrity import load_manifest, write_manifest
+        if load_manifest() is None:
+            target = write_manifest()
+            actions.append(f"regenerated missing {target}")
+        else:
+            from integrity import verify_manifest
+            missing, mismatched, _extra = verify_manifest()
+            if missing or mismatched:
+                remaining.append(
+                    f"MANIFEST.lock mismatched ({len(missing)} missing, {len(mismatched)} mismatched); "
+                    "investigate then run `python3 lib/integrity.py --write` if files are intact"
+                )
+    except Exception as exc:  # noqa: BLE001
+        remaining.append(f"could not check/regenerate MANIFEST.lock: {exc}")
+
+    # 3. Stale .integrity-blocked: clear if manifest now verifies.
+    try:
+        from _common import clear_integrity_block, integrity_block_path
+        from integrity import integrity_ok
+        bp = integrity_block_path()
+        if bp.exists() and integrity_ok():
+            clear_integrity_block()
+            actions.append(f"cleared stale {bp}")
+    except Exception as exc:  # noqa: BLE001
+        remaining.append(f"could not check/clear .integrity-blocked: {exc}")
+
+    return actions, remaining
+
+
 def _cli() -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description="presence diagnostic report")
     ap.add_argument("--json", action="store_true", help="emit JSON instead of human text")
     ap.add_argument("--cwd", default=".", help="project directory to inspect")
+    ap.add_argument("--fix", action="store_true",
+                    help="auto-correct recoverable issues (perm drift, missing manifest, stale block marker)")
     args = ap.parse_args()
+    if args.fix:
+        actions, remaining = fix()
+        if args.json:
+            print(json.dumps({"actions": actions, "remaining": remaining}, indent=2))
+        else:
+            if actions:
+                print("presence: doctor --fix")
+                for a in actions:
+                    print(f"  fixed: {a}")
+            else:
+                print("presence: doctor --fix (nothing to do)")
+            if remaining:
+                print("\nstill needs attention:")
+                for r in remaining:
+                    print(f"  - {r}")
+        return 1 if remaining else 0
     rep = report(args.cwd)
     if args.json:
         print(json.dumps(rep, indent=2, default=str))

@@ -8,12 +8,14 @@ Run the presence diagnostic report and display its output verbatim. Then, if the
 ```bash
 PRESENCE_ROOT="${CLAUDE_PLUGIN_ROOT:-$(realpath ~/.claude/plugins/presence 2>/dev/null || echo .)}"
 PYTHONPATH="$PRESENCE_ROOT/lib" python3 "$PRESENCE_ROOT/lib/doctor.py" --cwd "$PWD"
+# Pass --fix to auto-correct recoverable issues (perm drift, missing manifest,
+# stale .integrity-blocked marker). Never modifies settings.json or lib/ files.
 ```
 
 After showing the output:
 - If `errors_since_last_session > 0`, tell the user to inspect `~/.claude/presence/logs/errors.log`.
 - If `warnings_since_last_session > 0`, the recent warnings are already in the report; explain the most common categories (e.g. `git_timeout`, `jsonl_corrupt`, `hook_input_malformed`).
-- If `python_ok` is false, tell them to install Python 3.10+.
+- If `python_ok` is false, tell them to install Python 3.12+.
 - If `git_available` is false, tell them telemetry is disabled.
 - If `integrity` is FAILED, tell them to reinstall presence: the plugin files have changed and may be tampered.
 - Otherwise, say "presence is healthy."

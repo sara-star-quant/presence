@@ -1,0 +1,88 @@
+name: Bug report
+description: Something in presence does not work as documented
+title: "[bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The faster fields below let the maintainer reproduce; please fill them in even if it feels redundant.
+
+  - type: input
+    id: version
+    attributes:
+      label: presence version
+      description: Output of `cat ~/.claude/plugins/presence/.claude-plugin/plugin.json | grep version`
+      placeholder: "0.3.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Active preset
+      options:
+        - solo-dev
+        - team-oss
+        - enterprise-strict
+        - zerotrust
+        - custom
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.14.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS arm64
+        - macOS x86_64
+        - Linux (Ubuntu)
+        - Linux (other)
+        - Windows via WSL2
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `./install.sh --verify --json` or `/presence-doctor`
+      description: |
+        Run `~/.claude/plugins/presence/install.sh --verify --json` or invoke `/presence-doctor` in Claude Code and paste the output. This is usually enough to localize the issue.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: false

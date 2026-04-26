@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest something presence should do that it currently does not
+title: "[feature]: "
+labels: ["feature", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a feature request, check the open issues with the `roadmap` label. Several deliberate-defer decisions live there (multi-AI-tool support, native Windows, release automation, state snapshots, preset schema validation, side-by-side installs).
+
+  - type: textarea
+    id: want
+    attributes:
+      label: What you want presence to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is this hard with current presence
+      description: Have you tried customizing a preset or scripting around it? What got in the way?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Estimated scope
+      options:
+        - patch (one or two files, no schema change)
+        - minor (multiple files, possibly new tests / docs)
+        - major (architectural; new commands, new state, new packaging)
+        - not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
