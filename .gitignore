@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local dev artifacts (not part of the plugin)
+/scratch/
+/.local/
+*.tmp
+*.tmp.*
+errors.log
+warnings.log
+
+# DO NOT ignore MANIFEST.lock; it ships with the plugin and CI verifies it
+# DO NOT ignore presets/*.json; those are part of the plugin

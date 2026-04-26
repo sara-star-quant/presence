@@ -1,0 +1,41 @@
+# presence is a Claude Code plugin, not a Python package.
+# Plugin metadata lives in .claude-plugin/plugin.json.
+# This file holds only dev-tool configuration (ruff, pytest).
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["docs", "presets"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",
+  "I",
+  "B",
+  "UP",
+  "S",
+  "RET",
+  "SIM",
+  "PL",
+]
+ignore = [
+  "E501",
+  "S603",
+  "S607",
+  "PLR0913",
+  "PLC0415",
+  "SIM105",
+  "PLR2004",
+  "PLR0912",
+  "PLR0911",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S108"]
+"lib/_common.py" = ["S110", "BLE001"]
+"lib/warnings_log.py" = ["E731"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+filterwarnings = ["error"]

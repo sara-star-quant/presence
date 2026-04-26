@@ -1,0 +1,31 @@
+{
+  "_description": "Regulated/enterprise work. Maximum context, hard commit/push gate, audit log, integrity check on plugin files.",
+  "model": {
+    "enabled": true,
+    "max_tokens": 8000,
+    "verbose": true,
+    "audit_log": true
+  },
+  "telemetry": {
+    "enabled": true,
+    "gh_pr_check": true,
+    "audit_log": true
+  },
+  "events": {
+    "enabled": true
+  },
+  "confidence": {
+    "enabled": true,
+    "commit_gate": "block",
+    "stop_action": "block"
+  },
+  "redact": {
+    "enabled": true,
+    "level": "aggressive"
+  },
+  "integrity": {
+    "enabled": true,
+    "verify_manifest": true,
+    "fail_closed": false
+  }
+}

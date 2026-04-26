@@ -1,0 +1,55 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }} / ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14"]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+      - name: Install pytest
+        run: pip install --upgrade pip && pip install pytest
+      - name: Run tests
+        run: PYTHONPATH=lib pytest -q
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run shellcheck
+        run: |
+          shellcheck hooks/scripts/*.sh
+          shellcheck install.sh
+
+  manifest-integrity:
+    name: regenerate MANIFEST.lock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Regenerate MANIFEST.lock
+        run: PYTHONPATH=lib python lib/integrity.py --write
+      - name: Diff MANIFEST.lock
+        run: |
+          if ! git diff --exit-code MANIFEST.lock; then
+            echo "::error::MANIFEST.lock is stale. Run 'PYTHONPATH=lib python lib/integrity.py --write' and commit."
+            exit 1
+          fi

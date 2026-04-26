@@ -1,0 +1,29 @@
+{
+  "_description": "Open-source team work. Verbose model, PR-status telemetry, soft commit gate that asks for confirmation when verification is missing.",
+  "model": {
+    "enabled": true,
+    "max_tokens": 6000,
+    "verbose": true
+  },
+  "telemetry": {
+    "enabled": true,
+    "gh_pr_check": true
+  },
+  "events": {
+    "enabled": true
+  },
+  "confidence": {
+    "enabled": true,
+    "commit_gate": "warn",
+    "stop_action": "silent"
+  },
+  "redact": {
+    "enabled": true,
+    "level": "standard"
+  },
+  "integrity": {
+    "enabled": false
+  },
+  "audit_log": false,
+  "encrypted": false
+}

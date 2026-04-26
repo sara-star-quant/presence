@@ -1,0 +1,41 @@
+{
+  "_description": "Zero-Trust profile. Assume breach: verify plugin integrity every session, encrypt state at rest, aggressive redaction, no network egress, hard commit/push gate, tamper-evident audit log. Opt-in.",
+  "model": {
+    "enabled": true,
+    "max_tokens": 4000,
+    "verbose": false,
+    "encrypted": true,
+    "audit_log": true
+  },
+  "telemetry": {
+    "enabled": true,
+    "gh_pr_check": false,
+    "audit_log": true,
+    "encrypted": true
+  },
+  "events": {
+    "enabled": true,
+    "encrypted": true
+  },
+  "confidence": {
+    "enabled": true,
+    "commit_gate": "block",
+    "stop_action": "block"
+  },
+  "redact": {
+    "enabled": true,
+    "level": "aggressive"
+  },
+  "integrity": {
+    "enabled": true,
+    "verify_manifest": true,
+    "fail_closed": true
+  },
+  "network": {
+    "egress_allowed": false
+  },
+  "transcript": {
+    "max_bytes": 262144,
+    "restrict_to_claude_projects": true
+  }
+}

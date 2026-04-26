@@ -1,0 +1,29 @@
+{
+  "_description": "Default preset. Personal projects, fast feedback, advisory only; never blocks.",
+  "model": {
+    "enabled": true,
+    "max_tokens": 4000,
+    "verbose": false
+  },
+  "telemetry": {
+    "enabled": true,
+    "gh_pr_check": false
+  },
+  "events": {
+    "enabled": true
+  },
+  "confidence": {
+    "enabled": true,
+    "commit_gate": "off",
+    "stop_action": "silent"
+  },
+  "redact": {
+    "enabled": true,
+    "level": "standard"
+  },
+  "integrity": {
+    "enabled": false
+  },
+  "audit_log": false,
+  "encrypted": false
+}
