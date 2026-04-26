@@ -26,19 +26,41 @@ def percentile(values: list[float], p: float) -> float:
     return s[k]
 
 
-def time_subprocess(cmd: list[str], env: dict, stdin_bytes: bytes = b"", cwd: str | None = None) -> float:
-    """Run cmd, return wall-clock seconds. Discards output."""
+def time_subprocess(
+    cmd: list[str],
+    env: dict,
+    stdin_bytes: bytes = b"",
+    cwd: str | None = None,
+) -> tuple[float, int]:
+    """Run cmd, return (wall-clock seconds, returncode). Discards stdout; keeps
+    stderr in memory only long enough to drop it (we never want bench output
+    polluted by hook chatter, but we do want returncode so callers can
+    invalidate runs where the hook crashed).
+    """
     t0 = time.perf_counter()
-    subprocess.run(  # noqa: S603
+    r = subprocess.run(  # noqa: S603
         cmd,
         env=env,
         input=stdin_bytes,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         cwd=cwd,
         check=False,
     )
-    return time.perf_counter() - t0
+    return time.perf_counter() - t0, r.returncode
+
+
+def assert_all_ok(returncodes: list[int], label: str) -> None:
+    """Abort the bench run if any sample exited non-zero. A crashing hook
+    produces fast, fake-good wall-clock samples; silently averaging them in
+    invalidates the SLO."""
+    bad = [i for i, rc in enumerate(returncodes) if rc != 0]
+    if bad:
+        raise SystemExit(
+            f"bench '{label}' invalidated: {len(bad)}/{len(returncodes)} "
+            f"samples exited non-zero (first index {bad[0]}). "
+            f"Hook is crashing; numbers below would not be meaningful."
+        )
 
 
 def summarize(samples_s: list[float]) -> dict:

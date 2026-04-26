@@ -161,9 +161,10 @@ async def fail_closed_integrity_check(cfg: dict) -> str | None:
         )
     if not (missing or mismatched):
         return None
+    active_preset = cfg.get("__active_preset__", "(unknown)")
     return (
         "<presence_integrity_fail>\n"
-        f"  Plugin file integrity check FAILED under {{}} preset.\n"
+        f"  Plugin file integrity check FAILED under {active_preset} preset.\n"
         f"    Missing: {len(missing)} file(s)"
         + (f" ({', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})" if missing else "")
         + "\n"
@@ -173,7 +174,7 @@ async def fail_closed_integrity_check(cfg: dict) -> str | None:
         "  Hooks will remain INERT for the rest of this session. Reinstall the plugin\n"
         "  or investigate which files changed before continuing.\n"
         "</presence_integrity_fail>"
-    ).format(cfg.get("__active_preset__", "zerotrust"))
+    )
 
 
 async def async_main():

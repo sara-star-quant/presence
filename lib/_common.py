@@ -239,7 +239,7 @@ def _maybe_encrypt(plain_json_line: str) -> str:
     """Encrypt the line iff the active preset wants encryption AND key is available.
     Otherwise return the plain line unchanged. Best-effort; on any failure, returns plain.
     """
-    enabled, key = _encryption_state()
+    enabled, key = _encryption_write_state()
     if not enabled or key is None:
         return plain_json_line
     try:
@@ -249,63 +249,93 @@ def _maybe_encrypt(plain_json_line: str) -> str:
         return plain_json_line
 
 
-# Module-level cache of the encryption decision; hooks are short-lived processes,
-# so a per-process cache is safe and avoids re-reading settings on every append.
-_ENCRYPTION_STATE_CACHE: tuple[bool, bytes | None] | None = None
+# Per-process caches. Hooks are short-lived so a process-local cache is safe.
+# Two separate caches:
+#   _WRITE_STATE_CACHE: only populated on the write path; never touches the
+#       keychain in presets that don't request encryption.
+#   _READ_KEY_CACHE:    populated lazily on the read path the first time
+#       read_jsonl encounters an encrypted-looking line. Sentinel _UNSET means
+#       "not yet looked"; None means "looked, no key available".
+# Splitting them removes the v0.3.0-and-earlier behavior where read_jsonl
+# called _try_existing_key_only() (a `security` subprocess on macOS) on every
+# cold hook even under solo-dev / team-oss / enterprise-strict, dominating the
+# cold-hook latency budget.
+_WRITE_STATE_CACHE: tuple[bool, bytes | None] | None = None
+_UNSET = object()
+_READ_KEY_CACHE: object = _UNSET
 
 
-def _encryption_state() -> tuple[bool, bytes | None]:
-    """Return (encryption_enabled_for_writes, key_or_None_for_reads). Cached per process.
+def _encryption_write_state() -> tuple[bool, bytes | None]:
+    """Return (wants_encrypt, key_or_None) for the write path.
 
-    enabled=True means: the active preset has at least one storage section flagged
-    encrypted=true AND the cryptography lib is importable AND the keychain returned
-    a key. Reads always try to decrypt encrypted-looking lines if a key is available,
-    even when writes are plain (so historical encrypted data stays readable after a
-    preset switch).
+    Returns (False, None) without ever invoking the keychain when the active
+    preset has no storage section flagged ``encrypted``.
     """
-    global _ENCRYPTION_STATE_CACHE
-    if _ENCRYPTION_STATE_CACHE is not None:
-        return _ENCRYPTION_STATE_CACHE
+    global _WRITE_STATE_CACHE
+    if _WRITE_STATE_CACHE is not None:
+        return _WRITE_STATE_CACHE
 
     cfg = settings()
     wants_encrypt = any(
         bool((cfg.get(section) or {}).get("encrypted"))
         for section in ("model", "telemetry", "events")
     )
+    if not wants_encrypt:
+        _WRITE_STATE_CACHE = (False, None)
+        return _WRITE_STATE_CACHE
+
     try:
         from crypto import get_or_create_key, is_available
     except ImportError:
-        if wants_encrypt:
-            from warnings_log import warn_once
-            warn_once(
-                "crypto_lib_missing",
-                "preset wants encryption but `cryptography` is not installed; falling back to plain",
-            )
-        _ENCRYPTION_STATE_CACHE = (False, None)
-        return _ENCRYPTION_STATE_CACHE
+        from warnings_log import warn_once
+        warn_once(
+            "crypto_lib_missing",
+            "preset wants encryption but `cryptography` is not installed; falling back to plain",
+        )
+        _WRITE_STATE_CACHE = (False, None)
+        return _WRITE_STATE_CACHE
 
     if not is_available():
-        if wants_encrypt:
-            from warnings_log import warn_once
-            warn_once(
-                "crypto_keychain_missing",
-                "preset wants encryption but no OS keychain backend (security/secret-tool) found",
-            )
-        _ENCRYPTION_STATE_CACHE = (False, None)
-        return _ENCRYPTION_STATE_CACHE
+        from warnings_log import warn_once
+        warn_once(
+            "crypto_keychain_missing",
+            "preset wants encryption but no OS keychain backend (security/secret-tool) found",
+        )
+        _WRITE_STATE_CACHE = (False, None)
+        return _WRITE_STATE_CACHE
 
-    key = get_or_create_key() if wants_encrypt else _try_existing_key_only()
-    if wants_encrypt and key is None:
+    key = get_or_create_key()
+    if key is None:
         from warnings_log import warn_once
         warn_once(
             "crypto_key_failed",
             "could not retrieve or create the data key from the keychain",
         )
-        _ENCRYPTION_STATE_CACHE = (False, None)
-        return _ENCRYPTION_STATE_CACHE
+        _WRITE_STATE_CACHE = (False, None)
+        return _WRITE_STATE_CACHE
 
-    _ENCRYPTION_STATE_CACHE = (wants_encrypt, key)
-    return _ENCRYPTION_STATE_CACHE
+    _WRITE_STATE_CACHE = (True, key)
+    return _WRITE_STATE_CACHE
+
+
+def _read_key_lazy() -> bytes | None:
+    """Return a key for the read path, fetched lazily on first encrypted line.
+
+    Reuses the write-state key when encryption is on for writes; otherwise
+    tries to fetch an existing key without creating one (so historical
+    encrypted lines remain readable after a preset switch). Either way, the
+    keychain is only touched once per process and only if the reader has
+    actually seen an encrypted line.
+    """
+    global _READ_KEY_CACHE
+    if _READ_KEY_CACHE is not _UNSET:
+        return _READ_KEY_CACHE  # type: ignore[return-value]
+    _enabled, key = _encryption_write_state()
+    if key is not None:
+        _READ_KEY_CACHE = key
+        return key
+    _READ_KEY_CACHE = _try_existing_key_only()
+    return _READ_KEY_CACHE  # type: ignore[return-value]
 
 
 def _try_existing_key_only() -> bytes | None:
@@ -362,25 +392,35 @@ def read_jsonl(path: str | os.PathLike[str]) -> list[dict]:
         return []
     out: list[dict] = []
     corrupt = 0
-    _enabled, key = _encryption_state()
-    try:
-        from crypto import decrypt_line, is_encrypted_line
-        crypto_imported = True
-    except ImportError:
-        decrypt_line = None
-        is_encrypted_line = lambda _s: False  # noqa: E731
-        crypto_imported = False
+    # Defer crypto import + keychain probe to first encrypted line. In the
+    # common case (solo-dev / team-oss / enterprise-strict reading a plain
+    # file) neither happens at all, eliminating the keychain subprocess that
+    # used to dominate cold-hook latency on macOS.
+    decrypt_line = None
+    is_encrypted_line = None
+    crypto_imported = False
+    key: object = _UNSET
     try:
         with open(p, encoding="utf-8", errors="replace") as f:
             for line in f:
                 s = line.strip()
                 if not s:
                     continue
-                if crypto_imported and is_encrypted_line(s):
+                if not crypto_imported:
+                    try:
+                        from crypto import decrypt_line as _dl
+                        from crypto import is_encrypted_line as _iel
+                        decrypt_line, is_encrypted_line = _dl, _iel
+                    except ImportError:
+                        is_encrypted_line = lambda _s: False  # noqa: E731
+                    crypto_imported = True
+                if is_encrypted_line(s):
+                    if key is _UNSET:
+                        key = _read_key_lazy()
                     if key is None:
                         corrupt += 1
                         continue
-                    plain = decrypt_line(s, key)
+                    plain = decrypt_line(s, key)  # type: ignore[misc]
                     if plain is None:
                         corrupt += 1
                         continue
@@ -419,7 +459,15 @@ def now_ts() -> int:
 # ---------------------------------------------------------------------------
 
 def integrity_block_path() -> Path:
-    return state_dir() / ".integrity-blocked"
+    """Return the marker path WITHOUT calling state_dir().
+
+    integrity_blocked() is the first line of every sync hook's main(), so a
+    mkdir + stat + chmod here costs ~3 syscalls per cold fire just to ask "does
+    the marker exist?". If STATE_DIR doesn't exist the marker can't either, so
+    a missing-dir read returns False correctly with zero extra work. Writers
+    (set_integrity_block) go through atomic_write, which creates the parent.
+    """
+    return STATE_DIR / ".integrity-blocked"
 
 
 def integrity_blocked() -> bool:
@@ -561,12 +609,22 @@ class SettingsError(Exception):
     pass
 
 
+_SETTINGS_CACHE: dict | None = None
+
+
 def settings(strict: bool = False) -> dict:
     """Return merged active preset + user overrides.
 
     Missing files -> defaults silently.
     Corrupt files -> warn loudly via warnings channel (and raise SettingsError if strict).
+
+    Result is cached per process (hook lifetime). ``strict=True`` callers
+    bypass the cache so validation paths always re-parse and re-raise.
     """
+    global _SETTINGS_CACHE
+    if _SETTINGS_CACHE is not None and not strict:
+        return _SETTINGS_CACHE
+
     from warnings_log import warn
 
     s_path = state_dir() / "settings.json"
@@ -587,11 +645,17 @@ def settings(strict: bool = False) -> dict:
     if preset is None:
         warn("preset_missing", f"preset '{preset_name}' not found; using empty preset")
         preset = {}
+    # Stamp the active preset name into the merged dict so callers (notably
+    # hook_session_start.fail_closed_integrity_check) can report it without a
+    # second settings round-trip.
+    preset["__active_preset__"] = preset_name
 
     overrides = user_settings.get("overrides") or {}
     if isinstance(overrides, dict):
         for k, v in overrides.items():
             _apply_dotted(preset, str(k), v)
+    if not strict:
+        _SETTINGS_CACHE = preset
     return preset
 
 

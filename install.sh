@@ -121,6 +121,13 @@ install() {
     else
       warn "could not generate MANIFEST.lock (integrity verification will be skipped in zerotrust preset)"
     fi
+    # Pre-compile lib/ to .pyc so the first hook fire of every session skips
+    # the parse-and-compile step (~5-10 ms saved per cold start). Best-effort:
+    # if compileall fails (read-only fs, version mismatch, etc.) the runtime
+    # behavior is unchanged, just slightly slower on first fire.
+    if python3 -m compileall -q "$SCRIPT_DIR/lib" >/dev/null 2>&1; then
+      ok "lib/ pre-compiled to bytecode"
+    fi
   fi
 
   echo

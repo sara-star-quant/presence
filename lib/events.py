@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from _common import _flock, append_jsonl, events_dir, now_ts
+from _common import _flock, _read_key_lazy, append_jsonl, events_dir, now_ts, read_jsonl
 
 
 def event_path(cwd=None) -> Path:
@@ -74,39 +74,59 @@ def drain_events(cwd=None) -> list[dict]:
 def _parse_drain(raw: str) -> tuple[list[dict], str]:
     """Return (parsed events, kept-as-string-tail). Tail is currently always empty
     because we drain everything we read; see module docstring for rationale.
+
+    Per-line decryption-aware: under presets that set ``events.encrypted=true``
+    every appended line is the encrypted envelope ``{"_e":...}``. Plain
+    json.loads succeeds on that envelope and returns a dict with no ``kind``,
+    which causes ``summarize_events`` to silently drop every event. Decrypt
+    each encrypted line back to its original payload before parsing.
     """
+    try:
+        from crypto import decrypt_line, is_encrypted_line
+        crypto_imported = True
+    except ImportError:
+        decrypt_line = None
+        is_encrypted_line = lambda _s: False  # noqa: E731
+        crypto_imported = False
+    key: bytes | None = None
+    key_resolved = False
     events: list[dict] = []
     for line in raw.splitlines():
         s = line.strip()
         if not s:
             continue
-        try:
-            events.append(json.loads(s))
-        except json.JSONDecodeError:
-            # Corrupt line: drop it (warn separately via read_jsonl path elsewhere).
-            continue
+        if crypto_imported and is_encrypted_line(s):
+            if not key_resolved:
+                key = _read_key_lazy()
+                key_resolved = True
+            if key is None:
+                # cannot decrypt; drop, do not surface as opaque envelope
+                continue
+            plain = decrypt_line(s, key)
+            if plain is None:
+                continue
+            try:
+                events.append(json.loads(plain.decode("utf-8")))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+        else:
+            try:
+                events.append(json.loads(s))
+            except json.JSONDecodeError:
+                # Corrupt line: drop it (warn separately via read_jsonl path elsewhere).
+                continue
     return events, ""
 
 
 def peek_events(cwd=None) -> list[dict]:
-    """Read events without draining (used by verify.* and the doctor)."""
-    p = event_path(cwd)
-    if not p.exists():
-        return []
-    out: list[dict] = []
-    try:
-        with open(p, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                s = line.strip()
-                if not s:
-                    continue
-                try:
-                    out.append(json.loads(s))
-                except json.JSONDecodeError:
-                    continue
-    except OSError:
-        return []
-    return out
+    """Read events without draining (used by verify.* and the doctor).
+
+    Thin wrapper around ``read_jsonl`` so encrypted event files (under
+    ``events.encrypted=true``) are decrypted per-line. The previous bespoke
+    implementation called ``json.loads`` directly and silently returned opaque
+    envelopes for encrypted data.
+    """
+    return read_jsonl(event_path(cwd))
 
 
 def summarize_events(events: list[dict], max_lines: int = 20) -> str:

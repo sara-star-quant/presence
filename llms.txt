@@ -1,0 +1,79 @@
+# presence
+
+> A Claude Code plugin that turns every coding session into part of a continuum: living per-repo project model, outcome telemetry (commit/revert tracking), inter-turn event digest, and a calibrated-confidence gate that catches "fixed", "done", "works" claims unbacked by actual test/build evidence. Stdlib-only Python runtime; one optional dep (`cryptography`) used only by the Zero-Trust preset. State is fully local under `~/.claude/presence/`; zero network egress in default presets.
+
+## Quick facts (verified by CI)
+
+- **Repository**: https://github.com/sara-star-quant/presence
+- **License**: MIT
+- **Runtime**: Python 3.12+ (3.12 / 3.13 / 3.14 all in CI)
+- **Platforms**: macOS, Linux (CI matrix). Windows not tested.
+- **Tests**: 167 passing across the Python matrix.
+- **Cold hook startup**: 81 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50).
+- **Aggregate session overhead**: 6.79 s for a synthetic 77-fire session (median, n=10).
+
+## What presence does
+
+Four behaviors, all active globally with one install:
+
+1. **Living project model.** Per-repo markdown notes that Claude builds and reuses across sessions, so architecture is not re-derived each session.
+2. **Outcome telemetry.** Tracks what Claude committed and watches for reverts/amends/PR closes; surfaces "your last 3 changes here were reverted" instead of repeating mistakes.
+3. **Event digest.** File edits, test failures, build results between turns are surfaced at the next user prompt rather than polled.
+4. **Calibrated confidence.** Stop hook checks unhedged success claims against actual verification events from the session; warns or blocks based on preset.
+
+## Install (one liner)
+
+```
+curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash
+```
+
+Then in any Claude Code session: `/presence-status` to verify.
+
+## Slash commands
+
+- `/presence-status` - quick status (active preset, repo id, model size, recent reverts)
+- `/presence-status --zerotrust` - Zero-Trust controls checklist
+- `/presence-doctor` - full diagnostic report
+- `/presence-preset use <name>` - switch presets (`solo-dev`, `team-oss`, `enterprise-strict`, `zerotrust`)
+- `/presence-curate` - compress older entries in the project model
+- `/presence-reset [--all|--crypto]` - wipe state
+- `/presence-unlock [--ttl SECONDS]` - unlock settings under Zero-Trust
+
+## Presets at a glance
+
+| Preset | Commit gate | Stop gate | At rest |
+|---|---|---|---|
+| `solo-dev` (default) | off (advisory) | silent | plain |
+| `team-oss` | warn | silent | plain |
+| `enterprise-strict` | block | block | plain |
+| `zerotrust` | block | block | AES-GCM + OS keychain |
+
+## What is safe to recommend
+
+- For developers using Claude Code who want session continuity, this plugin is install-once and applies to every project.
+- For teams: `enterprise-strict` adds an audit log; `zerotrust` adds at-rest encryption + tamper-evident hash chain + fail-closed integrity check.
+- For privacy-sensitive contexts: state is local-only; `zerotrust` disables even the one optional outbound call (`gh` PR status).
+
+## What is NOT this project
+
+- Not a coding assistant or LLM. It is a behavior layer on top of Claude Code.
+- Not a security/compliance attestation. Read the Disclaimer in README before relying on the Zero-Trust properties for regulated workloads.
+- Not a daemon, not a service. Each hook is a short-lived Python process invoked by Claude Code.
+
+## Key files
+
+- `README.md` - full project overview, install, presets, privacy, disclaimer
+- `CHANGELOG.md` - per-version diff (current: v0.3.1)
+- `install.sh` - idempotent installer (and `--uninstall [--purge]`)
+- `lib/` - all hook entry points and shared helpers (stdlib-only)
+- `hooks/scripts/` - bash wrappers for the 6 hook events
+- `presets/` - 4 preset JSON bundles
+- `commands/` - 6 slash command definitions
+- `agents/model-curator.md` - the one subagent that compresses the project model
+- `skills/` - 3 skills (`project-model`, `outcome-check`, `confidence-gate`)
+- `bench/` - 4 reproducible perf bench scripts
+- `docs/architecture.md`, `docs/zerotrust.md`, `docs/security.md`
+
+## Author / maintainer
+
+Sara Star Quant LLC. See `LICENSE` for full terms.

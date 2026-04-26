@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import REPO_ROOT, emit_report, summarize, time_subprocess  # noqa: E402
+from _lib import REPO_ROOT, assert_all_ok, emit_report, summarize, time_subprocess  # noqa: E402
 
 HOOK_SCRIPT = REPO_ROOT / "hooks/scripts/session-start.sh"
 
@@ -141,11 +141,14 @@ def run(runs: int, model_kb: int, events: int, claims: int) -> dict:
         for _ in range(3):
             time_subprocess(cmd, env=env, stdin_bytes=stdin_payload, cwd=str(repo))
 
-        samples = [
-            time_subprocess(cmd, env=env, stdin_bytes=stdin_payload, cwd=str(repo))
-            for _ in range(runs)
-        ]
+        samples: list[float] = []
+        rcs: list[int] = []
+        for _ in range(runs):
+            t, rc = time_subprocess(cmd, env=env, stdin_bytes=stdin_payload, cwd=str(repo))
+            samples.append(t)
+            rcs.append(rc)
 
+    assert_all_ok(rcs, "session_start_populated")
     return summarize(samples)
 
 

@@ -29,7 +29,14 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import REPO_ROOT, emit_report, percentile, summarize, time_subprocess  # noqa: E402
+from _lib import (  # noqa: E402
+    REPO_ROOT,
+    assert_all_ok,
+    emit_report,
+    percentile,
+    summarize,
+    time_subprocess,
+)
 
 SCRIPTS_DIR = REPO_ROOT / "hooks" / "scripts"
 
@@ -115,21 +122,25 @@ def _build_env(state_dir: Path) -> dict:
     return env
 
 
-def _run_one_session(env: dict, repo: Path) -> dict:
-    """Execute one full session worth of hook fires. Return per-hook timing lists."""
+def _run_one_session(env: dict, repo: Path) -> tuple[dict, list[int]]:
+    """Execute one full session worth of hook fires.
+    Return (per-hook timing lists, all returncodes in fire order)."""
     cwd = str(repo)
     timings: dict[str, list[float]] = {
         "session_start": [], "post_tool_edit": [], "post_tool_bash": [],
         "user_prompt_submit": [], "pre_tool_bash": [], "stop": [],
     }
+    all_rcs: list[int] = []
 
     def run(script: str, payload: dict, key: str) -> None:
-        timings[key].append(time_subprocess(
+        t, rc = time_subprocess(
             ["bash", str(SCRIPTS_DIR / script)],
             env=env,
             stdin_bytes=json.dumps(payload).encode("utf-8"),
             cwd=cwd,
-        ))
+        )
+        timings[key].append(t)
+        all_rcs.append(rc)
 
     # 1. SessionStart
     run("session-start.sh", {"cwd": cwd, "session_id": "agg-bench"}, "session_start")
@@ -162,7 +173,7 @@ def _run_one_session(env: dict, repo: Path) -> dict:
     # 4. Stop.
     run("stop.sh", {"cwd": cwd}, "stop")
 
-    return timings
+    return timings, all_rcs
 
 
 def main() -> int:
@@ -192,14 +203,17 @@ def main() -> int:
             "user_prompt_submit": [], "pre_tool_bash": [], "stop": [],
         }
         session_totals: list[float] = []
+        all_rcs: list[int] = []
         for _ in range(args.runs):
-            t = _run_one_session(env, repo)
+            t, rcs = _run_one_session(env, repo)
             session_total = sum(sum(v) for v in t.values())
             session_totals.append(session_total)
             for k, v in t.items():
                 per_hook_all[k].extend(v)
+            all_rcs.extend(rcs)
             _seed_state(state_dir, repo)
 
+    assert_all_ok(all_rcs, "aggregate_session")
     session_summary = summarize(session_totals)
     per_hook_summary = {
         k: {

@@ -34,7 +34,9 @@ def in_memory_keychain(monkeypatch):
     monkeypatch.setattr(crypto, "keychain_backend", lambda: "in-memory")
 
     # Reset _common's encryption state cache so it re-resolves
-    monkeypatch.setattr(_common, "_ENCRYPTION_STATE_CACHE", None)
+    monkeypatch.setattr(_common, "_WRITE_STATE_CACHE", None)
+    monkeypatch.setattr(_common, "_READ_KEY_CACHE", _common._UNSET)
+    monkeypatch.setattr(_common, "_SETTINGS_CACHE", None)
 
     return store
 
@@ -91,10 +93,56 @@ def test_mixed_file_handled_per_line(isolated_state, in_memory_keychain):
     assert {r["kind"] for r in rows} == {"encrypted", "plain"}
 
 
+def test_events_drain_under_zerotrust(isolated_state, in_memory_keychain):
+    """append_event under zerotrust must encrypt, drain_events must decrypt
+    back to the original dict, and summarize_events must classify the events.
+    Regression for the events.py / encryption gap: until v0.3.1, drain_events
+    used raw json.loads on encrypted envelopes and returned opaque dicts with
+    no `kind`, so summarize_events silently dropped every event.
+    """
+    _activate_zerotrust(isolated_state)
+    from unlock import unlock
+    unlock(ttl_seconds=60)
+    from events import append_event, drain_events, event_path, summarize_events
+
+    append_event({"kind": "edit", "path": "src/foo.py"})
+    append_event({"kind": "bash", "cmd": "pytest -q", "exit": 0})
+
+    # Confirm the file on disk is encrypted (sanity check on the fixture).
+    raw = event_path().read_text().splitlines()
+    assert all(crypto.is_encrypted_line(line) for line in raw if line.strip()), (
+        "events.encrypted=true must produce encrypted-on-disk lines"
+    )
+
+    events = drain_events()
+    assert len(events) == 2
+    kinds = {e.get("kind") for e in events}
+    assert kinds == {"edit", "bash"}, f"drain returned opaque envelopes: {events}"
+    digest = summarize_events(events)
+    assert "src/foo.py" in digest
+
+
+def test_events_peek_under_zerotrust(isolated_state, in_memory_keychain):
+    """peek_events must also see the decrypted payload (verify.* and the
+    doctor read events without draining)."""
+    _activate_zerotrust(isolated_state)
+    from unlock import unlock
+    unlock(ttl_seconds=60)
+    from events import append_event, peek_events
+
+    append_event({"kind": "edit", "path": "src/bar.py"})
+    rows = peek_events()
+    assert len(rows) == 1
+    assert rows[0].get("kind") == "edit"
+    assert rows[0].get("path") == "src/bar.py"
+
+
 def test_solodev_preset_writes_plain(isolated_state, in_memory_keychain, monkeypatch):
     """Default preset (solo-dev) does NOT request encryption, so writes stay plain."""
     # No settings.json => defaults to solo-dev
-    monkeypatch.setattr(_common, "_ENCRYPTION_STATE_CACHE", None)
+    monkeypatch.setattr(_common, "_WRITE_STATE_CACHE", None)
+    monkeypatch.setattr(_common, "_READ_KEY_CACHE", _common._UNSET)
+    monkeypatch.setattr(_common, "_SETTINGS_CACHE", None)
     target = isolated_state / "plain.jsonl"
     _common.append_jsonl(target, {"foo": "bar"})
     raw = target.read_text().strip()

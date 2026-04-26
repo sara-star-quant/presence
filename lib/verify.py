@@ -29,27 +29,42 @@ def has_unhedged_success_claim(text: str) -> bool:
     return not any(p.search(text) for p in HEDGES)
 
 
-def has_recent_test_evidence(cwd=None, since_ts: int | None = None, window_seconds: int = 600) -> bool:
-    """True iff a passing test/build event was logged since ``since_ts`` (default last 10 min)."""
+def scan_recent(cwd=None, since_ts: int | None = None, window_seconds: int = 1800) -> dict:
+    """Single peek_events pass returning the recency facts callers need.
+
+    Replaces N independent `for ev in peek_events(cwd)` loops with one. The
+    Stop hook and PreToolUse(Bash) hook each used to call peek_events twice
+    per fire (once for last-edit, once for last-pass) which doubled the cold
+    JSONL parse cost.
+    """
     if since_ts is None:
         since_ts = now_ts() - window_seconds
+    last_edit = 0
+    last_pass = 0
     for ev in peek_events(cwd):
-        if ev.get("ts", 0) < since_ts:
+        ts = ev.get("ts", 0)
+        if ts < since_ts:
             continue
-        if ev.get("kind") in ("test_pass", "build_pass"):
-            return True
-    return False
+        kind = ev.get("kind")
+        if kind == "edit":
+            last_edit = max(last_edit, ts)
+        elif kind in ("test_pass", "build_pass"):
+            last_pass = max(last_pass, ts)
+    return {
+        "last_edit_ts": last_edit,
+        "last_pass_ts": last_pass,
+        "has_recent_edit": last_edit > 0,
+        "has_recent_test_evidence": last_pass > 0,
+    }
+
+
+def has_recent_test_evidence(cwd=None, since_ts: int | None = None, window_seconds: int = 600) -> bool:
+    """True iff a passing test/build event was logged since ``since_ts`` (default last 10 min)."""
+    return scan_recent(cwd, since_ts=since_ts, window_seconds=window_seconds)["has_recent_test_evidence"]
 
 
 def has_recent_edit(cwd=None, since_ts: int | None = None, window_seconds: int = 1800) -> bool:
-    if since_ts is None:
-        since_ts = now_ts() - window_seconds
-    for ev in peek_events(cwd):
-        if ev.get("ts", 0) < since_ts:
-            continue
-        if ev.get("kind") == "edit":
-            return True
-    return False
+    return scan_recent(cwd, since_ts=since_ts, window_seconds=window_seconds)["has_recent_edit"]
 
 
 # Test/build classifiers: proper word boundaries, no cargo-culted "\n"/"$" tokens
