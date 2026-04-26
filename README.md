@@ -20,52 +20,68 @@ State lives in `~/.claude/presence/`, fully local, never uploaded.
 
 ## By the numbers
 
-- **Cold hook startup**: 82 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50). 25% faster than v0.3.0.
-- **SessionStart populated**: 113 ms median (10 KB model + 100 events + 50 claims, n=50). 40% faster than v0.3.0.
-- **Aggregate session overhead**: 6.52 s for 77 hook fires per realistic session (median, n=10). 37% faster than v0.3.0.
-- **Stdlib-only runtime.** One optional dep (`cryptography`) used only by the Zero-Trust preset.
-- **CI**: 167 tests passing on Python 3.12 + 3.13 + 3.14 across Linux + macOS.
-- **Surface**: 4 presets, 6 hooks, 5 slash commands, 3 skills, 1 subagent.
-- **Local-only state.** Zero network egress in default presets; the optional `gh` PR-status call (skill `outcome-check`) is the only outbound call and is disabled in `zerotrust`.
+| Metric | Value | Method |
+|---|---|---|
+| Cold hook startup | 80 ms median, 87 ms p95 | n=50, `bench/cold_startup.py` |
+| SessionStart populated | 108 ms median | 10 KB model + 100 events + 50 claims; n=50 |
+| Install + first /presence-status | 237 ms total median | n=25, `bench/install_to_working.py` |
+| Aggregate session overhead | 6.4 s for 77 hook fires | n=10, `bench/aggregate_session.py` |
+| Tests | 167 passing | Python 3.12 + 3.13 + 3.14 across Linux + macOS |
+| Runtime deps | 0 (stdlib only) | one optional: `cryptography` for Zero-Trust at-rest encryption |
+| Surface area | 4 presets, 6 hooks, 5 slash commands, 3 skills, 1 subagent | see directories at repo root |
+| Network egress | 0 in default presets | optional `gh` PR-status call (skill `outcome-check`); disabled in `zerotrust` |
 
-> **New in v0.3.x**: substantial cold-hook latency cuts and one latent correctness fix.
-> v0.3.0 made `asyncio` lazy in the shared module and cached the python-version probe in the bash wrapper (cold hook 109 ms -> 84 ms median).
-> v0.3.1 split the keychain-aware encryption state so non-zerotrust presets stop probing the OS keychain on every fire, cached `repo_id()` and `_ensure_dir()` per process, collapsed the double `peek_events` scans in Stop and PreToolUse(Bash), and fixed a latent v0.2 bug where `events.py` returned encrypted envelopes verbatim under zerotrust so `summarize_events` silently dropped every event.
-> See [`CHANGELOG.md`](CHANGELOG.md) for the per-version diff and `bench/` for reproducible numbers.
+All measurements: macOS arm64, Python 3.14.4. Reproduce locally with `python3 bench/<name>.py --runs N`.
 
-> **v0.2.0 still applies**: the `zerotrust` preset is fully shipped: AES-GCM at-rest encryption with the data key in your OS keychain, a tamper-evident audit log with per-line SHA-256 hash chain, SessionStart fail-closed integrity check, and a `/presence-unlock` flow gating settings writes. See [`docs/zerotrust.md`](docs/zerotrust.md).
+> **Recent changes**: see [`CHANGELOG.md`](CHANGELOG.md) for the full per-version diff.
+> v0.3.x cut cold-hook latency by ~27% and fixed a latent v0.2 bug where Zero-Trust users had their event digest silently emptied.
+> v0.2.0 shipped the Zero-Trust preset: AES-GCM at rest, tamper-evident audit log, fail-closed SessionStart integrity. See [`docs/zerotrust.md`](docs/zerotrust.md).
 
 ## Install
 
-### Via marketplace (once published)
+Pick one method.
+
+### Via the Claude Code plugin marketplace flow
+
+The repo ships its own `marketplace.json` so it can be added directly:
 
 ```
 /plugin marketplace add github.com/sara-star-quant/presence
 /plugin install presence
 ```
 
-### Local install
+### Via curl
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash
 ```
 
-Or clone and run:
+### Via git clone
 
 ```bash
 git clone https://github.com/sara-star-quant/presence ~/code/presence
 ~/code/presence/install.sh
 ```
 
-The installer symlinks the plugin into `~/.claude/plugins/presence` and creates the state directory at `~/.claude/presence/`. It is idempotent.
+The installer symlinks the plugin into `~/.claude/plugins/presence`, creates the state directory at `~/.claude/presence/` with `0700` perms, generates `MANIFEST.lock`, and pre-compiles `lib/` to bytecode. It is idempotent.
 
-For the Zero-Trust preset's at-rest encryption, also install the `cryptography` library:
+For the Zero-Trust preset's at-rest encryption (opt-in), also install the `cryptography` library:
 
 ```bash
 pip install --user cryptography
 ```
 
-Default presets are stdlib-only; `cryptography` is opt-in.
+Other presets and the rest of the Zero-Trust controls (integrity check, redaction, gates, audit log) are stdlib-only.
+
+## Update
+
+For installs done via curl or git clone:
+
+```bash
+~/code/presence/install.sh --update
+```
+
+`--update` does `git fetch` + `git pull --ff-only` + a re-run of the installer. It refuses to proceed if the working tree has uncommitted changes (so it never clobbers WIP). For installs done via the `/plugin` flow, use Claude Code's native plugin update mechanism.
 
 ## Verify install
 
@@ -79,6 +95,12 @@ You should see your active preset, the project ID for the current repo, and the 
 
 ```
 /presence-status --zerotrust
+```
+
+For a full diagnostic:
+
+```
+/presence-doctor
 ```
 
 ## Presets

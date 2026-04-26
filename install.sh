@@ -6,10 +6,12 @@
 #   2. Symlink the plugin into ~/.claude/plugins/presence/
 #   3. Create ~/.claude/presence/ state directory with 0700 perms
 #   4. Generate MANIFEST.lock
+#   5. Pre-compile lib/ to bytecode
 #
 # Usage:
-#   ./install.sh                 # install (default)
-#   ./install.sh --uninstall     # remove plugin symlink (state preserved)
+#   ./install.sh                       # install or refresh (idempotent)
+#   ./install.sh --update              # git pull + re-install (refuses if dirty)
+#   ./install.sh --uninstall           # remove plugin symlink (state preserved)
 #   ./install.sh --uninstall --purge   # remove plugin AND state
 #
 set -euo pipefail
@@ -44,6 +46,45 @@ check_git() {
   else
     warn "git not found. outcome telemetry (commit tracking, revert detection) will be disabled"
   fi
+}
+
+update() {
+  info "presence updater"
+  info "plugin source: $SCRIPT_DIR"
+
+  if [ ! -d "$SCRIPT_DIR/.git" ]; then
+    die "$SCRIPT_DIR is not a git checkout; pull manually and re-run install.sh"
+  fi
+  if ! command -v git >/dev/null 2>&1; then
+    die "git is required for --update but is not on PATH"
+  fi
+
+  # Refuse if working tree is dirty (uncommitted or staged changes); we never
+  # want --update to clobber the user's WIP. Untracked files are tolerated.
+  if ! git -C "$SCRIPT_DIR" diff --quiet || ! git -C "$SCRIPT_DIR" diff --cached --quiet; then
+    die "$SCRIPT_DIR has uncommitted changes; commit or stash before --update"
+  fi
+
+  local before after
+  before=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)
+  info "fetching origin..."
+  if ! git -C "$SCRIPT_DIR" fetch --tags origin >/dev/null 2>&1; then
+    warn "git fetch failed; proceeding with whatever is already local"
+  fi
+  if ! git -C "$SCRIPT_DIR" pull --ff-only --quiet >/dev/null 2>&1; then
+    die "fast-forward pull failed; resolve diverging history manually"
+  fi
+  after=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)
+
+  if [ "$before" = "$after" ]; then
+    ok "already at latest ($before)"
+  else
+    ok "updated $before -> $after"
+  fi
+
+  # Re-run the install path: refreshes symlink, regenerates MANIFEST, recompiles
+  # bytecode. Idempotent regardless of whether code actually changed.
+  install
 }
 
 uninstall() {
@@ -136,15 +177,19 @@ install() {
 
 Next steps:
   1. Restart Claude Code (or open a new session)
-  2. Run /presence-status to confirm it's active
+  2. Run /presence-status to confirm it is active
   3. Run /presence-doctor for a full diagnostic
-  4. To switch presets:        /presence-preset use solo-dev|team-oss|enterprise-strict|zerotrust
-  5. To wipe state and start over:    /presence-reset --all
+  4. To switch presets:    /presence-preset use solo-dev|team-oss|enterprise-strict|zerotrust
+  5. To wipe state:        /presence-reset --all
 
-For the v0.2 Zero-Trust encryption layer (when shipped), install cryptography:
+The Zero-Trust preset's at-rest encryption (AES-GCM, key in OS keychain) is
+opt-in via the cryptography library:
   pip install --user cryptography
-v0.1 Zero-Trust works without it; the integrity check, redaction, and hard
-commit/push gates are all already wired in.
+Other presets and Zero-Trust controls (integrity check, redaction, gates,
+audit log) are stdlib-only and require no extra install.
+
+To update later:
+  $SCRIPT_DIR/install.sh --update           (git pull + reinstall; refuses if dirty)
 
 To uninstall:
   $SCRIPT_DIR/install.sh --uninstall          (preserves state)
@@ -156,13 +201,15 @@ EOF
 
 case "${1:-install}" in
   install)            install ;;
+  --update|update)    update ;;
   --uninstall|uninstall) shift || true; uninstall "$@" ;;
   -h|--help)
     cat <<EOF
 presence installer
 
 Usage:
-  ./install.sh                          install (or update an existing install)
+  ./install.sh                          install (or refresh an existing install)
+  ./install.sh --update                 git pull + re-install (refuses if dirty)
   ./install.sh --uninstall              remove plugin symlink (state preserved)
   ./install.sh --uninstall --purge      remove plugin and wipe state
   ./install.sh --help                   this help

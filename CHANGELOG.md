@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.3.2
+
+Distribution release: the plugin can now be installed via the `/plugin marketplace add` flow that the README has always advertised, and a real `--update` flag in `install.sh` makes the existing flow easier to keep current. No runtime behavior changes; only install/update plumbing and tests.
+
+### Added
+
+- **`.claude-plugin/marketplace.json`**: single-plugin marketplace manifest at the repo root. Makes `/plugin marketplace add github.com/sara-star-quant/presence` followed by `/plugin install presence` actually work (until v0.3.2 the README advertised this flow but the file was missing). Schema mirrors the format Anthropic's own marketplaces use (e.g. `anthropics/life-sciences`): `name`, `owner`, `metadata` (version + description), `plugins[]` with `name`, `source`, `description`, `category`, `tags`. `source: "./"` means "the marketplace repo itself is the plugin".
+- **`install.sh --update`** flag: `git fetch` + `git pull --ff-only` + re-run of the installer. Refuses to proceed if the working tree has uncommitted changes (never clobbers WIP). Reports the old SHA -> new SHA. Falls through cleanly when there is nothing to update. Documented in `--help` and in the post-install `cat <<EOF` block.
+- **`tests/test_marketplace.py`** (6 tests): JSON validity, required fields (`name`, `owner`, `metadata`, `plugins`), well-formed plugin entry, name + owner consistency between `marketplace.json` and `plugin.json`. Catches name drift that would silently break `/plugin install presence` for users.
+- **`tests/test_install_update.py`** (4 tests): `--update` documented in `--help`; refuses on a non-git directory; refuses on a dirty working tree; behaves predictably on a clean tree with no remote (either pulls cleanly or fails non-fatally without corrupting state).
+
+### Changed
+
+- **`lib/integrity.py`**: added `.claude-plugin/marketplace.json` to `_INCLUDE_GLOBS` so the marketplace manifest is covered by the SHA-256 manifest. Tampering with the marketplace listing now fails the SessionStart fail-closed check under any preset with `integrity.fail_closed=true` (default in `zerotrust`).
+- **`install.sh`**: post-install next-steps text updated. Stale "v0.2 Zero-Trust ... when shipped" line replaced with a concise opt-in note (`pip install --user cryptography`); new "To update later" line points at `--update`.
+- **`README.md`**: install section now lists three methods clearly (marketplace flow, curl, git clone) and the marketplace flow no longer says "(once published)" since the manifest now exists. New "Update" subsection documents `./install.sh --update`. "By the numbers" block converted to a table for easier scanning; numbers refreshed against Python 3.14.4 measurements (cold hook 80 ms median, SessionStart 108 ms median, install-to-working 237 ms total median, aggregate session 6.4 s for 77 fires). Recent-changes callout shortened to a single block; full per-version detail lives in CHANGELOG.
+
+### Quality gates (this release)
+
+- 177 tests passing on Python 3.12 / 3.13 / 3.14 (was 167 in v0.3.1; +10 across `test_marketplace` and `test_install_update`)
+- ruff clean
+- shellcheck clean
+- ASCII-only outside the two intentional unicode test fixtures
+- MANIFEST.lock verifies OK (now includes `.claude-plugin/marketplace.json`)
+- Backward compat: every v0.3.x state file remains readable. The marketplace.json is a new file, not a schema change to anything existing.
+
 ## v0.3.1
 
 Performance follow-up + correctness fix discovered while reading v0.3.0 with the

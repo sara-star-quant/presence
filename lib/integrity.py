@@ -21,9 +21,11 @@ from pathlib import Path
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = PLUGIN_ROOT / "MANIFEST.lock"
 
-# Files included in the integrity manifest. Anything that affects hook behavior.
+# Files included in the integrity manifest. Anything that affects hook behavior
+# or plugin distribution metadata.
 _INCLUDE_GLOBS = (
     ".claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
     "hooks/hooks.json",
     "hooks/scripts/*.sh",
     "lib/*.py",

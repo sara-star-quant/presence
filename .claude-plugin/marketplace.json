@@ -1,0 +1,29 @@
+{
+  "name": "presence",
+  "owner": {
+    "name": "Sara Star Quant LLC"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Continuous-collaboration layer for Claude Code: living per-repo project model, outcome telemetry with revert detection, inter-turn event digest, calibrated-confidence gate. Stdlib-only Python runtime with one optional dep for the zerotrust preset. Fully local state under ~/.claude/presence/."
+  },
+  "plugins": [
+    {
+      "name": "presence",
+      "source": "./",
+      "description": "Adds session continuity to Claude Code: per-repo memory, outcome telemetry that watches for reverts and amends, inter-turn event digest, and a calibrated-confidence gate that flags 'fixed', 'done', and 'works' claims unbacked by test or build evidence in the same session. Four presets (solo-dev, team-oss, enterprise-strict, zerotrust). The zerotrust preset adds AES-GCM at-rest encryption with a key in the OS keychain, a tamper-evident audit log with per-line SHA-256 hash chain, and a SessionStart fail-closed integrity check.",
+      "category": "developer-productivity",
+      "tags": [
+        "session-continuity",
+        "memory",
+        "telemetry",
+        "hooks",
+        "calibrated-confidence",
+        "audit-log",
+        "zerotrust",
+        "stdlib-only",
+        "python"
+      ]
+    }
+  ]
+}
