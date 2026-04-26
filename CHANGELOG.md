@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.3.0
+
+Cold-hook latency reduction. Sync hooks (UserPromptSubmit, PostToolUse(Bash|Edit), PreToolUse(Bash), Stop) no longer pay for the asyncio import or a redundant per-fire python version probe. SessionStart benefits from the version-probe fix as well.
+
+### SLO published (macOS arm64, Python 3.14.3, n=50)
+
+- cold hook startup (user-prompt-submit, empty state): median **109 ms -> 84 ms** (-23%), p95 118 ms -> 89 ms (-25%)
+- aggregate session overhead (1 SessionStart + 30 PostToolUse(Edit) + 10 PostToolUse(Bash) + 30 UserPromptSubmit + 5 PreToolUse(Bash) + 1 Stop = 77 hook fires): median **10.38 s -> 8.39 s** (-19%, n=10)
+- SessionStart on populated state (10 KB model + 100 events + 50 claims): 189 ms -> 180 ms (-5%)
+- install-to-working (clean CLAUDE_HOME -> first /presence-status answer): 312 ms -> 294 ms (-6%)
+
+### Changed
+
+- **`lib/_common.py`**: `import asyncio` moved from module top to inside `async_git_run` (the only direct user). The 5 sync hooks no longer pull asyncio + asyncio.unix_events + asyncio.base_events at import time. Saves ~20 ms per cold hook fire on Python 3.14 macOS arm64.
+- **`hooks/scripts/_common.sh`** (new): one shared bootstrap function `exec_hook` that all 6 wrappers source. Caches the `python3 >= 3.12` verdict at `$PRESENCE_STATE/.python_version_ok` keyed by `<python_bin>:<mtime>`. First hook of a session still pays the version probe; every subsequent hook skips it. Cache invalidates automatically when the python binary is upgraded.
+- **`hooks/scripts/*.sh`**: each of the 6 hook wrappers shrunk from 8 lines of bash to 4. The python-missing warning is still emitted exactly once per session via the SessionStart wrapper (other hooks have no additionalContext channel, same as before).
+- **`MANIFEST.lock`**: regenerated to include `hooks/scripts/_common.sh` and reflect the new wrapper hashes.
+
+### Added
+
+- **`bench/`** directory with 4 reproducible scripts (stdlib only):
+  - `bench/cold_startup.py` (process spawn + import + settings parse, no work)
+  - `bench/session_start_populated.py` (end-to-end SessionStart with seeded state)
+  - `bench/install_to_working.sh` (install.sh on clean CLAUDE_HOME + first /presence-status)
+  - `bench/aggregate_session.py` (synthetic 77-fire session: user-facing total overhead)
+  Each reports median + p95 + min + max + stdev as both a one-line human summary and a JSON blob suitable for PR descriptions.
+- **`tests/test_hooks_smoke.py`**: 2 new tests for the version-probe cache marker (cache hit reuses marker, stale marker invalidates and rewrites).
+
+### Quality gates (this release)
+
+- 156 tests passing on Python 3.12 / 3.13 / 3.14 (was 154 in v0.2.1; 2 new tests for the cache marker)
+- ruff clean
+- shellcheck clean
+- ASCII-only outside the two intentional unicode test fixtures
+- MANIFEST.lock verifies OK
+- Backward compat: every v0.2 state file (settings.json, model.md, encrypted/plain telemetry, audit log, MANIFEST.lock) remains readable. The new `.python_version_ok` marker is a fresh sibling, not a schema change.
+
 ## v0.2.1
 
 Documentation-only release.

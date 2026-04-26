@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-set -u
-if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; exit(0 if sys.version_info >= (3, 12) else 1)'; then
-  PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/lib${PYTHONPATH:+:$PYTHONPATH}" \
-    exec python3 "${CLAUDE_PLUGIN_ROOT}/lib/hook_user_prompt_submit.py"
-fi
-exit 0
+# shellcheck disable=SC1091
+. "$(dirname "$0")/_common.sh"
+exec_hook hook_user_prompt_submit.py

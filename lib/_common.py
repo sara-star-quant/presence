@@ -6,10 +6,12 @@ an error counter that the next ``SessionStart`` surfaces to the user, so failure
 recoverable from the in-product UI without the user grepping log files.
 
 Module never raises at import time on any platform: ``fcntl`` is lazily imported.
+``asyncio`` is also lazy: only ``async_git_run`` / ``async_git_run_safe`` import it,
+so the 5 sync hooks (UserPromptSubmit, PostToolUse(Bash|Edit), PreToolUse(Bash), Stop)
+do not pay the ~30 ms asyncio import cost on cold start.
 """
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import os
@@ -125,6 +127,7 @@ def git_run_safe(cwd: str | os.PathLike[str], *args: str, timeout: int | None = 
 
 async def async_git_run(cwd: str | os.PathLike[str], *args: str, timeout: int | None = None) -> str:
     """Async variant of git_run."""
+    import asyncio  # lazy: only async hooks pay the asyncio import cost
     timeout = timeout or DEFAULT_GIT_TIMEOUT
     try:
         proc = await asyncio.create_subprocess_exec(
