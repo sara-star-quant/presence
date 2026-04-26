@@ -34,7 +34,17 @@ DEFAULT_GIT_TIMEOUT = 15  # seconds; overridable via settings: git.timeout_secon
 # State directory bootstrap with strict perms
 # ---------------------------------------------------------------------------
 
+# Per-process: paths that have already been mkdir+stat+chmod'd. Subsequent
+# calls return the Path immediately. Hooks are short-lived so a process-local
+# cache cannot drift; if a test or external process changes perms mid-fire
+# we accept the staleness in exchange for the ~3 syscalls saved per call.
+_ENSURED_DIRS: set[str] = set()
+
+
 def _ensure_dir(p: Path, mode: int = 0o700) -> Path:
+    key = str(p)
+    if key in _ENSURED_DIRS:
+        return p
     p.mkdir(parents=True, exist_ok=True)
     try:
         current = stat.S_IMODE(p.stat().st_mode)
@@ -43,6 +53,7 @@ def _ensure_dir(p: Path, mode: int = 0o700) -> Path:
     except (OSError, NotImplementedError):
         # Windows, network FS, exotic permission models; best effort.
         pass
+    _ENSURED_DIRS.add(key)
     return p
 
 
@@ -170,17 +181,32 @@ async def async_git_run_safe(cwd: str | os.PathLike[str], *args: str, timeout: i
 # Project identity
 # ---------------------------------------------------------------------------
 
+# Per-process cache. Each repo_id() call costs up to 2 git subprocesses
+# (rev-parse --show-toplevel, then config --get remote.origin.url); the
+# SessionStart asyncio.gather fan-out alone calls it 4+ times per fire across
+# project_dir / events_dir / telemetry helpers. Caching saves 6+ subprocess
+# spawns per fire on the heaviest hook. Key is the resolved cwd string.
+_REPO_ID_CACHE: dict[str, str] = {}
+
+
 def repo_id(cwd: str | os.PathLike[str] | None = None) -> str:
     """Stable id for the current project. Prefers git remote URL; falls back to cwd path."""
     base = Path(cwd or os.getcwd()).resolve()
+    key = str(base)
+    cached = _REPO_ID_CACHE.get(key)
+    if cached is not None:
+        return cached
     # Use git itself to find toplevel; avoids the .git-walk-into-parent-tree footgun
     top = git_run_safe(base, "rev-parse", "--show-toplevel")
     if top:
         repo_root_path = Path(top)
         remote = git_run_safe(repo_root_path, "config", "--get", "remote.origin.url")
         seed = remote if remote else str(repo_root_path)
-        return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:12]
-    return hashlib.sha256(str(base).encode("utf-8")).hexdigest()[:12]
+        rid = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:12]
+    else:
+        rid = hashlib.sha256(str(base).encode("utf-8")).hexdigest()[:12]
+    _REPO_ID_CACHE[key] = rid
+    return rid
 
 
 def repo_root(cwd: str | os.PathLike[str] | None = None) -> Path:

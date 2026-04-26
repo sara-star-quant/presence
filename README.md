@@ -20,8 +20,9 @@ State lives in `~/.claude/presence/`, fully local, never uploaded.
 
 ## By the numbers
 
-- **Cold hook startup**: 81 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50). 26% faster than v0.3.0.
-- **Aggregate session overhead**: 6.79 s for 77 hook fires per realistic session (median, n=10). 35% faster than v0.3.0.
+- **Cold hook startup**: 82 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50). 25% faster than v0.3.0.
+- **SessionStart populated**: 113 ms median (10 KB model + 100 events + 50 claims, n=50). 40% faster than v0.3.0.
+- **Aggregate session overhead**: 6.52 s for 77 hook fires per realistic session (median, n=10). 37% faster than v0.3.0.
 - **Stdlib-only runtime.** One optional dep (`cryptography`) used only by the Zero-Trust preset.
 - **CI**: 167 tests passing on Python 3.12 + 3.13 + 3.14 across Linux + macOS.
 - **Surface**: 4 presets, 6 hooks, 5 slash commands, 3 skills, 1 subagent.
