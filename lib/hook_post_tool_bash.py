@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from _common import hook_input, safe_main, settings
+from _common import hook_input, integrity_blocked, safe_main, settings
 from cmdparse import (
     extract_cd_target,
     extract_git_C_target,
@@ -39,6 +39,8 @@ def _resolve_commit_cwd(session_cwd: str, cmd: str) -> str:
 
 
 def main() -> None:
+    if integrity_blocked():
+        return  # SessionStart's fail-closed check left a marker; stay inert this session
     inp = hook_input()
     cfg = settings()
     session_cwd = inp.get("cwd") or os.getcwd()

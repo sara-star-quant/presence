@@ -7,18 +7,24 @@ import time
 
 from _common import (
     atomic_write,
+    clear_integrity_block,
     emit_context,
     hook_input,
     project_dir,
     read_counter,
     reset_counter,
     safe_main,
+    set_integrity_block,
     settings,
 )
 from events import drain_events, summarize_events
-from model import read_model
+from model import model_path, read_model
 from telemetry import async_scan_for_revert
 from warnings_log import read_warnings
+
+# When model.md grows past this size in chars, surface a one-line nudge so the user
+# knows to invoke /presence-curate. Per-preset override via model.curate_threshold.
+DEFAULT_CURATE_THRESHOLD_CHARS = 12_000
 
 
 def _resolve_cwd(inp: dict) -> str:
@@ -107,19 +113,94 @@ async def gather_events(cwd: str, cfg: dict) -> str:
     return ""
 
 
+async def gather_curate_hint(cwd: str, cfg: dict) -> str:
+    """If model.md exceeds the curate threshold, surface a nudge to run /presence-curate.
+
+    Auto-triggering the curator subagent from a hook is intentionally NOT done here:
+    spawning a subagent at SessionStart would interrupt the user before they've even
+    typed a prompt. Surfacing the size as a one-liner lets the user decide.
+    """
+    if not (cfg.get("model") or {}).get("enabled", True):
+        return ""
+    threshold = int((cfg.get("model") or {}).get("curate_threshold", DEFAULT_CURATE_THRESHOLD_CHARS))
+    p = await asyncio.to_thread(model_path, cwd)
+    try:
+        size = await asyncio.to_thread(lambda: p.stat().st_size if p.exists() else 0)
+    except OSError:
+        return ""
+    if size <= threshold:
+        return ""
+    return (
+        f"<curate_hint>\n"
+        f"  model.md is {size} chars (threshold {threshold}). "
+        f"Run /presence-curate to compress older entries before this slows down SessionStart.\n"
+        f"</curate_hint>"
+    )
+
+
+async def fail_closed_integrity_check(cfg: dict) -> str | None:
+    """If the active preset has integrity.fail_closed=true, run the manifest check.
+
+    Returns:
+      - None if the check is disabled OR passes (caller proceeds normally).
+      - A message string if the check fails (caller should emit it as the only
+        SessionStart context, set the block marker, and skip every other gather).
+    """
+    integrity_cfg = cfg.get("integrity") or {}
+    if not integrity_cfg.get("fail_closed"):
+        return None
+    try:
+        from integrity import verify_manifest
+        missing, mismatched, _extra = await asyncio.to_thread(verify_manifest)
+    except Exception as exc:  # noqa: BLE001  never let integrity check itself break SessionStart
+        return (
+            "<presence_integrity_fail>\n"
+            f"  integrity check itself errored: {exc}. "
+            "Hooks remain inert this session.\n"
+            "</presence_integrity_fail>"
+        )
+    if not (missing or mismatched):
+        return None
+    return (
+        "<presence_integrity_fail>\n"
+        f"  Plugin file integrity check FAILED under {{}} preset.\n"
+        f"    Missing: {len(missing)} file(s)"
+        + (f" ({', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})" if missing else "")
+        + "\n"
+        f"    Mismatched: {len(mismatched)} file(s)"
+        + (f" ({', '.join(mismatched[:3])}{'...' if len(mismatched) > 3 else ''})" if mismatched else "")
+        + "\n"
+        "  Hooks will remain INERT for the rest of this session. Reinstall the plugin\n"
+        "  or investigate which files changed before continuing.\n"
+        "</presence_integrity_fail>"
+    ).format(cfg.get("__active_preset__", "zerotrust"))
+
+
 async def async_main():
     inp = hook_input()
     cfg = settings()
     cwd = _resolve_cwd(inp)
 
+    # Fail-closed integrity gate (zerotrust + any preset with integrity.fail_closed=true).
+    # Runs FIRST. If it fails, set the inert-marker so other hooks short-circuit, emit the
+    # fail message as the only context, and skip every other gather. If it passes, clear
+    # any stale marker from a previous session.
+    fail_msg = await fail_closed_integrity_check(cfg)
+    if fail_msg is not None:
+        set_integrity_block(fail_msg)
+        emit_context("SessionStart", "<presence_context>\n" + fail_msg + "\n</presence_context>")
+        return
+    clear_integrity_block()
+
     # Execute all I/O bound tasks concurrently
-    warnings_text, model_text, telemetry_text, events_text = await asyncio.gather(
+    warnings_text, model_text, telemetry_text, events_text, curate_hint = await asyncio.gather(
         gather_warnings(),
         gather_model(cwd, cfg),
         gather_telemetry(cwd, cfg),
         gather_events(cwd, cfg),
+        gather_curate_hint(cwd, cfg),
     )
-    parts = [t for t in (warnings_text, model_text, telemetry_text, events_text) if t]
+    parts = [t for t in (warnings_text, model_text, telemetry_text, events_text, curate_hint) if t]
 
     if parts:
         context = "<presence_context>\n" + "\n\n".join(parts) + "\n</presence_context>"

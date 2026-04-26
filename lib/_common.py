@@ -213,9 +213,13 @@ def atomic_write(path: str | os.PathLike[str], content: str, mode: int = 0o600) 
 
 
 def append_jsonl(path: str | os.PathLike[str], obj: dict, mode: int = 0o600) -> None:
+    """Append a JSON object as a single line. Encrypts the line if the active preset
+    requests encryption AND ``crypto`` is available; otherwise writes plain.
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(obj, separators=(",", ":"), ensure_ascii=False) + "\n"
+    plain = json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+    line = _maybe_encrypt(plain) + "\n"
     with open(p, "a", encoding="utf-8") as f:
         unlock = _flock(f.fileno(), exclusive=True)
         try:
@@ -226,6 +230,95 @@ def append_jsonl(path: str | os.PathLike[str], obj: dict, mode: int = 0o600) -> 
         os.chmod(p, mode)
     except OSError:
         pass
+
+
+def _maybe_encrypt(plain_json_line: str) -> str:
+    """Encrypt the line iff the active preset wants encryption AND key is available.
+    Otherwise return the plain line unchanged. Best-effort; on any failure, returns plain.
+    """
+    enabled, key = _encryption_state()
+    if not enabled or key is None:
+        return plain_json_line
+    try:
+        from crypto import encrypt_line
+        return encrypt_line(plain_json_line.encode("utf-8"), key)
+    except Exception:  # noqa: BLE001  never let encryption failure break a write
+        return plain_json_line
+
+
+# Module-level cache of the encryption decision; hooks are short-lived processes,
+# so a per-process cache is safe and avoids re-reading settings on every append.
+_ENCRYPTION_STATE_CACHE: tuple[bool, bytes | None] | None = None
+
+
+def _encryption_state() -> tuple[bool, bytes | None]:
+    """Return (encryption_enabled_for_writes, key_or_None_for_reads). Cached per process.
+
+    enabled=True means: the active preset has at least one storage section flagged
+    encrypted=true AND the cryptography lib is importable AND the keychain returned
+    a key. Reads always try to decrypt encrypted-looking lines if a key is available,
+    even when writes are plain (so historical encrypted data stays readable after a
+    preset switch).
+    """
+    global _ENCRYPTION_STATE_CACHE
+    if _ENCRYPTION_STATE_CACHE is not None:
+        return _ENCRYPTION_STATE_CACHE
+
+    cfg = settings()
+    wants_encrypt = any(
+        bool((cfg.get(section) or {}).get("encrypted"))
+        for section in ("model", "telemetry", "events")
+    )
+    try:
+        from crypto import get_or_create_key, is_available
+    except ImportError:
+        if wants_encrypt:
+            from warnings_log import warn_once
+            warn_once(
+                "crypto_lib_missing",
+                "preset wants encryption but `cryptography` is not installed; falling back to plain",
+            )
+        _ENCRYPTION_STATE_CACHE = (False, None)
+        return _ENCRYPTION_STATE_CACHE
+
+    if not is_available():
+        if wants_encrypt:
+            from warnings_log import warn_once
+            warn_once(
+                "crypto_keychain_missing",
+                "preset wants encryption but no OS keychain backend (security/secret-tool) found",
+            )
+        _ENCRYPTION_STATE_CACHE = (False, None)
+        return _ENCRYPTION_STATE_CACHE
+
+    key = get_or_create_key() if wants_encrypt else _try_existing_key_only()
+    if wants_encrypt and key is None:
+        from warnings_log import warn_once
+        warn_once(
+            "crypto_key_failed",
+            "could not retrieve or create the data key from the keychain",
+        )
+        _ENCRYPTION_STATE_CACHE = (False, None)
+        return _ENCRYPTION_STATE_CACHE
+
+    _ENCRYPTION_STATE_CACHE = (wants_encrypt, key)
+    return _ENCRYPTION_STATE_CACHE
+
+
+def _try_existing_key_only() -> bytes | None:
+    """Fetch an existing data key without creating a new one. For read-only paths
+    when encryption is off (so we can still decrypt historical encrypted lines)."""
+    try:
+        from crypto import KEY_BYTES, _backend_ops  # noqa: PLC2701  internal crypto helper
+    except ImportError:
+        return None
+    get, _set, _del = _backend_ops()
+    if get is None:
+        return None
+    key = get()
+    if key and len(key) == KEY_BYTES:
+        return key
+    return None
 
 
 def append_jsonl_rotating(
@@ -253,7 +346,12 @@ def append_jsonl_rotating(
 
 
 def read_jsonl(path: str | os.PathLike[str]) -> list[dict]:
-    """Return parsed lines. Missing file -> []. Corrupt lines -> warn + skip."""
+    """Return parsed lines. Missing file -> []. Corrupt lines -> warn + skip.
+
+    Auto-decrypts lines that look encrypted, when the data key is available in the
+    keychain. Mixed files (some encrypted, some plain) are handled per-line. Lines
+    that look encrypted but cannot be decrypted are skipped and counted as corrupt.
+    """
     from warnings_log import warn
 
     p = Path(path)
@@ -261,16 +359,37 @@ def read_jsonl(path: str | os.PathLike[str]) -> list[dict]:
         return []
     out: list[dict] = []
     corrupt = 0
+    _enabled, key = _encryption_state()
+    try:
+        from crypto import decrypt_line, is_encrypted_line
+        crypto_imported = True
+    except ImportError:
+        decrypt_line = None
+        is_encrypted_line = lambda _s: False  # noqa: E731
+        crypto_imported = False
     try:
         with open(p, encoding="utf-8", errors="replace") as f:
             for line in f:
                 s = line.strip()
                 if not s:
                     continue
-                try:
-                    out.append(json.loads(s))
-                except json.JSONDecodeError:
-                    corrupt += 1
+                if crypto_imported and is_encrypted_line(s):
+                    if key is None:
+                        corrupt += 1
+                        continue
+                    plain = decrypt_line(s, key)
+                    if plain is None:
+                        corrupt += 1
+                        continue
+                    try:
+                        out.append(json.loads(plain.decode("utf-8")))
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        corrupt += 1
+                else:
+                    try:
+                        out.append(json.loads(s))
+                    except json.JSONDecodeError:
+                        corrupt += 1
     except OSError as exc:
         warn("io_read_failed", f"could not read {p}: {exc}")
         return []
@@ -290,6 +409,39 @@ def read_jsonl(path: str | os.PathLike[str]) -> list[dict]:
 
 def now_ts() -> int:
     return int(time.time())
+
+
+# ---------------------------------------------------------------------------
+# Integrity block (set by SessionStart's fail-closed check; honored by every hook)
+# ---------------------------------------------------------------------------
+
+def integrity_block_path() -> Path:
+    return state_dir() / ".integrity-blocked"
+
+
+def integrity_blocked() -> bool:
+    """True iff SessionStart's fail-closed integrity check left a block marker.
+
+    Hooks should call this at the top of their main() and exit silently if True.
+    Only SessionStart has the authority to set or clear the marker.
+    """
+    return integrity_block_path().exists()
+
+
+def set_integrity_block(reason: str) -> None:
+    try:
+        atomic_write(integrity_block_path(), reason + "\n")
+    except OSError:
+        pass
+
+
+def clear_integrity_block() -> None:
+    p = integrity_block_path()
+    if p.exists():
+        try:
+            p.unlink()
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ ignore = [
   "PLR2004",
   "PLR0912",
   "PLR0911",
+  "PLW0603",  # module-level cache pattern; recognized
 ]
 
 [tool.ruff.lint.per-file-ignores]

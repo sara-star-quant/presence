@@ -69,7 +69,23 @@ def get_preset(name: str) -> PresetResult:
 
 
 def use_preset(name: str) -> PresetResult:
-    """Activate a preset. Refuses on parse error to avoid silently picking the wrong one."""
+    """Activate a preset. Refuses on parse error to avoid silently picking the wrong one.
+
+    If the currently-active preset declares ``settings.immutable: true`` (zerotrust),
+    refuses unless ``unlock.is_unlocked()`` returns true (the user ran
+    ``/presence-unlock`` in the last 60 seconds).
+    """
+    # Unlock check before any write. Avoids the silent-switch-without-consent attack.
+    from unlock import can_write_settings
+    if not can_write_settings():
+        return PresetResult(
+            ok=False,
+            error=(
+                "settings are immutable under the active preset (zerotrust). "
+                "Run /presence-unlock first, then retry within 60s."
+            ),
+        )
+
     res = get_preset(name)
     if not res.ok:
         return res
@@ -84,6 +100,14 @@ def use_preset(name: str) -> PresetResult:
             return PresetResult(ok=False, error=f"existing settings.json unreadable: {exc}")
     s["preset"] = name
     atomic_write(s_path, json.dumps(s, indent=2) + "\n")
+
+    # Audit the preset switch (best-effort; failure does not block the switch)
+    try:
+        from audit import append as audit_append
+        audit_append("preset_switch", {"new_preset": name, "previous": s.get("preset")})
+    except Exception:  # noqa: BLE001, S110  audit is opportunistic; never block preset use
+        pass
+
     return res
 
 

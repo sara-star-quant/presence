@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 
-from _common import emit, emit_context, hook_input, now_ts, safe_main, settings
+from _common import emit, emit_context, hook_input, integrity_blocked, now_ts, safe_main, settings
 from cmdparse import is_git_commit, is_git_push
 from events import peek_events
 
@@ -43,6 +43,8 @@ def _evidence_after_edit(cwd) -> bool:
 
 
 def main() -> None:
+    if integrity_blocked():
+        return  # SessionStart fail-closed marker is set; stay inert
     inp = hook_input()
     cfg = settings()
     cwd = inp.get("cwd") or os.getcwd()

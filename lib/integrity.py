@@ -109,6 +109,10 @@ def _cli() -> int:
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--write", action="store_true", help="regenerate MANIFEST.lock")
     g.add_argument("--verify", action="store_true", help="verify against MANIFEST.lock")
+    g.add_argument(
+        "--audit-verify", action="store_true",
+        help="walk the audit log hash chain and report any tampered or broken-link lines",
+    )
     ap.add_argument("--root", type=Path, default=PLUGIN_ROOT)
     args = ap.parse_args()
 
@@ -116,6 +120,24 @@ def _cli() -> int:
         target = write_manifest(args.root)
         print(f"wrote {target}")
         return 0
+
+    if args.audit_verify:
+        from audit import verify_chain
+        report = verify_chain()
+        if not report["exists"]:
+            print("no audit log present (~/.claude/presence/audit.jsonl)")
+            return 0
+        print(f"audit log: {report['lines']} line(s)")
+        if report["corrupt"]:
+            print(f"  corrupt   : {len(report['corrupt'])} line(s) at indices {report['corrupt'][:10]}")
+        if report["tampered"]:
+            print(f"  TAMPERED  : {len(report['tampered'])} line(s) at indices {report['tampered'][:10]}")
+        if report["broken_link"]:
+            print(f"  broken    : {len(report['broken_link'])} hash-chain link(s) at {report['broken_link'][:10]}")
+        if report["ok"]:
+            print("audit chain OK")
+            return 0
+        return 1
 
     declared = load_manifest(args.root)
     if declared is None:

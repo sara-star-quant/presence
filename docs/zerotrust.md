@@ -10,94 +10,127 @@ It is **opt-in**. Everything below is off by default. Activate with:
 
 ## What it adds
 
-Each control below is marked with its current status. `[shipped]` means available in v0.1; `[planned]` means designed and documented but not yet implemented (target: v0.2). Only checked-in code reflects shipped behavior; do not rely on `[planned]` controls until they ship.
+Each control below is shipped in v0.2.
 
-| Control | Standard presets | Zero-Trust preset | v0.1 status |
-|---|---|---|---|
-| Plugin file integrity | not checked | SHA-256 manifest verified via `/presence-doctor` | `[shipped]` (on-demand). SessionStart fail-closed: `[planned]` |
-| State at rest | plain JSONL/MD | AES-GCM encrypted (key in OS keychain) | `[planned]` |
-| Logged commands | standard redaction | aggressive redaction (32+ hex blob, 40+ b64 blob, any uppercase env-style assignment) | `[shipped]` |
-| Network egress | optional `gh` PR check available | disabled | `[shipped]` (presence makes no outbound calls in v0.1) |
-| Commit/push gate | warn or off | hard block until verified test/build evidence exists | `[shipped]` |
-| Stop-hook gate | silent (logged to `confidence.jsonl`) | hard block (re-prompts the model on unhedged success without evidence) | `[shipped]` |
-| Audit log | not produced | tamper-evident append-only log with per-line hash chain | `[planned]` |
-| Transcript reads | up to 256 KiB | 256 KiB cap + path must be under `~/.claude/projects/` | `[shipped]` |
-| Settings immutability | direct edit | `presence-unlock` flow before next change | `[planned]` |
-| State permissions | `0o700` / `0o600` | enforced and verified every session | `[shipped]` |
+| Control | Standard presets | Zero-Trust preset |
+|---|---|---|
+| Plugin file integrity | not checked | SHA-256 manifest verified at SessionStart; on mismatch, all hooks remain inert for the rest of the session |
+| State at rest | plain JSONL/MD | AES-GCM encrypted per line (12-byte nonce + tag), data key wrapped in OS keychain (macOS `security`, Linux `secret-tool`); mixed plain+encrypted files supported per-line |
+| Logged commands | standard redaction | aggressive redaction (32+ hex blob, 40+ b64 blob, any uppercase env-style assignment) |
+| Network egress | optional `gh` PR check available | disabled |
+| Commit/push gate | warn or off | hard block until verified test/build evidence exists |
+| Stop-hook gate | silent (logged to `confidence.jsonl`) | hard block (re-prompts the model on unhedged success without evidence) |
+| Audit log | not produced | tamper-evident append-only log with per-line SHA-256 hash chain at `~/.claude/presence/audit.jsonl` |
+| Transcript reads | up to 256 KiB | 256 KiB cap + path must be under `~/.claude/projects/` |
+| Settings immutability | direct edit | `presence-unlock` flow required (TTL'd marker) before any settings.json or preset write |
+| State permissions | `0o700` / `0o600` | enforced and verified every session |
 
 ## What it requires you to install
 
-`presence` is stdlib-only at runtime, by design. The Zero-Trust profile in v0.1 needs nothing extra.
-
-For v0.2, when AES-GCM at-rest encryption ships, you will need the `cryptography` library:
+`presence` is stdlib-only at runtime by default. The Zero-Trust profile needs the `cryptography` library for AES-GCM:
 
 ```bash
 pip install --user cryptography
 ```
 
-This is not required today.
+If `cryptography` is missing or the OS keychain backend is unavailable, presence falls back to plain text and writes a one-time warning to `~/.claude/presence/logs/warnings.log`. `/presence-doctor` and `/presence-status --zerotrust` surface the degradation.
 
 ## Threat model
 
 Zero-Trust mode assumes:
 
-1. **The plugin may have been tampered with** between install and use. Mitigation: integrity check (on-demand in v0.1, SessionStart-gated in v0.2).
-2. **Other local processes may try to read presence state.** Mitigation: strict file permissions today; encryption v0.2.
+1. **The plugin may have been tampered with** between install and use. Mitigation: SessionStart fail-closed integrity check.
+2. **Other local processes may try to read presence state.** Mitigation: AES-GCM at rest with key wrapped in the OS keychain + `0o600` file permissions.
 3. **The workspace contains hostile content** (e.g. a malicious commit message designed to inject context). Mitigation: aggressive redaction + hard gates.
 4. **Network egress is monitored.** Mitigation: no calls leave the machine.
-5. **Audit trail is required for compliance review.** Mitigation: planned for v0.2.
+5. **Audit trail is required for compliance review.** Mitigation: tamper-evident append-only log with per-line hash chain.
+6. **Settings should not change without an explicit conscious step.** Mitigation: settings.json and preset writes refused unless `/presence-unlock` was invoked in the last 60 seconds.
 
 It does **not** defend against:
 - A compromised Claude Code binary.
-- A compromised OS-level user account.
+- A compromised OS-level user account (an attacker with shell access can read the keychain entry as you).
 - Hardware-level attacks.
 
-## How to verify it's actually working today
+## How to verify it's actually working
 
-Run `/presence-doctor` in any session. It reports, among other things:
+```
+/presence-status --zerotrust
+```
 
-- Active preset (should show `zerotrust`).
-- Integrity check (should show `OK` if `MANIFEST.lock` is present and unchanged).
-- State directory and file permissions.
-- Recent warnings, if any (e.g. `unverified_success_claim`, `transcript_outside_projects`).
+Reports the current status of each control:
 
-Doctor cannot yet report "encrypted OK" or "audit log intact OK" because those features are v0.2.
+- Active preset (must be `zerotrust` for ZT controls to actually fire)
+- Plugin integrity (`OK` / `FAILED: N missing, M mismatched`)
+- Crypto availability (`OK (cryptography lib + macos keychain)` or `FAIL`)
+- Audit chain (`OK (N lines verified)` or `FAIL (...)`) 
+- Settings immutability (`ON (locked)` / `ON (currently UNLOCKED)` / `OFF`)
+- Network egress
+- State directory permissions (`0o700` enforced)
 
 ## Manifest integrity
 
-The integrity manifest (`MANIFEST.lock`) is regenerated by CI on every release and shipped with the plugin. To verify locally:
+The integrity manifest (`MANIFEST.lock`) is regenerated by CI on every release and shipped with the plugin. To verify manually:
 
 ```bash
 PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/lib" python3 "${CLAUDE_PLUGIN_ROOT}/lib/integrity.py" --verify
 ```
 
-Mismatch in v0.1 is reported (via `/presence-doctor`) but does not yet block hooks. v0.2 will fail-closed at SessionStart.
+Under the zerotrust preset, SessionStart auto-runs this check. On mismatch, every hook in the session exits silently after writing `~/.claude/presence/.integrity-blocked`. The next clean SessionStart removes the marker.
+
+## Audit log
+
+Path: `~/.claude/presence/audit.jsonl`
+
+Each line:
+
+```json
+{"ts": 1714074000, "event": "session_start", "preset": "zerotrust",
+ "details": {...}, "prev_hash": "<hex64>", "hash": "<hex64>"}
+```
+
+`hash = sha256(prev_hash || canonical_json(line_without_hash))`. Tampering with any past line invalidates every subsequent line's hash check.
+
+Verify the chain:
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/lib" python3 "${CLAUDE_PLUGIN_ROOT}/lib/integrity.py" --audit-verify
+```
+
+Returns line counts plus indices of any tampered, broken-link, or corrupt entries.
+
+## Encryption-at-rest specifics
+
+- Algorithm: AES-256-GCM (96-bit nonce, 128-bit tag).
+- Format per line: `{"_e":"aes-gcm-v1","n":"<base64 nonce>","c":"<base64 ciphertext+tag>"}`.
+- Data key: 256-bit, generated by `secrets.token_bytes(32)` on first use, stored in macOS Keychain (`security add-generic-password`) or Linux secret-service (`secret-tool`).
+- Per-line encryption with a fresh random nonce. Nonces are not reused across lines.
+- Files can be **mixed**: a line that already exists from a prior plain session decrypts as plain; new lines append encrypted.
+- Reader auto-detects per line via the `_e` field. No file rename or migration required.
+- Key rotation: `/presence-reset --crypto` rotates the keychain entry and wipes encrypted state files (history beyond the rotation point becomes unreadable).
+
+## Settings immutability and unlock
+
+```
+/presence-unlock           # 60s default TTL
+/presence-unlock --ttl 30  # custom TTL
+```
+
+While the unlock marker is active (and not expired), `/presence-preset use ...` and direct `settings.json` writes are permitted. Otherwise they're refused with an explanatory error. The unlock marker is a normal file at `~/.claude/presence/.unlocked` containing the expiry unix timestamp; a user with shell access can always rm it directly. This is a tamper-resistance signal, not a security barrier.
 
 ## What you give up
 
 - **Convenience.** Hard commit gates can interrupt flow when you're confident but didn't run tests.
-- **Speed.** The integrity check adds a few ms per `/presence-doctor` invocation; SessionStart cost is unaffected in v0.1 (the check is on-demand).
+- **Speed.** SessionStart's integrity check adds ~10-50 ms; encryption adds ~2 ms per appended event.
 - **The optional outcome check** (PR merge/close) is unavailable.
+- **Any `cryptography` dep.** Default presets stay stdlib-only. Only zerotrust pulls it in.
 
-If those costs are unacceptable for day-to-day work, use `enterprise-strict` instead. It keeps the hard gate but drops the integrity check requirement.
+If those costs are unacceptable for day-to-day work, use `enterprise-strict` instead. It keeps the hard commit gate and stop-action block but drops encryption + integrity-fail-closed.
 
 ## Disabling
 
 ```
+/presence-unlock           # required if currently locked
 /presence-preset use solo-dev
 ```
 
-In v0.1 there is no encrypted state to migrate, so switching back is immediate.
-
-## Planned for v0.2
-
-Items currently marked `[planned]` in the table above:
-
-- AES-GCM encryption at rest
-- Audit log with hash chain
-- SessionStart fail-closed integrity check
-- `presence-unlock` settings-immutability flow
-- `/presence-status --zerotrust` checklist
-- `/presence-reset --crypto` key rotation
-
-Specs land with the implementations, not before.
+Switching back leaves any encrypted state on disk. New writes go plain. Old encrypted lines stay readable as long as the keychain key is still present. To wipe: `/presence-reset --crypto` rotates the key and removes the encrypted state directories.

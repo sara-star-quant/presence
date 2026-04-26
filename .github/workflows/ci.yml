@@ -22,8 +22,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
-      - name: Install pytest
-        run: pip install --upgrade pip && pip install pytest
+      - name: Install pytest + cryptography (zerotrust optional dep, used by tests)
+        run: pip install --upgrade pip && pip install pytest cryptography
       - name: Run tests
         run: PYTHONPATH=lib pytest -q
 

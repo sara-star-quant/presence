@@ -1,6 +1,6 @@
 ---
-description: Wipe presence state for the current project (or all projects, or specific subsystems). Asks for confirmation before destructive action.
-argument-hint: "[--project | --telemetry | --events | --warnings | --all]"
+description: Wipe presence state for the current project, all projects, or specific subsystems. Asks for confirmation before destructive action.
+argument-hint: "[--project | --telemetry | --events | --warnings | --crypto | --all]"
 allowed-tools: [Bash, AskUserQuestion]
 ---
 
@@ -14,7 +14,8 @@ Available scopes:
 | `--telemetry` | Delete claims/outcomes/confidence (all projects) |
 | `--events` | Delete event log for the current repo |
 | `--warnings` | Clear warnings.log and one-shot warning markers |
-| `--all` | Wipe **everything** under `~/.claude/presence/` (state only; plugin files untouched) |
+| `--crypto` | Rotate the AES-GCM data key in the OS keychain AND wipe all encrypted state files (telemetry, events). Plain state files untouched. |
+| `--all` | Wipe **everything** under `~/.claude/presence/` (state only; plugin files untouched). Does NOT touch the keychain key. |
 
 **Always** confirm with the user before deleting via AskUserQuestion. Show them exactly what paths will be removed first.
 
@@ -58,6 +59,29 @@ from _common import reset_counter
 clear_warnings_state()
 reset_counter('warning'); reset_counter('error')
 print('warnings cleared')
+"
+
+# --crypto (rotate key + wipe encrypted state; user must confirm separately)
+PYTHONPATH="$PRESENCE_ROOT/lib" python3 -c "
+import shutil
+from pathlib import Path
+import crypto
+from _common import telemetry_dir, events_dir, state_dir
+
+# Wipe encrypted state files (telemetry/events). Plain state stays.
+# We can't easily distinguish per-line which files are mixed, so we wipe both
+# directories entirely. Caller has confirmed via AskUserQuestion.
+for d in (telemetry_dir(), state_dir() / 'events'):
+    if d.exists():
+        shutil.rmtree(d)
+        print(f'wiped: {d}')
+
+# Rotate the data key (existing ciphertext, if any survived, becomes unreadable)
+new_key = crypto.rotate_key()
+if new_key:
+    print('keychain data key rotated; existing encrypted state is unreadable from now on')
+else:
+    print('warning: could not rotate key (cryptography lib or keychain unavailable)')
 "
 
 # --all

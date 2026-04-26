@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from _common import emit, hook_input, safe_main, settings
+from _common import emit, hook_input, integrity_blocked, safe_main, settings
 from telemetry import record_confidence
 from verify import has_recent_edit, has_recent_test_evidence, has_unhedged_success_claim
 from warnings_log import warn
@@ -87,6 +87,8 @@ def _last_assistant_text(p: Path, max_bytes: int = TRANSCRIPT_TAIL_BYTES_DEFAULT
 
 
 def main() -> None:
+    if integrity_blocked():
+        return  # SessionStart fail-closed marker is set; stay inert
     inp = hook_input()
     cfg = settings()
     cwd = inp.get("cwd") or os.getcwd()

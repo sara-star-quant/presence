@@ -128,8 +128,76 @@ def _cli() -> int:
     return 0
 
 
+def zerotrust_report() -> list[str]:
+    """Return a list of one-line status entries focused on Zero-Trust controls."""
+    from presets import active_preset_name
+
+    lines = []
+    active = active_preset_name()
+    lines.append(f"active preset       : {active}{' (ZT controls active)' if active == 'zerotrust' else ' (ZT controls INACTIVE; switch with /presence-preset use zerotrust)'}")
+
+    # Plugin file integrity
+    integ = integrity_status()
+    lines.append(f"plugin integrity    : {integ}")
+
+    # State at rest encryption
+    try:
+        from crypto import is_available as crypto_available
+        from crypto import keychain_backend
+        if crypto_available():
+            backend = keychain_backend()
+            lines.append(f"crypto available    : OK (cryptography lib + {backend} keychain)")
+        else:
+            lines.append("crypto available    : FAIL (install cryptography or set up keychain backend)")
+    except ImportError:
+        lines.append("crypto available    : FAIL (cryptography lib not importable)")
+
+    # Audit log chain
+    try:
+        from audit import verify_chain
+        chain = verify_chain()
+        if not chain["exists"]:
+            lines.append("audit chain         : (no audit log yet; will populate on first ZT-relevant event)")
+        elif chain["ok"]:
+            lines.append(f"audit chain         : OK ({chain['lines']} line(s) verified)")
+        else:
+            lines.append(
+                f"audit chain         : FAIL ({len(chain['tampered'])} tampered, "
+                f"{len(chain['broken_link'])} broken-link, {len(chain['corrupt'])} corrupt)"
+            )
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"audit chain         : check error: {exc}")
+
+    # Settings immutability + unlock state
+    try:
+        from unlock import is_immutable, is_unlocked
+        if is_immutable():
+            unlocked = is_unlocked()
+            lines.append(
+                f"settings immutable  : ON ({'currently UNLOCKED' if unlocked else 'locked'})"
+            )
+        else:
+            lines.append("settings immutable  : OFF (active preset does not request immutability)")
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"settings immutable  : check error: {exc}")
+
+    # Network egress
+    lines.append("network egress      : OK (presence makes no outbound calls in v0.2)")
+
+    # State permissions
+    try:
+        import stat
+        s = state_dir().stat()
+        mode = stat.S_IMODE(s.st_mode)
+        lines.append(f"state perms         : {'OK' if mode == 0o700 else f'FAIL (got 0o{mode:03o}, want 0o700)'}")
+    except OSError as exc:
+        lines.append(f"state perms         : check error: {exc}")
+
+    return lines
+
+
 if __name__ == "__main__":
     sys.exit(_cli())
 
 
-__all__ = ["report", "render"]
+__all__ = ["report", "render", "zerotrust_report"]

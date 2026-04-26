@@ -37,5 +37,8 @@
   "transcript": {
     "max_bytes": 262144,
     "restrict_to_claude_projects": true
+  },
+  "settings": {
+    "immutable": true
   }
 }

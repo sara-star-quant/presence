@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import os
 
-from _common import hook_input, safe_main, settings
+from _common import hook_input, integrity_blocked, safe_main, settings
 from events import append_event
 
 
 def main() -> None:
+    if integrity_blocked():
+        return  # SessionStart fail-closed marker is set; stay inert
     inp = hook_input()
     cfg = settings()
     cwd = inp.get("cwd") or os.getcwd()
