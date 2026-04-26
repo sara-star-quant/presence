@@ -28,7 +28,12 @@ State lives in `~/.claude/presence/`, fully local, never uploaded.
 - **Surface**: 4 presets, 6 hooks, 5 slash commands, 3 skills, 1 subagent.
 - **Local-only state.** Zero network egress in default presets; the optional `gh` PR-status call (skill `outcome-check`) is the only outbound call and is disabled in `zerotrust`.
 
-> **New in v0.2.0**: the `zerotrust` preset is fully shipped: AES-GCM at-rest encryption with the data key in your OS keychain, a tamper-evident audit log with per-line SHA-256 hash chain, SessionStart fail-closed integrity check, and a `/presence-unlock` flow gating settings writes. See [`docs/zerotrust.md`](docs/zerotrust.md).
+> **New in v0.3.x**: substantial cold-hook latency cuts and one latent correctness fix.
+> v0.3.0 made `asyncio` lazy in the shared module and cached the python-version probe in the bash wrapper (cold hook 109 ms -> 84 ms median).
+> v0.3.1 split the keychain-aware encryption state so non-zerotrust presets stop probing the OS keychain on every fire, cached `repo_id()` and `_ensure_dir()` per process, collapsed the double `peek_events` scans in Stop and PreToolUse(Bash), and fixed a latent v0.2 bug where `events.py` returned encrypted envelopes verbatim under zerotrust so `summarize_events` silently dropped every event.
+> See [`CHANGELOG.md`](CHANGELOG.md) for the per-version diff and `bench/` for reproducible numbers.
+
+> **v0.2.0 still applies**: the `zerotrust` preset is fully shipped: AES-GCM at-rest encryption with the data key in your OS keychain, a tamper-evident audit log with per-line SHA-256 hash chain, SessionStart fail-closed integrity check, and a `/presence-unlock` flow gating settings writes. See [`docs/zerotrust.md`](docs/zerotrust.md).
 
 ## Install
 

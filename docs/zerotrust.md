@@ -12,6 +12,8 @@ It is **opt-in**. Everything below is off by default. Activate with:
 
 Each control below is shipped in v0.2.
 
+> **v0.3.1 correctness fix (relevant to existing zerotrust users)**: until v0.3.1, `lib/events.py` (`peek_events` and `drain_events`) used raw `json.loads` on every line. Under `events.encrypted=true` (this preset), every appended event was stored encrypted on disk but read back as the opaque envelope `{"_e":...,"n":...,"c":...}` with no `kind`, so `summarize_events` and the calibrated-confidence gate silently dropped every event. v0.3.1 routes both paths through the per-line decryption logic. No data migration needed; the encrypted-on-disk format is unchanged. Existing `pending.jsonl` files become readable again immediately on upgrade.
+
 | Control | Standard presets | Zero-Trust preset |
 |---|---|---|
 | Plugin file integrity | not checked | SHA-256 manifest verified at SessionStart; on mismatch, all hooks remain inert for the rest of the session |
