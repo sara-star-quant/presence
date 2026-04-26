@@ -7,7 +7,7 @@ from pathlib import Path
 
 from _common import emit, hook_input, integrity_blocked, safe_main, settings
 from telemetry import record_confidence
-from verify import has_recent_edit, has_recent_test_evidence, has_unhedged_success_claim
+from verify import has_unhedged_success_claim, scan_recent
 from warnings_log import warn
 
 # Default cap on how much transcript we'll read. Most sessions are well under this;
@@ -110,10 +110,13 @@ def main() -> None:
     if not has_unhedged_success_claim(final):
         return
 
-    if not has_recent_edit(cwd):
+    # One pass over peek_events to learn both edit + test recency. The Stop
+    # hook used to scan the same file twice (last_edit, then last_pass).
+    recent = scan_recent(cwd, window_seconds=1800)
+    if not recent["has_recent_edit"]:
         return
 
-    verified = has_recent_test_evidence(cwd)
+    verified = recent["has_recent_test_evidence"]
     record_confidence("unhedged_success", verified, final_excerpt=final[:200])
 
     if verified:

@@ -7,14 +7,21 @@
 # Behavior, in order:
 #   1. If python3 is missing from PATH: emit a one-time SessionStart warning
 #      (only for the SessionStart hook; other hooks just exit 0 silently).
-#   2. Cache the python3 >= 3.12 verdict at $state_dir/.python_version_ok
-#      keyed by <python_bin>:<mtime>. Cache hit -> skip the version check entirely.
-#      This eliminates ~20 ms (a separate `python3 -c '...'` process spawn) on
-#      every hook fire after the first one in a session.
+#   2. Cache the python3 >= 3.12 verdict at $state_dir/.python_version_ok.
+#      Cache key is just the python_bin path; staleness is detected by bash
+#      `-nt` (marker newer than the python binary). Cache HIT path is
+#      subprocess-free: zero `stat`, zero `head`, zero command substitutions.
+#      Cache MISS path: run `python3 -c '...'` once and rewrite the marker.
 #   3. exec the requested python entry point with PYTHONPATH set.
 #
-# Set -u only; we never want -e here because a hook must NEVER make Claude Code
-# observe an error from presence. safe_main inside python is the real guard.
+# Marker format (v0.3.1+): single line, just the python binary path. The
+# v0.3.0 format `<bin>:<mtime>` does not match the new check, so the first
+# hook after upgrade re-probes once and rewrites the marker. No state
+# migration needed.
+#
+# Set -u only; we never want -e here because a hook must NEVER make Claude
+# Code observe an error from presence. safe_main inside python is the real
+# guard.
 
 # shellcheck shell=bash
 set -u
@@ -23,24 +30,18 @@ _presence_state_dir() {
   printf '%s' "${PRESENCE_STATE:-$HOME/.claude/presence}"
 }
 
-_presence_mtime() {
-  # Try GNU stat first, BSD second. Reverse order is unsafe on Linux: GNU
-  # stat treats `-f` as `--file-system` and dumps multi-line filesystem stats
-  # to stdout when called as `-f %m <file>`, which corrupts the cache marker.
-  # BSD stat rejects `-c` cleanly with empty stdout, so GNU-first works on macOS too.
-  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || printf ''
-}
-
 _presence_python_ok_cached() {
-  # Echo "ok" if cache hit, nothing if miss. Cache key: "<bin>:<mtime>".
-  local bin marker want got
+  # Cache hit iff: marker exists, marker is newer than python_bin (so python
+  # hasn't been upgraded since we wrote it), and marker's first line equals
+  # the current python_bin path. All-builtin: zero subprocesses on hit.
+  # Returns 0 on hit, 1 on miss.
+  local bin marker first_line
   bin="$1"
   marker="$(_presence_state_dir)/.python_version_ok"
-  [ -f "$marker" ] || return 0
-  want="${bin}:$(_presence_mtime "$bin")"
-  # read first line; tolerate trailing newline absence
-  got="$(head -n 1 "$marker" 2>/dev/null || printf '')"
-  [ "$got" = "$want" ] && printf 'ok'
+  [ -f "$marker" ] || return 1
+  [ "$marker" -nt "$bin" ] || return 1
+  IFS= read -r first_line < "$marker" 2>/dev/null || return 1
+  [ "$first_line" = "$bin" ]
 }
 
 _presence_record_python_ok() {
@@ -49,7 +50,7 @@ _presence_record_python_ok() {
   state_dir="$(_presence_state_dir)"
   marker="$state_dir/.python_version_ok"
   mkdir -p "$state_dir" 2>/dev/null || return 0
-  printf '%s:%s\n' "$bin" "$(_presence_mtime "$bin")" > "$marker" 2>/dev/null || true
+  printf '%s\n' "$bin" > "$marker" 2>/dev/null || true
   chmod 600 "$marker" 2>/dev/null || true
 }
 
@@ -78,13 +79,17 @@ exec_hook() {
     _presence_warn_python_missing_for_session_start "$hook_entry"
     exit 0
   fi
-  if [ -z "$(_presence_python_ok_cached "$python_bin")" ]; then
+  if ! _presence_python_ok_cached "$python_bin"; then
     if ! "$python_bin" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)' 2>/dev/null; then
       _presence_warn_python_missing_for_session_start "$hook_entry"
       exit 0
     fi
     _presence_record_python_ok "$python_bin"
   fi
+  # PYTHONNOUSERSITE=1 skips the site.py user-site directory lookup at
+  # interpreter startup (~3-8 ms saved per cold hook fire on Python 3.12+).
+  # Hooks never want user-site packages: they only need stdlib + lib/.
+  PYTHONNOUSERSITE=1 \
   PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/lib${PYTHONPATH:+:$PYTHONPATH}" \
     exec "$python_bin" "${CLAUDE_PLUGIN_ROOT}/lib/${hook_entry}"
 }

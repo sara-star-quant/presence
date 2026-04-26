@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import REPO_ROOT, emit_report, summarize, time_subprocess  # noqa: E402
+from _lib import REPO_ROOT, assert_all_ok, emit_report, summarize, time_subprocess  # noqa: E402
 
 HOOK_SCRIPTS = {
     "user-prompt-submit": "hooks/scripts/user-prompt-submit.sh",
@@ -55,11 +55,14 @@ def run(target: str, runs: int) -> dict:
         for _ in range(3):
             time_subprocess(cmd, env=env, stdin_bytes=stdin_payload, cwd=str(REPO_ROOT))
 
-        samples = [
-            time_subprocess(cmd, env=env, stdin_bytes=stdin_payload, cwd=str(REPO_ROOT))
-            for _ in range(runs)
-        ]
+        samples: list[float] = []
+        rcs: list[int] = []
+        for _ in range(runs):
+            t, rc = time_subprocess(cmd, env=env, stdin_bytes=stdin_payload, cwd=str(REPO_ROOT))
+            samples.append(t)
+            rcs.append(rc)
 
+    assert_all_ok(rcs, f"cold_startup[{target}]")
     return summarize(samples)
 
 

@@ -12,34 +12,23 @@ import os
 
 from _common import emit, emit_context, hook_input, integrity_blocked, now_ts, safe_main, settings
 from cmdparse import is_git_commit, is_git_push
-from events import peek_events
+from verify import scan_recent
 
 
-def _last_edit_ts(cwd) -> int:
-    """Most recent edit timestamp from the event queue; 0 if none."""
-    last = 0
-    for ev in peek_events(cwd):
-        if ev.get("kind") == "edit":
-            ts = ev.get("ts", 0)
-            last = max(last, ts)
-    return last
+def _evidence_after_edit(cwd) -> tuple[bool, int]:
+    """Return (evidence_present, last_edit_ts).
 
-
-def _last_pass_ts(cwd) -> int:
-    last = 0
-    for ev in peek_events(cwd):
-        if ev.get("kind") in ("test_pass", "build_pass"):
-            ts = ev.get("ts", 0)
-            last = max(last, ts)
-    return last
-
-
-def _evidence_after_edit(cwd) -> bool:
-    """True iff a passing test/build was logged AFTER the most recent edit."""
-    edit_ts = _last_edit_ts(cwd)
+    evidence_present is True iff a passing test/build was logged AFTER the most
+    recent edit, or there are no recorded edits in the window. Single
+    peek_events scan via scan_recent (was two scans: last_edit, last_pass).
+    """
+    # Wide window: PreToolUse fires opportunistically, so include the longer
+    # 1800 s scan_recent default rather than the 600 s test-evidence default.
+    recent = scan_recent(cwd, window_seconds=1800)
+    edit_ts = recent["last_edit_ts"]
     if edit_ts == 0:
-        return True  # no recorded edits -> no claim to verify
-    return _last_pass_ts(cwd) > edit_ts
+        return True, 0
+    return recent["last_pass_ts"] > edit_ts, edit_ts
 
 
 def main() -> None:
@@ -58,7 +47,8 @@ def main() -> None:
     if not (is_git_commit(cmd) or is_git_push(cmd)):
         return
 
-    if _evidence_after_edit(cwd):
+    evidence_present, last_edit_ts = _evidence_after_edit(cwd)
+    if evidence_present:
         return
 
     msg = (
@@ -66,9 +56,10 @@ def main() -> None:
         "No passing test or build was logged AFTER the most recent edit in this session.\n"
         "Either run the test suite first, or hedge your success claims."
     )
-    age = now_ts() - _last_edit_ts(cwd)
-    if age:
-        msg += f"\n(Most recent edit was {age}s ago.)"
+    if last_edit_ts:
+        age = now_ts() - last_edit_ts
+        if age:
+            msg += f"\n(Most recent edit was {age}s ago.)"
 
     if gate == "warn":
         # Advisory only; never interrupt. Just inject context for Claude/the user to see

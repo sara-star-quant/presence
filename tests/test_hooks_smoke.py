@@ -124,8 +124,8 @@ def test_stop_runs_with_no_transcript(hook_env):
 def test_python_version_check_cached_across_hook_fires(hook_env):
     """The wrapper's _common.sh writes a marker (.python_version_ok) on first
     fire so subsequent fires skip the per-invocation `python3 -c '...'` probe.
-    This is the v0.3.0 cold-hook latency fix; if the marker stops being written
-    we silently regress by ~20 ms on every hook.
+    Cold-hook latency depends on this; if the marker stops being written we
+    silently regress by ~20 ms on every hook.
     """
     env, state, fake_repo = hook_env
     marker = state / ".python_version_ok"
@@ -134,9 +134,11 @@ def test_python_version_check_cached_across_hook_fires(hook_env):
     assert r.returncode == 0
     assert marker.exists(), "first hook fire must write the python-version cache marker"
     contents = marker.read_text(encoding="utf-8").strip()
-    assert ":" in contents, "marker format must be <python_bin>:<mtime>"
-    bin_path, _mtime = contents.split(":", 1)
-    assert bin_path.endswith("python3") or "python" in bin_path
+    # New v0.3.1 format: just the python_bin path on a single line. No colon,
+    # no mtime, no embedded newlines (staleness comes from filesystem -nt).
+    assert "\n" not in contents, "marker must be a single line"
+    assert ":" not in contents, "marker no longer carries a mtime field"
+    assert contents.endswith("python3") or "python" in contents
     # Second fire should still work (marker reused, version probe skipped).
     r2 = _run("user-prompt-submit.sh", {"cwd": str(fake_repo), "prompt": "y"}, env)
     assert r2.returncode == 0
@@ -145,20 +147,20 @@ def test_python_version_check_cached_across_hook_fires(hook_env):
 
 
 def test_python_version_marker_invalidates_when_python_changes(hook_env):
-    """If the cached marker references a different python binary or mtime, the
-    wrapper re-runs the version probe and rewrites the marker. Simulates a
-    python upgrade between hook fires.
+    """If the cached marker references a different python binary, the wrapper
+    re-runs the version probe and rewrites the marker. Simulates a python
+    upgrade between hook fires.
     """
     env, state, fake_repo = hook_env
     marker = state / ".python_version_ok"
-    # Pre-seed a stale marker pointing at a fake binary.
-    marker.write_text("/nonexistent/python3:0\n", encoding="utf-8")
+    # Pre-seed a stale marker pointing at a fake binary (single-line format).
+    marker.write_text("/nonexistent/python3\n", encoding="utf-8")
     r = _run("user-prompt-submit.sh", {"cwd": str(fake_repo), "prompt": "z"}, env)
     assert r.returncode == 0
     # Marker should have been rewritten with the real python binary.
     contents = marker.read_text(encoding="utf-8").strip()
     assert "/nonexistent/python3" not in contents
-    assert ":" in contents
+    assert "\n" not in contents
 
 
 def test_python_missing_warning_format(tmp_path, fake_repo):
@@ -194,3 +196,48 @@ def test_python_missing_warning_format(tmp_path, fake_repo):
     r2 = _run("session-start.sh", {"cwd": str(fake_repo)}, env)
     assert r2.returncode == 0
     assert not r2.stdout.strip(), f"expected silence on second call, got: {r2.stdout}"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the v0.3.0 cold-hook latency win
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("entry", [
+    "hook_user_prompt_submit",
+    "hook_post_tool_bash",
+    "hook_post_tool_edit",
+    "hook_pre_tool_bash",
+    "hook_stop",
+])
+def test_sync_hook_does_not_import_asyncio(entry):
+    """v0.3.0 made `asyncio` lazy in lib/_common.py because importing it costs
+    ~20 ms per cold hook fire. If a future change re-adds a top-level
+    `import asyncio` anywhere in the import graph of a sync hook, this test
+    fails so the regression cannot land silently.
+
+    Subprocess (rather than importlib.reload) so the test runner's own
+    asyncio (pytest's plugin host imports it) does not leak in via sys.modules.
+    """
+    import os
+    import textwrap
+
+    code = textwrap.dedent(f"""
+        import sys, importlib
+        sys.modules.pop('asyncio', None)
+        importlib.import_module('{entry}')
+        sys.exit(1 if 'asyncio' in sys.modules else 0)
+    """)
+    env = {**os.environ, "PYTHONPATH": str(PLUGIN_ROOT / "lib")}
+    r = subprocess.run(
+        [sys.executable, "-c", code],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert r.returncode == 0, (
+        f"{entry} pulled asyncio at import time (sys.modules check failed). "
+        f"Cold-hook latency win depends on asyncio staying lazy. "
+        f"stderr: {r.stderr}"
+    )

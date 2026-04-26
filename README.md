@@ -18,6 +18,15 @@ A Claude Code plugin that turns every session into part of a continuum.
 
 State lives in `~/.claude/presence/`, fully local, never uploaded.
 
+## By the numbers
+
+- **Cold hook startup**: 81 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50). 26% faster than v0.3.0.
+- **Aggregate session overhead**: 6.79 s for 77 hook fires per realistic session (median, n=10). 35% faster than v0.3.0.
+- **Stdlib-only runtime.** One optional dep (`cryptography`) used only by the Zero-Trust preset.
+- **CI**: 167 tests passing on Python 3.12 + 3.13 + 3.14 across Linux + macOS.
+- **Surface**: 4 presets, 6 hooks, 5 slash commands, 3 skills, 1 subagent.
+- **Local-only state.** Zero network egress in default presets; the optional `gh` PR-status call (skill `outcome-check`) is the only outbound call and is disabled in `zerotrust`.
+
 > **New in v0.2.0**: the `zerotrust` preset is fully shipped: AES-GCM at-rest encryption with the data key in your OS keychain, a tamper-evident audit log with per-line SHA-256 hash chain, SessionStart fail-closed integrity check, and a `/presence-unlock` flow gating settings writes. See [`docs/zerotrust.md`](docs/zerotrust.md).
 
 ## Install
