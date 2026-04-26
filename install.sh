@@ -351,6 +351,38 @@ update() {
   install
 }
 
+# ---------------------------------------------------------------------------
+# Snapshot / restore: cross-machine state portability for non-zerotrust
+# presets. Delegates the heavy lifting to lib/snapshot.py; install.sh just
+# resolves Python the same way runtime hooks do and forwards the path.
+# ---------------------------------------------------------------------------
+
+snapshot_state() {
+  local out_path py_bin
+  out_path="$1"
+  [ -z "$out_path" ] && die "--snapshot needs an output path"
+  py_bin="$(_resolve_python)"
+  [ -z "$py_bin" ] && die "no usable python3 (need >= 3.12); see ./install.sh --verify"
+  PYTHONPATH="$SCRIPT_DIR/lib" PRESENCE_STATE="$STATE_DIR" \
+    "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" snapshot "$out_path"
+}
+
+restore_state() {
+  local in_path overwrite_flag py_bin
+  in_path="$1"
+  overwrite_flag="$2"
+  [ -z "$in_path" ] && die "--restore needs an input path"
+  py_bin="$(_resolve_python)"
+  [ -z "$py_bin" ] && die "no usable python3 (need >= 3.12); see ./install.sh --verify"
+  if [ "$overwrite_flag" = "--overwrite" ]; then
+    PYTHONPATH="$SCRIPT_DIR/lib" PRESENCE_STATE="$STATE_DIR" \
+      "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" restore "$in_path" --overwrite
+  else
+    PYTHONPATH="$SCRIPT_DIR/lib" PRESENCE_STATE="$STATE_DIR" \
+      "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" restore "$in_path"
+  fi
+}
+
 uninstall() {
   local purge=0
   for arg in "$@"; do
@@ -475,10 +507,31 @@ EOF
 # `install --bootstrap` and `--bootstrap` (default to install) all work.
 
 SUBCOMMAND=""
+SNAPSHOT_PATH=""
+RESTORE_PATH=""
+RESTORE_OVERWRITE=""
+expect_path_for=""
 for arg in "$@"; do
+  if [ -n "$expect_path_for" ]; then
+    case "$expect_path_for" in
+      snapshot) SNAPSHOT_PATH="$arg" ;;
+      restore)  RESTORE_PATH="$arg" ;;
+    esac
+    expect_path_for=""
+    continue
+  fi
   case "$arg" in
     --bootstrap) BOOTSTRAP=1 ;;
     --json)      VERIFY_JSON=1 ;;
+    --overwrite) RESTORE_OVERWRITE="--overwrite" ;;
+    --snapshot)
+      [ -z "$SUBCOMMAND" ] && SUBCOMMAND="--snapshot"
+      expect_path_for="snapshot"
+      ;;
+    --restore)
+      [ -z "$SUBCOMMAND" ] && SUBCOMMAND="--restore"
+      expect_path_for="restore"
+      ;;
     install|--update|update|--verify|verify|--uninstall|uninstall|-h|--help)
       [ -z "$SUBCOMMAND" ] && SUBCOMMAND="$arg" ;;
     --purge) ;;  # forwarded to uninstall
@@ -491,6 +544,8 @@ case "$SUBCOMMAND" in
   install)               install ;;
   --update|update)       update ;;
   --verify|verify)       verify ;;
+  --snapshot)            snapshot_state "$SNAPSHOT_PATH" ;;
+  --restore)             restore_state "$RESTORE_PATH" "$RESTORE_OVERWRITE" ;;
   --uninstall|uninstall)
     purge_flag=""
     for arg in "$@"; do
@@ -513,6 +568,10 @@ Usage:
   ./install.sh --verify                 full pre-Claude-Code health check (exits 0 if ready)
   ./install.sh --verify --json          same as --verify but emits a JSON blob
   ./install.sh --update                 git pull + re-install (refuses if dirty)
+  ./install.sh --snapshot <out.tar.gz>  back up state for cross-machine portability
+                                        (refused under zerotrust; see issue #11)
+  ./install.sh --restore <in.tar.gz>    restore state from a snapshot (refuses if state
+                                        already exists; pass --overwrite to clobber)
   ./install.sh --uninstall              remove plugin symlink (state preserved)
   ./install.sh --uninstall --purge      remove plugin and wipe state
   ./install.sh --help                   this help

@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.3.4
+
+Bundle of five orthogonal threads, none of which conflict: release automation, perf-regression CI, bug-report ergonomics, snapshot/restore for non-zerotrust state, and documentation polish. Closes roadmap issue #10 (release automation) and partial-closes #11 (snapshot tooling; the zerotrust case stays open).
+
+### Added
+
+- **`.github/workflows/release.yml`**: triggered on `push: tags: 'v*'`. Extracts the matching `## v<TAG>` section from `CHANGELOG.md`, asserts ASCII + no em-dash / en-dash, derives a release title from the first non-blank line, marks `--latest` if this tag is the highest semver in the repo, then `gh release create`. Replaces the manual `gh release create --notes-file /tmp/...` flow used for v0.3.0 through v0.3.3. All values flowing into shell pass through `env:` blocks per the GitHub Actions injection-prevention guidance.
+- **`.github/workflows/ci.yml::bench` job**: perf-regression gate. Single matrix cell (ubuntu-latest, py 3.13). Runs `bench/cold_startup.py --runs 20` and `bench/aggregate_session.py --runs 5`; asserts median is under threshold (300 ms cold, 12000 ms aggregate). 2-3x headroom over local Python 3.14.4 numbers (cold ~80 ms, aggregate ~6.4 s); CI Linux is typically 1.5-2x slower. Runs in parallel with the existing `test` / `shellcheck` / `manifest-integrity` jobs; bumping the thresholds is a deliberate, reviewable change.
+- **`install.sh --snapshot <out.tar.gz>`** and **`install.sh --restore <in.tar.gz> [--overwrite]`**: cross-machine state portability for non-zerotrust presets. The snapshot tarball is schema-versioned via a `_snapshot_meta.json` at the root; restore validates the format before extracting. Per-machine markers (`.python_bin`, `.python_version_ok`, `.integrity-blocked`, `.unlock-*`, `logs/.warned-*`) are excluded automatically. Restore refuses by default if the destination state dir is non-empty; pass `--overwrite` to clobber. Restore also rejects path-traversal members in untrusted tarballs.
+- **`lib/snapshot.py`** (new): `snapshot()` + `restore()` + `SnapshotError`. Refuses snapshot when the active preset has any of `model.encrypted`, `telemetry.encrypted`, `events.encrypted` set true (the zerotrust key-rewrap case is its own design call; tracked in [docs/roadmap.md](docs/roadmap.md) and issue #11). 8 new tests in `tests/test_snapshot.py`.
+- **`lib/bugreport.py`** (new): bundles `install.sh --verify --json` + `lib/doctor.py --json` + recent warnings + state sizes into one structured blob. CLI: `python3 lib/bugreport.py` (JSON) or `--md` (markdown for pasting into the bug-report issue template). 7 new tests in `tests/test_bugreport.py`.
+- **`commands/presence-bugreport.md`** (new slash command): runs `lib/bugreport.py --md` and tells the user where to paste the result.
+- **`docs/index.md`** (new): table of contents for `docs/` with one-line descriptions of each page; cross-links to README, CHANGELOG, SECURITY, CONTRIBUTING, bench/README, llms.txt.
+- **`docs/glossary.md`** (new): 11 project-specific terms defined for new users (living model, outcome telemetry, calibrated confidence, integrity manifest, audit chain, pinned Python, hook event names, snapshot, etc.).
+- **`docs/recipes.md`** (new): 10 copy-paste customizations covering common preset overrides, snapshot/restore, bug-report flow, custom-preset authoring.
+
+### Changed
+
+- **`lib/warnings_log.py::warn()` and `warn_once()`**: new optional `fix=` keyword argument. When provided, the recovery hint is stored as a top-level field on the JSONL line. **Backward compatible**: 14 existing callers that don't pass `fix=` continue to work unchanged. 5 high-signal callers in `lib/_common.py` retrofitted with concrete fix hints (`crypto_lib_missing` -> `pip install --user cryptography`; `crypto_keychain_missing` -> macOS/Linux keychain hints; `crypto_key_failed` -> `/presence-reset --crypto`; `git_missing` -> install git; `settings_corrupt` -> inspect or reset). The remaining categories (`git_timeout`, `jsonl_corrupt`, `hook_input_malformed`, etc.) stay as-is and can be retrofitted incrementally.
+- **`lib/doctor.py::render()`**: when a warning has a `fix:` field, an indented `fix: <hint>` line appears under it. JSON output unchanged; the `fix` key was already passed through by `read_warnings()`.
+- **`README.md`**: new Documentation subsection under Architecture pointing at `docs/index.md` and listing each page in `docs/` with one-liners.
+
+### Closes
+
+- Roadmap issue #10 (Automate GitHub releases on tag push).
+
+### Partial progress
+
+- Roadmap issue #11 (Cross-machine state snapshot and migration tooling): the non-zerotrust path ships in v0.3.4. The zerotrust key-rewrap case remains open.
+
+### Quality gates (this release)
+
+- 208 tests passing on Python 3.12 / 3.13 / 3.14 (was 187 in v0.3.3; +21 across `test_warnings_fix_field`, `test_bugreport`, `test_snapshot`).
+- ruff clean.
+- shellcheck clean.
+- ASCII-only outside the two intentional unicode test fixtures.
+- MANIFEST.lock verifies OK (now includes `commands/presence-bugreport.md`).
+- Backward compat: every v0.3.x state file remains readable. The `fix:` field is additive on warnings; existing readers ignore unknown keys. Snapshot tarballs are a new artifact, not a state-format change.
+
 ## v0.3.3
 
 Zero-friction first install. Fixes a real bug (the installer accepted Python 3.10/3.11 even though the runtime requires 3.12+, so users on those versions got `ok` from install.sh and then every hook silently no-op'd). Adds a pre-Claude-Code health check, an opt-in Python bootstrap via uv, and a docs pass for first-time users. Plus governance docs (SECURITY.md, CONTRIBUTING.md, bench/README.md, GitHub issue + PR templates).

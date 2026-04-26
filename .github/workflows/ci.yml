@@ -53,3 +53,55 @@ jobs:
             echo "::error::MANIFEST.lock is stale. Run 'PYTHONPATH=lib python lib/integrity.py --write' and commit."
             exit 1
           fi
+
+  bench:
+    name: bench (perf regression gate)
+    runs-on: ubuntu-latest
+    # Single matrix cell to keep cost down. macOS bench numbers vary too much
+    # across hosted runners to be useful as a gate. Thresholds set with 2-3x
+    # headroom over local Python 3.14.4 numbers (cold ~80 ms, aggregate ~6.4 s);
+    # CI Linux is typically 1.5-2x slower. Bumping the thresholds is a
+    # deliberate, reviewable change.
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install pytest + cryptography
+        run: pip install --upgrade pip && pip install pytest cryptography
+      - name: Run cold_startup bench (threshold 300 ms median)
+        env:
+          THRESHOLD_MS: "300"
+        run: |
+          python3 bench/cold_startup.py --runs 20 | tee /tmp/bench-cold.txt
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          text = pathlib.Path('/tmp/bench-cold.txt').read_text()
+          lines = text.splitlines()
+          start = next(i for i, ln in enumerate(lines) if ln.startswith('{'))
+          parsed = json.loads('\n'.join(lines[start:]))
+          median = parsed['summary']['median_ms']
+          threshold = float(os.environ['THRESHOLD_MS'])
+          print(f'cold_startup median_ms = {median} (threshold {threshold})')
+          if median > threshold:
+              print(f'::error::cold_startup median {median} exceeded {threshold} ms threshold')
+              sys.exit(1)
+          PY
+      - name: Run aggregate_session bench (threshold 12000 ms median)
+        env:
+          THRESHOLD_MS: "12000"
+        run: |
+          python3 bench/aggregate_session.py --runs 5 | tee /tmp/bench-agg.txt
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          text = pathlib.Path('/tmp/bench-agg.txt').read_text()
+          lines = text.splitlines()
+          start = next(i for i, ln in enumerate(lines) if ln.startswith('{'))
+          parsed = json.loads('\n'.join(lines[start:]))
+          median = parsed['summary']['median_ms']
+          threshold = float(os.environ['THRESHOLD_MS'])
+          print(f'aggregate_session median_ms = {median} (threshold {threshold})')
+          if median > threshold:
+              print(f'::error::aggregate_session median {median} exceeded {threshold} ms threshold')
+              sys.exit(1)
+          PY

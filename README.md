@@ -179,6 +179,18 @@ State at `~/.claude/presence/` is preserved by default. Pass `--purge` to also r
 
 See [`docs/architecture.md`](docs/architecture.md) for the full design: what each hook does, how state is laid out, the XML context schema, and how to write a custom preset.
 
+## Documentation
+
+Start at [`docs/index.md`](docs/index.md) for a map. Highlights:
+
+- [`docs/architecture.md`](docs/architecture.md) - how the pieces fit together
+- [`docs/security.md`](docs/security.md) - threat model (T1 through T12)
+- [`docs/zerotrust.md`](docs/zerotrust.md) - the opt-in Zero-Trust profile
+- [`docs/glossary.md`](docs/glossary.md) - definitions for project-specific terms
+- [`docs/recipes.md`](docs/recipes.md) - common preset customizations
+- [`docs/roadmap.md`](docs/roadmap.md) - what we've deferred and why
+- [`SECURITY.md`](SECURITY.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), [`bench/README.md`](bench/README.md), [`llms.txt`](llms.txt)
+
 ## Disclaimer
 
 `presence` is provided **as is** under the [MIT License](LICENSE), without warranty of any kind, express or implied. The authors and copyright holders (Sara Star Quant LLC) and any contributors are **not responsible** for any damage, data loss, security incident, regression, lost productivity, or other adverse outcome arising from the installation or use of this plugin.
