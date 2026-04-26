@@ -30,6 +30,20 @@ _presence_state_dir() {
   printf '%s' "${PRESENCE_STATE:-$HOME/.claude/presence}"
 }
 
+_presence_pinned_python() {
+  # Honor a pinned interpreter at $state_dir/.python_bin so installs that
+  # bootstrapped Python via uv (install.sh --bootstrap) use the exact same
+  # binary at runtime even when the user's PATH still points at an older
+  # python3. Echo the path iff the file exists AND the path is executable;
+  # print nothing on any miss so the caller falls through to PATH lookup.
+  local marker pinned
+  marker="$(_presence_state_dir)/.python_bin"
+  [ -f "$marker" ] || return 1
+  IFS= read -r pinned < "$marker" 2>/dev/null || return 1
+  { [ -n "$pinned" ] && [ -x "$pinned" ]; } || return 1
+  printf '%s' "$pinned"
+}
+
 _presence_python_ok_cached() {
   # Cache hit iff: marker exists, marker is newer than python_bin (so python
   # hasn't been upgraded since we wrote it), and marker's first line equals
@@ -74,7 +88,9 @@ _presence_warn_python_missing_for_session_start() {
 exec_hook() {
   local hook_entry python_bin
   hook_entry="$1"
-  python_bin="$(command -v python3 2>/dev/null || true)"
+  # Prefer a pinned (uv-bootstrapped) interpreter; fall back to PATH.
+  python_bin="$(_presence_pinned_python || true)"
+  [ -z "$python_bin" ] && python_bin="$(command -v python3 2>/dev/null || true)"
   if [ -z "$python_bin" ]; then
     _presence_warn_python_missing_for_session_start "$hook_entry"
     exit 0

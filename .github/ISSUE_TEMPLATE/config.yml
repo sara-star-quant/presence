@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure (private)
+    url: https://github.com/sara-star-quant/presence/security/advisories/new
+    about: Report a security vulnerability privately. Do not file a public issue.
+  - name: Threat model + privacy posture
+    url: https://github.com/sara-star-quant/presence/blob/main/docs/security.md
+    about: Read the documented threat model (T1-T12) before reporting a security concern.
+  - name: Architecture + design
+    url: https://github.com/sara-star-quant/presence/blob/main/docs/architecture.md
+    about: How the pieces fit together. Read this before proposing architectural changes.

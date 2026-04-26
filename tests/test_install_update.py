@@ -129,3 +129,126 @@ def test_update_clean_tree_with_no_remote_still_runs_install(tmp_path):
     else:
         # Acceptable: pull failed cleanly; no clobbering happened.
         assert "fast-forward pull failed" in r.stderr.lower() or "pull" in r.stderr.lower()
+
+
+# ---------------------------------------------------------------------------
+# --verify subcommand tests (v0.3.3)
+#
+# `--verify` is the pre-Claude-Code health check. We validate against the REAL
+# repo (rather than the synthetic fake-clone used by --update tests), because
+# the synthetic fire of all 6 hooks needs the real lib/ + hooks/scripts/ tree.
+# Each test uses its own isolated CLAUDE_HOME / PRESENCE_STATE so it never
+# touches the developer's real ~/.claude/.
+# ---------------------------------------------------------------------------
+
+def _run_install_then_verify(tmp_path: Path, *verify_args: str) -> subprocess.CompletedProcess[str]:
+    """Install into a tmp CLAUDE_HOME, then run --verify (with extra args)."""
+    import os
+
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    env = {
+        **os.environ,
+        "CLAUDE_HOME": str(fake_home),
+        "PRESENCE_STATE": str(fake_home / "presence"),
+    }
+    inst = subprocess.run(
+        ["bash", str(INSTALL_SH)],
+        capture_output=True, text=True, check=False, env=env,
+    )
+    assert inst.returncode == 0, f"install failed: {inst.stderr}"
+    return subprocess.run(
+        ["bash", str(INSTALL_SH), "--verify", *verify_args],
+        capture_output=True, text=True, check=False, env=env,
+    )
+
+
+def test_verify_help_mentions_verify_flag():
+    """The --help output must document --verify so users discover it."""
+    r = subprocess.run(
+        ["bash", str(INSTALL_SH), "--help"],
+        capture_output=True, text=True, check=True,
+    )
+    assert "--verify" in r.stdout
+    assert "--bootstrap" in r.stdout, "--help must also document --bootstrap"
+
+
+def test_verify_passes_on_healthy_install(tmp_path):
+    """Fresh install in an isolated CLAUDE_HOME -> --verify exits 0 with a
+    'healthy' summary. Exercises every check including the synthetic fire of
+    all 6 hooks against the real lib/ tree."""
+    r = _run_install_then_verify(tmp_path)
+    assert r.returncode == 0, (
+        f"verify failed:\nstdout={r.stdout!r}\nstderr={r.stderr!r}"
+    )
+    combined = r.stdout + r.stderr
+    assert "healthy" in combined.lower() or "ready" in combined.lower()
+
+
+def test_verify_fails_when_symlink_missing(tmp_path):
+    """If the symlink is removed after install, --verify must exit 1 and
+    surface the missing-symlink failure."""
+    import os
+
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    env = {
+        **os.environ,
+        "CLAUDE_HOME": str(fake_home),
+        "PRESENCE_STATE": str(fake_home / "presence"),
+    }
+    inst = subprocess.run(
+        ["bash", str(INSTALL_SH)],
+        capture_output=True, text=True, check=False, env=env,
+    )
+    assert inst.returncode == 0
+    # Remove the symlink we just created.
+    plugin_link = fake_home / "plugins" / "presence"
+    plugin_link.unlink()
+    r = subprocess.run(
+        ["bash", str(INSTALL_SH), "--verify"],
+        capture_output=True, text=True, check=False, env=env,
+    )
+    assert r.returncode != 0
+    assert "FAIL" in r.stderr
+    assert "symlink" in r.stderr.lower()
+
+
+def test_verify_json_emits_valid_json(tmp_path):
+    """--verify --json emits a single JSON object that parses + has the
+    expected shape: ok bool, checks list with name/ok/detail per entry."""
+    import json
+
+    r = _run_install_then_verify(tmp_path, "--json")
+    # Exit code reflects ok-ness; we only assert the blob is parseable.
+    parsed = json.loads(r.stdout)
+    assert isinstance(parsed, dict)
+    assert "ok" in parsed and isinstance(parsed["ok"], bool)
+    assert "checks" in parsed and isinstance(parsed["checks"], list)
+    for c in parsed["checks"]:
+        assert {"name", "ok", "detail"}.issubset(c.keys())
+        assert isinstance(c["ok"], bool)
+    # Doctor blob is included on a healthy install (since python is OK).
+    if parsed["ok"]:
+        assert "doctor" in parsed
+        assert parsed["doctor"]["python_ok"] is True
+
+
+def test_verify_covers_all_six_hooks(tmp_path):
+    """The synthetic-fire check must exercise all 6 hook entry points, not
+    just SessionStart. We assert this by checking the JSON output contains
+    a 'hook_synthetic_fire' check entry; the bash function fires all 6 in
+    a loop and only records pass when every one of them succeeded."""
+    import json
+
+    r = _run_install_then_verify(tmp_path, "--json")
+    parsed = json.loads(r.stdout)
+    hook_check = next(
+        (c for c in parsed["checks"] if c["name"] == "hook_synthetic_fire"),
+        None,
+    )
+    assert hook_check is not None, "verify must include hook_synthetic_fire check"
+    assert hook_check["ok"] is True, (
+        f"hook_synthetic_fire should pass on a healthy install: {hook_check['detail']}"
+    )
+    assert "all 6 hooks" in hook_check["detail"]

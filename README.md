@@ -26,20 +26,51 @@ State lives in `~/.claude/presence/`, fully local, never uploaded.
 | SessionStart populated | 108 ms median | 10 KB model + 100 events + 50 claims; n=50 |
 | Install + first /presence-status | 237 ms total median | n=25, `bench/install_to_working.py` |
 | Aggregate session overhead | 6.4 s for 77 hook fires | n=10, `bench/aggregate_session.py` |
-| Tests | 167 passing | Python 3.12 + 3.13 + 3.14 across Linux + macOS |
+| Tests | 187 passing | Python 3.12 + 3.13 + 3.14 across Linux + macOS |
 | Runtime deps | 0 (stdlib only) | one optional: `cryptography` for Zero-Trust at-rest encryption |
 | Surface area | 4 presets, 6 hooks, 5 slash commands, 3 skills, 1 subagent | see directories at repo root |
-| Network egress | 0 in default presets | optional `gh` PR-status call (skill `outcome-check`); disabled in `zerotrust` |
+| Network egress | 0 in default presets | opt-in `gh` PR-status call (skill `outcome-check`); opt-in `--bootstrap` curl to astral.sh; both disabled by default; `gh` call disabled in `zerotrust` |
+| Platforms | macOS arm64 + Linux x86_64 (CI) | Windows: install in WSL2 (native deferred; tracked as roadmap issue) |
 
-All measurements: macOS arm64, Python 3.14.4. Reproduce locally with `python3 bench/<name>.py --runs N`.
+All measurements: macOS arm64, Python 3.14.4. Reproduce locally with `python3 bench/<name>.py --runs N`. See [`bench/README.md`](bench/README.md) for the full convention.
 
 > **Recent changes**: see [`CHANGELOG.md`](CHANGELOG.md) for the full per-version diff.
 > v0.3.x cut cold-hook latency by ~27% and fixed a latent v0.2 bug where Zero-Trust users had their event digest silently emptied.
 > v0.2.0 shipped the Zero-Trust preset: AES-GCM at rest, tamper-evident audit log, fail-closed SessionStart integrity. See [`docs/zerotrust.md`](docs/zerotrust.md).
 
-## Install
+## Quickstart
 
-Pick one method.
+If this is your first Claude Code plugin: just run these two commands.
+
+### 1. Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash
+```
+
+The installer is idempotent. It checks for Python 3.12+, symlinks the plugin into `~/.claude/plugins/presence`, creates the state directory at `~/.claude/presence/` with `0700` perms, generates `MANIFEST.lock`, and pre-compiles `lib/` to bytecode.
+
+If you don't have Python 3.12+, the installer prints a clear message and exits. To auto-install Python 3.13 via [uv](https://github.com/astral-sh/uv) (single binary, no sudo, ~5 MB), pass `--bootstrap`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash -s -- --bootstrap
+```
+
+`--bootstrap` is opt-in because it makes one network call to `astral.sh`. The default install path makes no outbound calls.
+
+### 2. Verify it works
+
+```bash
+~/.claude/plugins/presence/install.sh --verify
+```
+
+Checks the symlink, perms, Python, the `MANIFEST.lock` integrity, and synthetically fires all 6 hooks against the real lib/ tree. Exit 0 means ready. `FAIL` lines tell you exactly what is missing. For machine-readable output: `--verify --json`.
+
+### 3. Use it
+
+Restart Claude Code (or open a new session) in any repo and run `/presence-status`.
+
+## Other install methods
 
 ### Via the Claude Code plugin marketplace flow
 
@@ -50,20 +81,12 @@ The repo ships its own `marketplace.json` so it can be added directly:
 /plugin install presence
 ```
 
-### Via curl
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash
-```
-
 ### Via git clone
 
 ```bash
 git clone https://github.com/sara-star-quant/presence ~/code/presence
 ~/code/presence/install.sh
 ```
-
-The installer symlinks the plugin into `~/.claude/plugins/presence`, creates the state directory at `~/.claude/presence/` with `0700` perms, generates `MANIFEST.lock`, and pre-compiles `lib/` to bytecode. It is idempotent.
 
 For the Zero-Trust preset's at-rest encryption (opt-in), also install the `cryptography` library:
 
@@ -78,14 +101,14 @@ Other presets and the rest of the Zero-Trust controls (integrity check, redactio
 For installs done via curl or git clone:
 
 ```bash
-~/code/presence/install.sh --update
+~/.claude/plugins/presence/install.sh --update
 ```
 
 `--update` does `git fetch` + `git pull --ff-only` + a re-run of the installer. It refuses to proceed if the working tree has uncommitted changes (so it never clobbers WIP). For installs done via the `/plugin` flow, use Claude Code's native plugin update mechanism.
 
 ## Verify install
 
-In any Claude Code session:
+The fastest check is `./install.sh --verify` from the previous section. From inside Claude Code you can also run:
 
 ```
 /presence-status
@@ -101,6 +124,12 @@ For a full diagnostic:
 
 ```
 /presence-doctor
+```
+
+To auto-correct recoverable issues (perm drift, missing manifest, stale `.integrity-blocked` marker):
+
+```bash
+PYTHONPATH=~/.claude/plugins/presence/lib python3 ~/.claude/plugins/presence/lib/doctor.py --fix
 ```
 
 ## Presets

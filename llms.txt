@@ -9,9 +9,10 @@
 - **Runtime**: Python 3.12+ (3.12 / 3.13 / 3.14 all in CI)
 - **Platforms**: macOS, Linux (CI matrix). Windows not tested.
 - **Tests**: 167 passing across the Python matrix.
-- **Cold hook startup**: 82 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50).
-- **SessionStart populated**: 113 ms median (10 KB model + 100 events + 50 claims, n=50).
-- **Aggregate session overhead**: 6.52 s for a synthetic 77-fire session (median, n=10).
+- **Cold hook startup**: 80 ms median, 87 ms p95 (macOS arm64, Python 3.14.4, n=50).
+- **SessionStart populated**: 108 ms median (10 KB model + 100 events + 50 claims, n=50).
+- **Aggregate session overhead**: 6.4 s for a synthetic 77-fire session (median, n=10).
+- **Platforms**: macOS arm64 + Linux x86_64 (CI matrix); Windows via WSL2.
 
 ## What presence does
 
@@ -28,7 +29,19 @@ Four behaviors, all active globally with one install:
 curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash
 ```
 
-Then in any Claude Code session: `/presence-status` to verify.
+To also auto-install Python 3.13 via uv if missing (opt-in network call):
+
+```
+curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash -s -- --bootstrap
+```
+
+Then verify without opening Claude Code:
+
+```
+~/.claude/plugins/presence/install.sh --verify
+```
+
+Then in any Claude Code session: `/presence-status` to confirm.
 
 ## Slash commands
 

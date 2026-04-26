@@ -1,0 +1,27 @@
+name: Security disclosure (DO NOT USE - see SECURITY.md)
+description: Public security disclosures are not accepted via issues
+title: "[security]: "
+labels: ["security", "wontfix"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # STOP
+
+        Security findings must NOT be filed as public issues. Please use GitHub's private security advisory flow:
+
+        https://github.com/sara-star-quant/presence/security/advisories/new
+
+        See [`SECURITY.md`](https://github.com/sara-star-quant/presence/blob/main/SECURITY.md) for the policy and what is in / out of scope.
+
+        If you proceed with this template anyway, the maintainer will close the issue and ask you to refile via the security advisory flow.
+
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have read SECURITY.md and understand that public security issues will be closed without action.
+          required: true
+        - label: I am opening this issue to report something that is NOT a security vulnerability (e.g. a hardening suggestion that is already public knowledge).
+          required: true

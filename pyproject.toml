@@ -1,6 +1,19 @@
 # presence is a Claude Code plugin, not a Python package.
 # Plugin metadata lives in .claude-plugin/plugin.json.
-# This file holds only dev-tool configuration (ruff, pytest).
+# This file holds only dev-tool configuration (ruff, pytest) and the dev
+# dependency group used by contributors for local testing.
+
+# PEP 735 dependency groups. Install with:
+#   python3 -m venv .venv
+#   .venv/bin/pip install --group dev
+# (Requires pip >= 25.1; older pip can fall back to:
+#   .venv/bin/pip install pytest cryptography ruff)
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "cryptography",  # only needed to exercise the zerotrust at-rest encryption tests
+  "ruff>=0.6",
+]
 
 [tool.ruff]
 line-length = 100
