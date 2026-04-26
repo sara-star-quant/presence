@@ -9,8 +9,9 @@
 - **Runtime**: Python 3.12+ (3.12 / 3.13 / 3.14 all in CI)
 - **Platforms**: macOS, Linux (CI matrix). Windows not tested.
 - **Tests**: 167 passing across the Python matrix.
-- **Cold hook startup**: 81 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50).
-- **Aggregate session overhead**: 6.79 s for a synthetic 77-fire session (median, n=10).
+- **Cold hook startup**: 82 ms median, 89 ms p95 (macOS arm64, Python 3.14.3, n=50).
+- **SessionStart populated**: 113 ms median (10 KB model + 100 events + 50 claims, n=50).
+- **Aggregate session overhead**: 6.52 s for a synthetic 77-fire session (median, n=10).
 
 ## What presence does
 

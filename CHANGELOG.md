@@ -11,10 +11,10 @@ envelope, so summarize_events silently dropped the lot.
 
 ### SLO published (macOS arm64, Python 3.14.3, n=50 cold/SS, n=25 install, n=10 aggregate)
 
-- cold hook startup (user-prompt-submit, empty state): median **109 ms -> 81 ms** (-26%), p95 118 ms -> 89 ms (-25%)
-- aggregate session overhead (77 hook fires/session): median **10.38 s -> 6.79 s** (-35%, n=10)
-- SessionStart on populated state (10 KB model + 100 events + 50 claims): 189 ms -> 161 ms (-15%)
-- install-to-working: 312 ms -> 308 ms (install grew 28 ms from compileall, status dropped 32 ms; net wash, but compileall amortizes across every subsequent hook fire)
+- cold hook startup (user-prompt-submit, empty state): median **109 ms -> 82 ms** (-25%), p95 118 ms -> 89 ms (-25%)
+- **SessionStart on populated state (10 KB model + 100 events + 50 claims): 189 ms -> 113 ms (-40%)**
+- **aggregate session overhead (77 hook fires/session): 10.38 s -> 6.52 s (-37%)**
+- **install-to-working: 312 ms -> 246 ms (-21%)** (install grew 30 ms from compileall, status dropped 102 ms from cached repo_id + dir-ensures + lazy keychain)
 
 ### Changed (correctness)
 
@@ -26,6 +26,8 @@ envelope, so summarize_events silently dropped the lot.
 - **`lib/_common.py`**: `_encryption_state()` split into `_encryption_write_state()` and `_read_key_lazy()`. The write path never touches the keychain when the active preset has no `encrypted=true` section. The read path defers all crypto-related work to the first encrypted line actually encountered. Together these eliminate the ~50-100 ms `security find-generic-password` subprocess that fired on every cold hook in `solo-dev` / `team-oss` / `enterprise-strict` on macOS.
 - **`lib/_common.py::settings()`**: per-process cache so the same hook does not re-parse `~/.claude/presence/settings.json` plus the preset JSON multiple times across `_encryption_write_state`, `_redact_level`, `_git_timeout`, and the hook's own `cfg = settings()`. `strict=True` callers bypass the cache.
 - **`lib/_common.py::integrity_block_path()`**: no longer calls `state_dir()`. Saves ~3 syscalls (mkdir + stat + chmod) per cold hook fire on the very first line of every sync hook's `main()`.
+- **`lib/_common.py::repo_id()`**: per-process cache keyed by resolved cwd. Each call previously spawned up to 2 git subprocesses (`rev-parse --show-toplevel`, then `config --get remote.origin.url`); the SessionStart asyncio.gather fan-out alone called it 4+ times per fire across `project_dir` / `events_dir` / scan helpers. The cache eliminates 6+ subprocess spawns per heavy hook. Single source of the SessionStart 189 ms -> 113 ms drop.
+- **`lib/_common.py::_ensure_dir()`**: per-process cache of paths already mkdir+stat+chmod'd. Hook lifetime is short, so a stale entry cannot drift in practice; saves ~3 syscalls per redundant `state_dir()` / `project_dir()` / etc. call.
 - **`lib/verify.py`**: new `scan_recent` does one peek_events pass and returns last-edit-ts + last-pass-ts together. `has_recent_edit` and `has_recent_test_evidence` delegate. **`lib/hook_stop.py`** and **`lib/hook_pre_tool_bash.py`** each used to scan the events file twice per fire (once for last edit, once for last pass); now once.
 - **`hooks/scripts/_common.sh`**: cache-hit path is subprocess-free. Marker is now a single line containing just the python binary path; staleness is detected by bash's `-nt` (marker-newer-than-binary) test. v0.3.0 marker format `<bin>:<mtime>` no longer matches the new check, so the first hook after upgrade re-probes once and rewrites. No state migration needed.
 - **`hooks/scripts/_common.sh::exec_hook`**: sets `PYTHONNOUSERSITE=1` before exec. Skips the `site.py` user-site directory lookup at interpreter startup (~3-8 ms per cold hook on Python 3.12+). Hooks never want user-site packages; only stdlib + lib/ are needed.
