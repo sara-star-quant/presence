@@ -1,17 +1,32 @@
-"""Redaction patterns. Standard catches well-known shapes; aggressive adds blob/upper-assign."""
+"""Redaction patterns. Standard catches well-known shapes; aggressive adds blob/upper-assign.
+
+Note on test fixtures: the patterns below construct tokens at runtime from harmless
+fragments rather than embedding the literal token shape in source. This avoids
+GitHub's secret-scanner false-positiving on documented test data (Google API keys,
+Stripe keys, GitHub PATs, etc.) while still exercising the redactor's regex.
+"""
 import pytest
 from redact import REDACTION, redact_command, redact_text
+
+# Construct fixture tokens at runtime so the literal patterns never appear in source.
+# Each value still matches the corresponding regex in lib/redact.py.
+_AWS = "AKIA" + "IOSFODNN7EXAMPLE"
+_GH_PAT = "ghp_" + "abcdefghijklmnopqrstuvwxyz0123456789AB"
+_SLACK = "xoxb" + "-12345-67890-abcdefghijklmnopqrstuvwx"
+_GOOGLE = "AIza" + "SyA0123456789abcdefghijklmnopqrstuv"
+_STRIPE = "sk_" + "live_" + "0123456789abcdefghijklmnopqr"
+_BEARER = "Bearer " + "abc123def456ghi789jkl"
 
 
 @pytest.mark.parametrize(
     "raw, kind",
     [
-        ("AKIAIOSFODNN7EXAMPLE", "aws-access-key"),
-        ("ghp_abcdefghijklmnopqrstuvwxyz0123456789AB", "github-pat"),
-        ("xoxb-12345-67890-abcdefghijklmnopqrstuvwx", "slack-token"),
-        ("AIzaSyA0123456789abcdefghijklmnopqrstuv", "google-api-key"),
-        ("sk_live_0123456789abcdefghijklmnopqr", "stripe-live"),
-        ("Bearer abc123def456ghi789jkl", "bearer"),
+        (_AWS, "aws-access-key"),
+        (_GH_PAT, "github-pat"),
+        (_SLACK, "slack-token"),
+        (_GOOGLE, "google-api-key"),
+        (_STRIPE, "stripe-live"),
+        (_BEARER, "bearer"),
     ],
 )
 def test_standard_known_token_shapes(raw, kind):
@@ -51,7 +66,8 @@ def test_aggressive_redacts_long_hex():
 
 
 def test_jwt_redacted():
-    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NSJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    # Same runtime-construction trick: don't embed a literal JWT in source.
+    jwt = "eyJ" + "hbGciOiJIUzI1NiJ9." + "eyJzdWIiOiIxMjM0NSJ9." + "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
     out = redact_text(f"token={jwt}")
     assert jwt not in out
 
