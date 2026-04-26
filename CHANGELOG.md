@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.1
+
+Documentation-only release.
+
+- README: added six status badges (CI, latest release, license, Python versions, stdlib-only runtime, local-only state).
+- README: added a Disclaimer section. 'as is' MIT, no warranty, no responsibility on authors / Sara Star Quant LLC, explicitly not legal/security/engineering advice. User accepts full responsibility for source review, property verification, and downstream consequences of decisions made while presence was active.
+- README: added v0.2.0 feature callout under the four pillars block.
+- README: presets table gains an 'At rest' column noting AES-GCM + keychain for the zerotrust preset.
+- README: install / verify / uninstall / privacy sections updated to reference v0.2.0 features (cryptography install hint for ZT, `/presence-status --zerotrust`, `/presence-reset --crypto`, ZT disabling the optional `gh` PR call).
+- README: linked CHANGELOG.md from the Presets section.
+
 ## v0.2.0
 
 The Zero-Trust preset becomes real: every control documented in `docs/zerotrust.md` is now implemented and tested.

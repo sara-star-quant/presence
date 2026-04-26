@@ -1,7 +1,7 @@
 {
   "_format": 1,
   "files": {
-    ".claude-plugin/plugin.json": "fadf105d3e2b1f78084ca56ae2903ce7d27a6c2b143a512a105a57438a5fb29e",
+    ".claude-plugin/plugin.json": "a63a605bebc8502fba54de7e97d821081ea9adee94095b4d15cb900b1f017ae7",
     "agents/model-curator.md": "1b8381997ea4c29944e1388b7467ca38787c893801e8bfd79460c103d0e169d5",
     "commands/presence-curate.md": "9295204486515a9dfd1a66ee77b64b067fdcb04ca436f182106659b33d504986",
     "commands/presence-doctor.md": "36bf525442fa906811f7a67b654c09b4254f961ea4953365a890aff1456e2398",
