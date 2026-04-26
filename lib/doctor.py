@@ -129,6 +129,9 @@ def render(rep: dict) -> str:
         lines.append("recent warnings (newest last):")
         for w in rep["recent_warnings"]:
             lines.append(f"  [{w.get('category', '?'):30}] {w.get('message', '')[:80]}")
+            fix = w.get("fix")
+            if fix:
+                lines.append(f"    fix: {fix}")
     return "\n".join(lines)
 
 

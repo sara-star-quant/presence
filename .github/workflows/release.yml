@@ -1,0 +1,93 @@
+name: release
+
+# Triggered when a tag matching v* is pushed. Extracts the matching
+# `## v<TAG>` section from CHANGELOG.md, asserts ASCII + no em-dash, and
+# creates a GitHub Release with that body. Marks --latest when the tag
+# is the highest semver in the repo.
+#
+# Replaces the manual `gh release create` flow used for v0.3.0 - v0.3.3.
+# All values flowing into shell commands are passed via env: per
+# https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # required for gh release create
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # need full history so the tag commit is reachable
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Extract CHANGELOG section and derive title
+        id: changelog
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+          tag = os.environ["TAG_NAME"].lstrip("v")
+          text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          m = re.search(rf"^## v{re.escape(tag)}\n(.*?)(?=^## v|\Z)", text, re.MULTILINE | re.DOTALL)
+          if not m:
+              sys.exit(f"no CHANGELOG section for v{tag}")
+          body = m.group(1).strip()
+          first_line = next((ln for ln in body.splitlines() if ln.strip() and not ln.startswith("#")), "").strip()
+          title = f"v{tag}: {first_line[:80].rstrip('.')}" if first_line else f"v{tag}"
+          pathlib.Path("/tmp/release-notes.md").write_text(body, encoding="utf-8")
+          gh_out = pathlib.Path(os.environ["GITHUB_OUTPUT"])
+          with gh_out.open("a", encoding="utf-8") as f:
+              f.write(f"title<<EOF\n{title}\nEOF\n")
+          PY
+
+      - name: Verify release notes are ASCII-only with no em-dash / en-dash
+        run: |
+          if LC_ALL=C grep -nP '[^\x00-\x7F]' /tmp/release-notes.md; then
+            echo "::error::release notes contain non-ASCII; refusing to publish"
+            exit 1
+          fi
+          if LC_ALL=C grep -nP '[\xe2\x80\x93\xe2\x80\x94]' /tmp/release-notes.md; then
+            echo "::error::release notes contain em-dash or en-dash; refusing to publish"
+            exit 1
+          fi
+          echo "release notes are ASCII-only with no em/en dashes"
+
+      - name: Determine if this tag is the highest semver
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          highest="$(gh api "repos/${REPO}/tags" --paginate --jq '.[].name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
+          if [ "$TAG_NAME" = "$highest" ]; then
+            echo "flag=--latest" >> "$GITHUB_OUTPUT"
+            echo "this tag ($TAG_NAME) is the highest semver; marking release as latest"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+            echo "tag $TAG_NAME is not the highest semver ($highest); release will not be marked latest"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+          TITLE: ${{ steps.changelog.outputs.title }}
+          LATEST_FLAG: ${{ steps.latest.outputs.flag }}
+        run: |
+          # shellcheck disable=SC2086  # LATEST_FLAG is intentionally split when set
+          gh release create "$TAG_NAME" \
+            --target main \
+            --title "$TITLE" \
+            --notes-file /tmp/release-notes.md \
+            $LATEST_FLAG

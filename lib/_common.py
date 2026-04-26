@@ -126,7 +126,8 @@ def git_run_safe(cwd: str | os.PathLike[str], *args: str, timeout: int | None = 
     try:
         return git_run(cwd, *args, timeout=timeout)
     except GitNotInstalled:
-        warn("git_missing", "git binary not found on PATH; commit telemetry disabled")
+        warn("git_missing", "git binary not found on PATH; commit telemetry disabled",
+             fix="install git from https://git-scm.com or your package manager")
         return None
     except GitTimeout as exc:
         warn("git_timeout", str(exc), cmd=list(args))
@@ -168,7 +169,8 @@ async def async_git_run_safe(cwd: str | os.PathLike[str], *args: str, timeout: i
     try:
         return await async_git_run(cwd, *args, timeout=timeout)
     except GitNotInstalled:
-        warn("git_missing", "git binary not found on PATH; commit telemetry disabled")
+        warn("git_missing", "git binary not found on PATH; commit telemetry disabled",
+             fix="install git from https://git-scm.com or your package manager")
         return None
     except GitTimeout as exc:
         warn("git_timeout", str(exc), cmd=list(args))
@@ -317,6 +319,7 @@ def _encryption_write_state() -> tuple[bool, bytes | None]:
         warn_once(
             "crypto_lib_missing",
             "preset wants encryption but `cryptography` is not installed; falling back to plain",
+            fix="pip install --user cryptography",
         )
         _WRITE_STATE_CACHE = (False, None)
         return _WRITE_STATE_CACHE
@@ -326,6 +329,7 @@ def _encryption_write_state() -> tuple[bool, bytes | None]:
         warn_once(
             "crypto_keychain_missing",
             "preset wants encryption but no OS keychain backend (security/secret-tool) found",
+            fix="on macOS the keychain is built in; on Linux install secret-tool (apt install libsecret-tools)",
         )
         _WRITE_STATE_CACHE = (False, None)
         return _WRITE_STATE_CACHE
@@ -336,6 +340,7 @@ def _encryption_write_state() -> tuple[bool, bytes | None]:
         warn_once(
             "crypto_key_failed",
             "could not retrieve or create the data key from the keychain",
+            fix="run /presence-reset --crypto to rotate the data key",
         )
         _WRITE_STATE_CACHE = (False, None)
         return _WRITE_STATE_CACHE
@@ -661,7 +666,8 @@ def settings(strict: bool = False) -> dict:
             if not isinstance(user_settings, dict):
                 raise ValueError("settings.json must be a JSON object")
         except (json.JSONDecodeError, ValueError, OSError) as exc:
-            warn("settings_corrupt", f"settings.json unreadable: {exc}; using defaults")
+            warn("settings_corrupt", f"settings.json unreadable: {exc}; using defaults",
+                 fix="inspect ~/.claude/presence/settings.json (it is JSON; fix syntax) or run /presence-reset --all")
             if strict:
                 raise SettingsError(str(exc)) from exc
             user_settings = {}

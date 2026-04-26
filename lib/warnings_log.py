@@ -20,13 +20,20 @@ from _common import _bump_counter, _rotate_if_large, logs_dir
 WARNINGS_PATH = lambda: logs_dir() / "warnings.log"  # noqa: E731  intentional call-site
 
 
-def warn(category: str, message: str, **details) -> None:
-    """Log a structured warning. Best-effort; never raises."""
+def warn(category: str, message: str, fix: str | None = None, **details) -> None:
+    """Log a structured warning. Best-effort; never raises.
+
+    ``fix`` is an optional one-line recovery hint surfaced inline by
+    /presence-doctor (added in v0.3.4). Backward compatible: callers that omit
+    ``fix`` get the same behavior as before.
+    """
     line = {
         "ts": int(time.time()),
         "category": category,
         "message": message,
     }
+    if fix:
+        line["fix"] = fix
     if details:
         line["details"] = details
     try:
@@ -65,16 +72,17 @@ def read_warnings(limit: int = 50) -> list[dict]:
     return out[-limit:]
 
 
-def warn_once(category: str, message: str, **details) -> None:
+def warn_once(category: str, message: str, fix: str | None = None, **details) -> None:
     """Emit a warning only the first time per category since last reset.
 
     Useful for one-shot conditions like 'python3 missing' or 'git not installed' that
-    we don't want to log on every hook invocation.
+    we don't want to log on every hook invocation. See ``warn`` for the ``fix``
+    kwarg semantics.
     """
     marker = logs_dir() / f".warned-{category}"
     if marker.exists():
         return
-    warn(category, message, **details)
+    warn(category, message, fix=fix, **details)
     try:
         marker.write_text(str(int(time.time())), encoding="utf-8")
     except OSError:
