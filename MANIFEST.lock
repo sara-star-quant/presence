@@ -1,7 +1,8 @@
 {
   "_format": 1,
   "files": {
-    ".claude-plugin/plugin.json": "8efaf5f279a50c3fd7734555a0a1c99dc1e8c098e647ba7c4bee3760b72e2733",
+    ".claude-plugin/marketplace.json": "066ae0d198f750ebfb7b1df4d1b2dffc3db01030d8c5d5865be0064c007c79ff",
+    ".claude-plugin/plugin.json": "22c88cce6af26a84b8d5cf187385488992f6f9e43dd843bfcd8187201cafc2c6",
     "agents/model-curator.md": "1b8381997ea4c29944e1388b7467ca38787c893801e8bfd79460c103d0e169d5",
     "commands/presence-curate.md": "9295204486515a9dfd1a66ee77b64b067fdcb04ca436f182106659b33d504986",
     "commands/presence-doctor.md": "36bf525442fa906811f7a67b654c09b4254f961ea4953365a890aff1456e2398",
@@ -17,7 +18,7 @@
     "hooks/scripts/session-start.sh": "8d1c7ae9ae0884fb88bc9e18f949dc9d5bd1c3ce1aff40da14088128917b09fb",
     "hooks/scripts/stop.sh": "54ead2f0f29aefcf9120f44f99f9c7f5357fbbacc9330d28e942200947595267",
     "hooks/scripts/user-prompt-submit.sh": "006cc582419f061934dc94842de6240722b48ac23578c1b0c84ae1ceaad6df60",
-    "lib/__init__.py": "3924e6140f824621834055e1720aa9104fc10bf54c4af5f0f0cf1121a27b6aa9",
+    "lib/__init__.py": "f5a188a4630121d81f9408e6edb26f262b5c86fc8b8ff521fe3c9d50850e3a87",
     "lib/_common.py": "843a6533ba284a7843380914c0d37aa85d348adc08f3354a71067f75ef2e8628",
     "lib/audit.py": "d71dada0ad335a0495e17afd04bbcb2f7c6e81fd163d8d3036ba83b5dbc1fa2a",
     "lib/cmdparse.py": "30f4562a191ad3a854e66d41cf6760a8e8c959761d4717ff4f024f3f773df1e3",
@@ -30,7 +31,7 @@
     "lib/hook_session_start.py": "34732732a78697b02c154ed8ab943bb6498fc56ac9716f869f26dab10faa8df4",
     "lib/hook_stop.py": "eb737e4300567d964a8173ae6efd04527e71559d18f2c047305d87388bac38f8",
     "lib/hook_user_prompt_submit.py": "d03e9e57896ca954c8b3592590839203c0697e89040af577bc8371dfdc797dd8",
-    "lib/integrity.py": "5f4a99b9008da7c2632c50706c0d404492cd06626f3a9408a0c338921f4d3d11",
+    "lib/integrity.py": "c43985de4c2579e49dc000f17b096c52699d6cccec829cb7544b0c6dbabd9715",
     "lib/model.py": "3236cddc8c6f24aec8fece40ac5fbaf7c586f499f11a8bcccad499044dd10dce",
     "lib/presets.py": "831bdcc324a244ca1061b69aee9d95fff15dbd708110eae1d6fcfd8c870fffed",
     "lib/redact.py": "aecd135dd5d1626acd5caf69a90799d2bcf6d5938ad1f381acafcfa736cb9581",
