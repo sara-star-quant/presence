@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.5.2
+
+Release-only patch. Same code as v0.5.1 + a `git2` feature fix that lets the cross-compile matrix actually produce the macOS x86_64 binary.
+
+### Why
+
+v0.5.1 was supposed to ship the full Linux + macOS arm64 + macOS x86_64 asset set on the new cross-compile path that v0.5.0 introduced. The Linux + arm64 builds succeeded; the x86_64 cross-compile failed during `openssl-sys` build because `git2`'s default features include `https`, which pulls `openssl-sys`. On the macos-latest (arm64) runner the host's OpenSSL is arm64-only, so the x86_64 target build couldn't find the right libraries. v0.5.0 + v0.5.1 each shipped with two binaries instead of three because of this same issue (different symptoms, same root cause).
+
+### What changed since v0.5.1
+
+- `ext/Cargo.toml`: `git2 = { version = "0.18", default-features = false }`. presence is local-only - we use `git2` only for read-only repo introspection (`Repository`, `Sort`, log walk, HEAD resolution). No HTTPS, no SSH, no network git ops. Disabling defaults removes the `openssl-sys` dependency entirely; cross-compilation from arm64 to x86_64 macOS now succeeds without needing target-arch OpenSSL libraries on the host.
+- `ext/Cargo.toml`: ext crate `0.1.1` -> `0.1.2` per the ext-versioning rule (any `ext/` source change bumps the crate version).
+- `.claude-plugin/plugin.json` + `lib/__init__.py`: `0.5.1` -> `0.5.2`.
+
+### Verified locally
+
+- `cargo build --release --bin presence-client --no-default-features --target x86_64-apple-darwin` from arm64 mac produces `Mach-O 64-bit executable x86_64` in 10 seconds.
+- `cargo build --release --bin presence-client --no-default-features --target aarch64-apple-darwin` still produces `Mach-O 64-bit executable arm64` in 10 seconds.
+- 291 tests pass unchanged.
+
+### What is unchanged
+
+- All v0.5.0 features: composable redaction profiles, Luhn validator, `docs/compliance.md`, `/presence-doctor` redact section, `python3 -m redact` CLI.
+- All v0.5.1 doc fixes: README install-flow correction, multi-tool framing, universal-install roadmap entry.
+- No code under `lib/`, `hooks/`, `presets/`, `tests/`. Pure Cargo dep configuration.
+
 ## v0.5.1
 
 Release-only patch. No code or behavior changes vs. v0.5.0; this tag exists to produce a complete release-asset matrix on the new CI cross-compile path.
