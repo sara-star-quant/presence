@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.5.3
+
+ext: pyo3 0.21 -> 0.28, full Bound API migration. ext crate 0.1.2 -> 0.1.3.
+
+### Why
+
+pyo3 0.21 (the version in v0.5.0/0.5.1/0.5.2) is two years old and lags Python's release cadence. dependabot opened PR #17 to bump pyo3 0.21 -> 0.24, but a spot-check confirmed two problems with merging it as-is:
+
+1. PR #17 only touched `ext/Cargo.toml` + `ext/Cargo.lock`, not the source. pyo3 0.22+ replaced the GIL-bound reference API (`&PyModule`, `&PyDict`) with the explicit Bound API (`Bound<'_, PyModule>`, `Bound<'_, PyDict>`). Without source changes, the wheel build fails with 15 compile errors. `ci.yml` and `release.yml` did not catch this because neither builds the wheel - both compile only the binary with `--no-default-features` (which excludes pyo3).
+2. pyo3 0.24.1 caps at Python 3.13. presence's CI matrix tests Python 3.14, and most users on Apple Silicon get 3.14 via Homebrew. Picking 0.28 instead (latest stable; supports Python 3.10 through 3.14) avoids both gaps in one bump.
+
+### What changed in `ext/`
+
+- `ext/Cargo.toml`: pyo3 `0.21` -> `0.28`. Crate version `0.1.2` -> `0.1.3` per the ext-versioning rule.
+- `ext/src/lib.rs`: `#[pymodule] fn presence_ext(_py: Python, m: &PyModule)` -> `fn presence_ext(m: &Bound<'_, PyModule>)`. GIL token reachable via `m.py()`. Submodules constructed with `PyModule::new(m.py(), name)` (returns `Bound<PyModule>` directly).
+- `ext/src/git.rs`: `PyDict::new(py)` returns `Bound<PyDict>` directly; conversion to `PyObject` is now `dict.into_any().unbind()` (Bound -> Py<PyAny>). Function return type `PyObject` replaced with `Py<PyAny>` (pyo3 0.28 does not re-export `PyObject` from `prelude`). `register()` takes `&Bound<'_, PyModule>`.
+- `ext/src/crypto.rs`: `register()` signature updated; pyfunction bodies untouched.
+- `ext/Cargo.lock`: regenerated for the pyo3 0.28 dep tree (`once_cell` replaces `parking_lot` in pyo3's internals; `target-lexicon` 0.12 -> 0.13).
+
+### Verification
+
+- `cargo check --release` clean for the pyext feature.
+- `maturin build --release`: produces `presence_ext-0.1.3-cp314-cp314-macosx_11_0_arm64.whl` in 14 seconds.
+- Wheel installed locally on Python 3.14.4: `import presence_ext` works; both `presence_ext.crypto.{get_key,set_key,delete_key}` and `presence_ext.git.{get_head_commit,scan_for_revert}` callable. Functional smoke test against a real repo returns the expected `dict` from `get_head_commit`.
+- `cargo build --release --bin presence-client --no-default-features --target {x86_64,aarch64}-apple-darwin`: still produces correct mach-o binaries (the binary path does not touch pyo3, but the new pyo3 dep should not regress this).
+- 291 tests pass (unchanged from v0.5.2). The Python tests exercise the daemon path that imports `presence_ext.git` for `get_head_commit` / `scan_for_revert`; the new wheel is hit cleanly.
+
+### Closes
+
+- dependabot PR #17 (`bump pyo3 from 0.21.2 to 0.24.1`). Closing in favor of this PR which does the full migration to 0.28 with the source-side Bound API changes that #17 omitted.
+
+### Unchanged
+
+- All v0.5.0 features (composable redaction profiles, Luhn, `docs/compliance.md`, redact CLI).
+- All v0.5.1 / v0.5.2 doc fixes and the cross-compile path.
+- No code under `lib/`, `hooks/`, `presets/`, `tests/`. The Python-side `_common.py` daemon-fallback contract is identical (the wheel exposes the same symbols with identical signatures).
+
 ## v0.5.2
 
 Release-only patch. Same code as v0.5.1 + a `git2` feature fix that lets the cross-compile matrix actually produce the macOS x86_64 binary.
