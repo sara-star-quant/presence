@@ -26,10 +26,10 @@ State lives in `~/.claude/presence/`, fully local, never uploaded.
 | SessionStart populated | 112 ms median | **9.1 ms median** | 10 KB model + 100 events + 50 claims |
 | Aggregate session (77 fires) | 6.4 s | **770 ms** | n=10 / n=5, `bench/aggregate_session.py` |
 | Install + first /presence-status | 245 ms total | 245 ms total | n=25, `bench/install_to_working.py` |
-| Tests | 218 passing | | Python 3.12 + 3.13 + 3.14 across Linux + macOS |
+| Tests | 240 passing | | Python 3.12 + 3.13 + 3.14 across Linux + macOS |
 | Runtime deps (default) | 0 (stdlib only) | | one optional: `cryptography` for Zero-Trust at-rest encryption |
 | Optional with `--build-ext` | | Rust toolchain at install time | binary then runs without Rust |
-| Surface area | 4 presets, 6 hooks, 6 slash commands, 3 skills, 1 subagent | | (MCP server + multi-host adapters land in v0.4.1 / v0.4.2) |
+| Surface area | 4 presets, 6 hooks, 6 slash commands, 3 skills, 1 subagent, 1 MCP server | | (multi-host adapters land in v0.4.2) |
 | Network egress | 0 in default presets | | opt-in `gh` PR-status call; opt-in `--bootstrap` / `--download-ext`; all disabled by default |
 | Platforms | macOS arm64 + Linux x86_64 (CI) | | Windows: install in WSL2 |
 
@@ -38,7 +38,8 @@ The `--build-ext` column reflects optional native acceleration via the Rust daem
 All measurements: macOS arm64, Python 3.14.4. Reproduce locally with `python3 bench/<name>.py --runs N`. See [`bench/README.md`](bench/README.md) for the full convention.
 
 > **Recent changes**: see [`CHANGELOG.md`](CHANGELOG.md) for the full per-version diff.
-> v0.4.0 ships the Rust daemon client + warm Python daemon + adapter seam. Optional via `--build-ext` / `--download-ext`. Cuts hot-path latency from 82 ms to 8.9 ms (-89%). MCP server arrives in v0.4.1; multi-host adapters (Cursor, Gemini, Codex, etc.) in v0.4.2.
+> v0.4.1 ships the MCP server: any MCP-aware client (Claude Desktop, Cursor, Continue, custom agents) can read presence's living model + outcome telemetry over JSON-RPC stdio. See [`docs/mcp.md`](docs/mcp.md).
+> v0.4.0 shipped the Rust daemon client + warm Python daemon + adapter seam. Optional via `--build-ext` / `--download-ext`. Cuts hot-path latency from 82 ms to 8.9 ms (-89%). Multi-host adapters (Cursor, Gemini, Codex, claude-code, clawbot, generic) land in v0.4.2.
 > v0.3.x cut cold-hook latency by ~27% and fixed a latent v0.2 bug where Zero-Trust users had their event digest silently emptied.
 > v0.2.0 shipped the Zero-Trust preset: AES-GCM at rest, tamper-evident audit log, fail-closed SessionStart integrity. See [`docs/zerotrust.md`](docs/zerotrust.md).
 
