@@ -1,5 +1,87 @@
 # Changelog
 
+## v0.4.1
+
+Ships the Model Context Protocol (MCP) server (`lib/mcp_server.py`) deferred from v0.4.0. Any MCP-aware client (Claude Desktop, Cursor, Continue, custom agents) can now read presence's living project model and outcome telemetry over JSON-RPC stdio without going through Claude Code-specific hook plumbing.
+
+Also belatedly ships the v0.4.0 CHANGELOG entry (originally missed; the v0.4.0 GitHub Release was created manually as a fallback because the auto-release workflow could not extract a section that did not exist).
+
+### Added
+
+- **`lib/mcp_server.py`**: JSON-RPC 2.0 stdio MCP server implementing the `2024-11-05` protocol. Three handlers: `initialize`, `resources/list`, `resources/read`. Plus the `notifications/initialized` no-op. Unknown methods return JSON-RPC error -32601; handler exceptions return -32603. Exposes two read-only resources per repo:
+  - `presence://<repo_id>/model` -> the living `model.md` (Markdown)
+  - `presence://<repo_id>/telemetry` -> recent commit / revert / verification claims (JSON array)
+- **`lib/cli.py mcp`**: now wired to `mcp_server.main()` (was a placeholder in v0.4.0). Start with `python3 ~/.claude/plugins/presence/lib/cli.py mcp`.
+- **`docs/mcp.md`** (new): per-client config snippets for Claude Desktop, Cursor, Continue, and a generic JSON-RPC walkthrough. Documents the resources contract, the working-directory caveat, security posture, and what's deliberately NOT exposed (audit log, events queue, settings).
+- **`docs/index.md`**: links to the new `mcp.md`.
+- **13 new tests** in `tests/test_mcp_server.py`: handler outputs, malformed JSON resilience, method-not-found, internal-error mapping, end-to-end stdio round-trip via `cli.py mcp`.
+
+### Changed
+
+- **`README.md`**: surface area row now lists the MCP server. Recent-changes callout names v0.4.1; v0.4.2 still on deck for multi-host adapters.
+
+### What's NOT in v0.4.1
+
+- The MCP server has no `repo_id` parameter on `resources/read`; it resolves the current working directory at request time. Single-repo clients work fine; cross-repo readers need a server-per-project config or the v0.4.2 follow-up.
+- The audit log and events queue are deliberately excluded from MCP exposure (security posture: read-only view of memory, not of write paths).
+- Multi-host adapters (Cursor, Gemini, Codex, claude-code, clawbot, generic): still v0.4.2.
+- ACP (Agent Client Protocol): tracked as v0.4.3 / v0.5.0; ACP is chat-session control, distinct from MCP's "give me context."
+
+### Quality gates
+
+- 240 tests passing on Python 3.12 / 3.13 / 3.14 (was 227 in v0.4.0; +13 from `test_mcp_server.py`).
+- ruff clean. shellcheck clean. MANIFEST verifies. ASCII-only. No em-dashes.
+- Backward compat: every v0.3.x and v0.4.0 state file remains readable. The MCP server is read-only and never writes presence state. The `cli.py mcp` subcommand was a placeholder in v0.4.0 (raised on import); it now does its documented job.
+
+## v0.4.0
+
+The first release with optional native acceleration. A Rust Unix-socket client (`presence-client`) talks to a warm resident Python daemon (`lib/daemon.py`) instead of spawning a fresh bash + python3 process per hook fire. Cuts cold-hook latency from 82 ms to 8.9 ms median (-89%) on macOS arm64 when `--build-ext` is opted in. The default-install path is unchanged: stdlib-only, byte-identical to v0.3.4 runtime behavior. Native acceleration is opt-in via `./install.sh --build-ext` (compile locally with cargo) or `./install.sh --download-ext` (pull a pre-built binary from the latest GitHub Release).
+
+This release also introduces a host-AI-tool adapter seam (`lib/adapters/`). v0.4.0 ships only `ClaudeAdapter`. v0.4.1 added the MCP server. v0.4.2 ships adapters for Cursor, Gemini, Codex, claude-code, clawbot, and any other host with a documented context-injection mechanism.
+
+### SLO published (macOS arm64, Python 3.14.4, with `--build-ext`)
+
+| Benchmark | v0.3.4 default | v0.4.0 `--build-ext` | Speedup |
+|---|---|---|---|
+| `cold_startup` median | 80 ms | **8.9 ms** | 9.0x |
+| `cold_startup` p95 | 87 ms | 10.2 ms | 8.5x |
+| `session_start_populated` median | 108 ms | **9.1 ms** | 11.9x |
+| `aggregate_session` (77 fires) median | 6.4 s | **770 ms** | 8.3x |
+
+The `install_to_working` bench is unchanged (~245 ms total) because it measures the install + first `/presence-status` invocation, which doesn't go through the daemon path.
+
+### Added
+
+- **`ext/`** (new directory): Rust source for `presence-client` (Unix-socket client, `ext/src/client.rs`), plus a PyO3 extension (`ext/src/lib.rs`, `crypto.rs`, `git.rs`) providing native fast paths for keychain access (`security-framework` on macOS, `secret-service` on Linux) and `git log` reads (libgit2 via `git2`). The Python source under `lib/crypto.py` and `lib/telemetry.py` falls back to the existing subprocess-based code path when `presence_ext` is not importable.
+- **`lib/daemon.py`**: asyncio Unix-socket daemon. Pre-imports all 6 hook modules so dispatch is a function call, not an import. Auto-exits after 5 min idle; auto-respawns on the next client request. Socket is `0o600`; PID file at `~/.claude/presence/presence.pid` for stale-process cleanup.
+- **`lib/cli.py`**: fallback path the Rust client spawns when the daemon socket is unreachable. Same dispatch table as the daemon. Reserves the `mcp` subcommand (wired in v0.4.1).
+- **`lib/adapters/`** (new directory): host-AI-tool adapter seam. `Adapter` base class + `ClaudeAdapter` (default; emits Claude Code's `hookSpecificOutput` JSON shape). `lib/_common.py::emit_context()` now delegates to `get_adapter()` instead of hardcoding the JSON. v0.4.2 will add `Cursor`, `Gemini`, `Codex`, `claude-code`, `clawbot`, and a generic-fallback selected via `PRESENCE_HOST=...`.
+- **`hooks/scripts/_common.sh::exec_hook`**: fast path that exec()s `lib/presence-client` if the binary exists; falls through to the classical Python exec when not. The fall-through means default installs are byte-identical to v0.3.x runtime behavior. `PRESENCE_NO_DAEMON=1` forces the slow path (debug + test escape hatch).
+- **`install.sh --build-ext`**: build the Rust extension locally via cargo. Builds `presence-client` (always) plus an optional `presence_ext` Python wheel (only if maturin is available).
+- **`install.sh --download-ext`**: download a pre-built `presence-client` from the latest GitHub Release. Maps `(uname -s, uname -m)` to one of three pre-built artifacts.
+- **`.github/workflows/release.yml`**: extended to build `presence-client` on three matrix cells (macOS arm64, macOS x86_64, Linux x86_64) and attach the binaries as release assets when a `v*` tag is pushed.
+- **`bench/HISTORY.md`** (new): per-version perf history, both `--build-ext` and stdlib columns.
+- **19 new tests** across `tests/test_adapters.py`, `tests/test_cli.py`, `tests/test_daemon.py` covering: idle-timeout auto-exit, cache invalidation between requests, multiple sequential requests, JSON escaping, unknown hosts/hooks, malformed JSON, socket perms 0o600, missing-python fallback.
+
+### Changed
+
+- **`lib/_common.py`**: `_dumps()` and `_loads()` helpers added at the top. Six previously-inline `try: import orjson` blocks consolidated into the helpers. Optional `orjson` is honored when present but never required; the stdlib-only path is the default. `emit_context()` now delegates to `lib/adapters/get_adapter()`.
+- **`lib/crypto.py`**: `is_available()` and `_backend_ops()` check for `presence_ext.crypto` first; fall through to the subprocess-based macOS Keychain / Linux secret-service code path when not present. Behaviorally identical when `presence_ext` is missing.
+- **`lib/telemetry.py`**: `get_head_commit()` and `scan_for_revert()` (sync + async) check for `presence_ext.git` first (libgit2 wrapper); fall through to `git_run_safe()` when not. Both paths produce identical results.
+- **`README.md`**: "By the numbers" table now has separate columns for default and `--build-ext`. Recent-changes callout names the v0.4.0 -> v0.4.2 progression.
+- **`bench/README.md`**: notes the daemon-path numbers + how to switch between modes.
+
+### Quality gates
+
+- 227 tests passing on Python 3.12 / 3.13 / 3.14 (was 208 in v0.3.4; +19 across `test_adapters`, `test_cli`, `test_daemon`).
+- ruff clean. shellcheck clean. ASCII-only outside the two intentional unicode test fixtures. MANIFEST.lock verifies OK.
+- Backward compat: every v0.3.x state file remains readable. The Rust client + daemon are entirely opt-in; the default path is unchanged.
+
+### Known issue (released-as)
+
+- The original v0.4.0 GitHub Release was published manually because the auto-release workflow could not extract this CHANGELOG section (it was missed in the merge commit). Future tag pushes work correctly: the v0.4.1 PR adds this section retroactively so the workflow's regex picks it up.
+- The Linux x86_64 build of `presence-client` failed in the v0.4.0 release.yml run (libgit2 system-library deps missing on the bare ubuntu-latest runner). Pre-built binaries are available for macOS arm64 only at v0.4.0; macOS x86_64 and Linux users should use `--build-ext` (cargo) until v0.4.x adds the missing `apt-get install pkg-config libssh2-dev libssl-dev` step.
+
 ## v0.3.4
 
 Bundle of five orthogonal threads, none of which conflict: release automation, perf-regression CI, bug-report ergonomics, snapshot/restore for non-zerotrust state, and documentation polish. Closes roadmap issue #10 (release automation) and partial-closes #11 (snapshot tooling; the zerotrust case stays open).
