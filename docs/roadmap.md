@@ -97,3 +97,69 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 - "Auto-detect Cursor" or any other heuristic that pretends to be a hook layer. Either the host fires events presence subscribes to, or it does not.
 - Ship a half-rewrite that runs daemon-side telemetry without the calibrated-confidence gate. The four pillars (living model, telemetry, event digest, calibrated confidence) are co-designed; degraded versions get returned by users as "but X doesn't work" issues.
 - Frame any of the existing read-only projections as "install presence on Cursor". A Cursor user does not install presence; a Claude Code user installs presence and a Cursor user reads its projection.
+
+## Version observability and freshness
+
+**Status**: deferred to v0.6.0 (or whenever the next bigger feature ships); designed.
+
+**Today**: presence has version *strings* in five places and **zero runtime checks**:
+
+| Surface | Version string | Runtime exposure | Cross-check |
+|---|---|---|---|
+| `.claude-plugin/plugin.json` | tracked, manifest | Read by Claude Code at install | None |
+| `lib/__init__.py` (`__version__`) | tracked | Importable, but nothing imports it | None |
+| `ext/Cargo.toml` (presence_ext crate) | tracked | Compiled metadata only | None |
+| `presence_ext` Python module | NOT exposed | None | None |
+| `presence-client` binary | NOT exposed (no `--version` flag) | None | None |
+| GitHub Releases (latest) | exists | Not surfaced anywhere in the runtime | None |
+
+Real-world cost of this gap: dependabot PR #17 (April 2026) bumped `pyo3 0.21 -> 0.24` with green CI. The wheel build was actually broken with 15 compile errors; CI did not catch it because neither `ci.yml` nor `release.yml` builds the wheel. A user running `git pull` + forgetting `--build-ext` after the merge would have hit subtly wrong behavior with no diagnostic.
+
+**Why this is one roadmap entry, not several**: the four sub-items below are co-designed; each makes the next more useful. Solving #1 and #2 alone is just cosmetic; #3 is what catches real bugs; #4 is the freshness layer on top. Shipping any one without the others leaves a half-feature.
+
+**Realistic shape, in increasing scope** (each item builds on the prior):
+
+1. **Static version surfaces** (~30 minutes, ext-only).
+   - `ext/src/lib.rs`: add `m.add("__version__", env!("CARGO_PKG_VERSION"))?` inside the `#[pymodule]` body so `presence_ext.__version__` returns the compiled crate version.
+   - `ext/src/client.rs`: add `--version` arg parsing; print `env!("CARGO_PKG_VERSION")` and exit 0.
+   - Bumps ext crate `0.1.x -> 0.2.0` (per the ext-versioning rule; minor bump because new public surface).
+   - **Standalone value**: low. Two new strings users can read but nothing reads them yet.
+
+2. **Doctor cross-check** (~1 hour, lib-only on top of #1).
+   - `lib/doctor.py::report()` adds a `version_observability` block: `plugin_version` (from `lib/__init__.py.__version__`), `ext_version` (from `presence_ext.__version__` if importable, else `None`), `expected_ext_version` (see #3 for where this comes from).
+   - `lib/doctor.py::render()` shows `ext (rust)  : 0.1.3 (expected >= 0.1.3) OK` or `ext (rust)  : not installed (using subprocess fallback)`.
+   - When the ext is installed but older than `expected_ext_version`: `ext (rust)  : 0.1.0 STALE; run install.sh --update --build-ext to refresh`.
+   - **Standalone value**: medium. Users now have one place to check that their wheel matches their Python.
+
+3. **Compatibility bound + SessionStart warn** (~1 hour, lib-only on top of #2).
+   - `lib/__init__.py` adds `_MIN_EXT_VERSION = "0.1.3"` as a constant; the plugin asserts compatibility with any ext crate at-or-above this version. Bumped manually whenever a Python-side change requires a new ext API surface.
+   - `lib/_common.py` adds `check_ext_compat() -> tuple[ok, message]` that imports `presence_ext.__version__`, parses both with the existing `presence_ext` import path, and returns `(False, "...")` on mismatch.
+   - `lib/hook_session_start.py` calls `check_ext_compat()` once per session-start; on mismatch, calls `warn("ext_version_stale", ...)` with a fix hint (`run install.sh --update --build-ext`). Reuses the existing `warnings_log.warn()` infrastructure so the warning surfaces in the standard `/presence-doctor` warnings panel without new UI code.
+   - Fail-open: any import error or unparseable version -> silent, no warning. The fallback to subprocess git is unaffected.
+   - **Standalone value**: high. This is what would have caught the PR #17 silent-stale-wheel scenario described above.
+
+4. **Network freshness check (opt-in, cached, fail-open)** (~3 hours, new surface).
+   - One outbound call to `https://api.github.com/repos/sara-star-quant/presence/releases/latest` with a 30-second timeout. Returns the highest-semver release tag.
+   - Default OFF in every shipped preset, including non-zerotrust ones. Enabled via `update_check.enabled: true` in user settings; zerotrust preset hard-codes this to false (the same way `outcome_check.enabled` is forced off).
+   - Cache: `~/.claude/presence/.update_check_cache.json` with TTL 24h. Schema: `{"checked_at": "ISO8601", "latest_tag": "v0.6.0", "current_tag": "v0.5.3"}`.
+   - Surfacing: `/presence-doctor` shows `latest release: v0.6.0 (you have v0.5.3)`. NOT surfaced in SessionStart (too noisy). NOT a blocking gate; never refuses to run.
+   - Fail-open: any network/DNS/parse error -> cache stays stale, doctor shows "(check failed)", no warning. Hooks never break on this.
+   - **Standalone value**: medium. Users who run `/presence-doctor` get notified of new releases without leaving Claude Code.
+
+**Why all four are deferred to v0.6.0 (or later)**:
+
+- v0.5.x has been a release-only stabilization line: redaction profiles (v0.5.0), CHANGELOG-and-doc accuracy (v0.5.1), CI cross-compile fixes (v0.5.2), pyo3 migration (v0.5.3). Adding new public surface mid-stabilization-line breaks the "no behavioral change for v0.5.x users" contract.
+- Items #1 + #2 are tiny but only useful with #3, which adds a settings-file constant and a SessionStart codepath; that is a v-minor change.
+- Item #4 introduces network egress (opt-in but new surface) and a settings key (`update_check.enabled`); definitely v-minor.
+
+**Decision criterion**: ship together as a single PR or PR-pair when (a) we have a v0.6.0 anchor feature that justifies the minor bump, OR (b) a user reports a "I ran git pull but presence_ext is stale and behaves wrong" incident that #3 would have caught.
+
+**Implementation order if/when it ships**: #1 -> #2 -> #3 -> #4. Each step is independently testable; the wheel build can be exercised locally with `maturin build` to confirm `presence_ext.__version__` is correct, then `/presence-doctor` smoke-tests #2 and #3, then settings-toggle exercises #4.
+
+**What we will NOT do as a workaround**:
+
+- **Auto-update.** presence never modifies its own install. The user runs `install.sh --update` deliberately. Anything that pulls a new version mid-session is out of scope.
+- **Block hooks on a stale ext.** The fallback-to-subprocess path in `lib/telemetry.py::get_head_commit` and `lib/crypto.py` already handles the "no ext" case silently; "stale ext" should warn but never block.
+- **Cross-check at every hook fire.** SessionStart only. The cost of importing `presence_ext` and parsing `__version__` is microseconds, but doing it 6+ times per turn adds up and the result rarely changes within a session.
+- **Hit GitHub on every SessionStart.** Cache TTL is the whole point; without it we drown the API in requests across the user base.
+- **Mark presence "incompatible" on minor pyo3 bumps.** `_MIN_EXT_VERSION` is a runtime check between *our* plugin Python and *our* ext crate, not a check on pyo3 itself. The pyo3 version is internal to the ext.
