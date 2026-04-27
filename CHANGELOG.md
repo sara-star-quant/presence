@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.5.1
+
+Release-only patch. No code or behavior changes vs. v0.5.0; this tag exists to produce a complete release-asset matrix on the new CI cross-compile path.
+
+### Why
+
+The v0.5.0 release shipped with two binaries (`presence-client-linux-x86_64`, `presence-client-macos-arm64`) but not the third (`presence-client-macos-x86_64`). GitHub's `macos-13` (Intel) runner pool stalled in queue for 13+ minutes during the v0.5.0 build matrix, the run was cancelled to unblock the publish step, and the Intel binary never built. The same Intel-pool stall has cancelled every `release.yml` run since v0.4.0.
+
+v0.5.1 retags the same code as v0.5.0 + the cross-compile fix that landed on main between the two tags. The new matrix builds `x86_64-apple-darwin` from a `macos-latest` (arm64) runner via Apple's universal SDK, eliminating the macos-13 dependency entirely.
+
+### What changed since v0.5.0
+
+- `release.yml`: x86_64-apple-darwin matrix entry now uses `os: macos-latest` and cross-compiles via `dtolnay/rust-toolchain@stable` with `targets: ${{ matrix.target }}`. One macOS runner pool for both architectures.
+- `README.md`: tagline names the MCP + AGENTS.md projections precisely (cross-tool reach was undersold by the Claude-Code-only framing). New "Install (30 seconds)" block above the perf table. Cryptography install replaces the bare `pip install --user cryptography` (which fails on PEP 668 externally-managed Pythons) with three labeled paths: uv-managed, `--break-system-packages`, dedicated venv.
+- `docs/roadmap.md`: new "Universal install: paths beyond Claude Code-only" entry as decision history for the three universality paths (daemon mode / per-tool plugins / editor extension), all deferred with stated criteria for revisiting.
+- `README.md` Quickstart: the no-Python-3.12+ behavior was previously documented as "the installer prints a clear message and exits"; the actual `install.sh` behavior (line 44) is "warn and continue, presence stays inactive until Python is available". Doc now matches the implementation.
+- Repository metadata: description rewritten to mention MCP + AGENTS.md projections; topics gain `mcp`, `mcp-server`, `agents-md`, `compliance-redaction`.
+
+### Verification
+
+- 291 tests pass (unchanged from v0.5.0).
+- Manifest verifies; the `presets/redaction/*.json` profiles remain SHA-256 covered.
+- The v0.5.1 release will be the first to ship a `presence-client-macos-x86_64` artifact built from CI on the new cross-compile matrix.
+
 ## v0.5.0
 
 Composable redaction profiles for jurisdiction-aware sensitive-data handling.
