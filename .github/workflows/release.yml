@@ -32,7 +32,13 @@ jobs:
             os: ubuntu-latest
             artifact: presence-client-linux-x86_64
           - target: x86_64-apple-darwin
-            os: macos-13   # Intel runner
+            # Cross-compile from arm64. macos-13 (Intel) runner pool is
+            # chronically congested; v0.4.0 / v0.4.1 / v0.4.2 / v0.5.0 attempts
+            # all stalled in the Intel queue. Apple's clang on macos-latest
+            # (arm64) produces x86_64 mach-o binaries via the universal SDK;
+            # the toolchain action's targets: input below installs the
+            # x86_64-apple-darwin target. One runner pool, no Intel queue.
+            os: macos-latest
             artifact: presence-client-macos-x86_64
           - target: aarch64-apple-darwin
             os: macos-latest
