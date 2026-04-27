@@ -65,3 +65,35 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 **Why deferred**: ACP is Zed-specific in practice. Building support without a Zed user testing the round-trip is guess-work. The MCP server (v0.4.1) already serves Zed's reading needs since Zed has MCP support; ACP is the writing/control side, which is a different project.
 
 **Decision criterion**: ship when (a) we have a documented Zed user who wants the chat-control flow specifically, or (b) a second tool adopts ACP and the multi-host story changes shape.
+
+## Universal install: paths beyond Claude Code-only
+
+**Status**: deferred; presence is a Claude Code plugin with read-only projections. No path to native install in another tool is scheduled.
+
+**Today**: presence's active behavior (outcome telemetry on commit, revert detection at Stop, calibrated-confidence gate, event digest, integrity check) fires on Claude Code lifecycle hooks (`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`, `PreToolUse`, `SessionEnd`). The cross-tool surfaces shipped in v0.4.1 + v0.4.2 are read-only: the MCP server lets clients pull presence's living model + telemetry over JSON-RPC stdio; the AGENTS.md adapter pushes the SessionStart context into a file other tools read. Neither lets presence observe a non-Claude-Code session and react to its events.
+
+**Why this is hard**: no other AI coding tool currently exposes a hook contract comparable to Claude Code's. Cursor has `.cursorrules` (file-based rules) but no lifecycle hooks. Codex CLI has commands but not session events. Gemini CLI has extensions but not the granular pre/post tool-use surface. Continue and Claude Desktop are MCP clients only. GitHub Copilot has Chat Participants in VS Code (closer to a hook) but not bidirectional session control. So "make presence work in Cursor" is not a packaging problem; it is a "what events fire" problem.
+
+**Three paths to actual universality, in increasing scope**:
+
+1. **Daemon mode** (~6-8 weeks, large rewrite). Run a long-lived background process that watches git activity (poll or fsnotify on `.git/HEAD`), the working tree (file changes), and project state (`model.md`, `audit.jsonl`). Replace the current hook-fired Python entry points with daemon-side observers. Works everywhere a daemon can run; tool-agnostic.
+   - **Loss**: precision. The current architecture knows "Claude wrote this commit" because PostToolUse fires after Bash. A daemon sees the commit but cannot tell whether the human, the AI, or another tool authored it; the outcome telemetry's value drops sharply.
+   - **Loss**: the calibrated-confidence gate. That gate fires on Claude Code's `Stop` event (end of an AI turn). A daemon has no analogue; a polled "did tests pass since the last commit" check is a strict downgrade.
+   - **Cost**: separate process to manage (start/stop, crash recovery, log rotation, pid-file conventions). New attack surface under zerotrust (the daemon would need its own integrity story).
+
+2. **Per-tool plugins** (~2-4 weeks per tool, N codebases to maintain). Author native plugins for each tool that exposes a plugin / extension surface. Cursor: no public plugin API as of verified docs (April 2026); `.cursorrules` is the closest, file-based. Codex CLI: no plugin system. Gemini CLI: extensions framework, but lifecycle granularity is coarser than Claude Code's. VS Code Copilot Chat: Chat Participants are closer to a hook but per-participant, not session-wide.
+   - **Loss**: every tool has a different event model. "Outcome telemetry" means something different in each. The shared vocabulary the current presence assumes (session start, user prompt, tool use, stop) maps cleanly to Claude Code only.
+   - **Cost**: linear with the number of tools. Each plugin is its own bug surface, its own release cadence, its own integrity story.
+
+3. **Editor-level extension** (VS Code / JetBrains, ~3-4 weeks for one editor). Ship as a VS Code extension that observes editor events: `vscode.workspace.onDidChangeTextDocument`, `vscode.tasks.onDidEndTask`, `chat.participants.*` for AI-assistant chat events. Tool-agnostic at the editor level: any AI assistant running in the same editor would be observable.
+   - **Loss**: the editor sees all edits the same way. A file change might come from the human typing, an AI assistant, or a formatter. The current architecture's value comes from knowing which is which; the editor cannot reliably distinguish them. `chat.participants.*` is per-participant and only covers AIs that register as a chat participant (Copilot Chat does; others may not).
+   - **Cost**: editor-specific. JetBrains and VS Code have different APIs; each needs its own port. Doesn't help anyone running an AI tool outside an editor (Codex CLI, Gemini CLI standalone).
+
+**Why all three are deferred**: none of the three give back what we have today. Daemon mode loses the AI/human distinction. Per-tool plugins fragment the codebase across dissimilar event models. Editor extensions cannot see the AI/human boundary either. The cross-tool projection surfaces (MCP + AGENTS.md) deliver 80% of the cross-tool value at near-zero cost while keeping the precise behavioral layer that runs only inside Claude Code.
+
+**Decision criterion**: ship one of these three paths when (a) a non-Claude-Code AI tool ships a public hook contract with comparable lifecycle granularity (then a per-tool plugin is the right path), OR (b) a documented user with a real cross-tool need quantifies the value of partial coverage (then daemon mode becomes worth the rewrite), OR (c) the cross-tool projection surfaces (MCP, AGENTS.md, eventually ACP) prove insufficient for a specific user workflow and that workflow is described in writing.
+
+**What we will NOT do as a workaround**:
+- "Auto-detect Cursor" or any other heuristic that pretends to be a hook layer. Either the host fires events presence subscribes to, or it does not.
+- Ship a half-rewrite that runs daemon-side telemetry without the calibrated-confidence gate. The four pillars (living model, telemetry, event digest, calibrated confidence) are co-designed; degraded versions get returned by users as "but X doesn't work" issues.
+- Frame any of the existing read-only projections as "install presence on Cursor". A Cursor user does not install presence; a Claude Code user installs presence and a Cursor user reads its projection.
