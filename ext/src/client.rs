@@ -54,7 +54,16 @@ fn get_plugin_root() -> PathBuf {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
+    // --version: emit the compiled ext crate version (env!CARGO_PKG_VERSION
+    // at compile time from ext/Cargo.toml) and exit. Useful for bug reports
+    // and for install.sh --verify post-build sanity. Must be the first arg
+    // gate so it short-circuits before any of the daemon / hook plumbing.
+    if args.len() == 2 && args[1] == "--version" {
+        println!("presence-client {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     // Hook name: prefer argv[1] (passed by _common.sh exec_hook),
     // fall back to exe basename for direct invocation.
     let hook_name = if args.len() > 1 {
