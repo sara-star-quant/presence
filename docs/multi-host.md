@@ -99,8 +99,8 @@ The tradeoffs are the same as for any auto-generated file in version control. pr
 
 - **Per-tool adapters** (Cursor / Gemini / Codex separate classes): unnecessary because AGENTS.md serves all of them. The single override `PRESENCE_AGENTS_MD_FILENAME` covers users who want the tool-specific filename.
 - **Live MCP integration**: that's v0.4.1 (`docs/mcp.md`). MCP-aware tools (Claude Desktop, Cursor, Continue) can use the MCP server for live reads instead of, or in addition to, the AGENTS.md refresh.
-- **ACP** (Agent Client Protocol from Zed): chat-session control, distinct from AGENTS.md's "give me context." Tracked as v0.4.3 / v0.5.0.
-- **`clawbot` adapter**: this tool is not publicly documented in any source verified at the time of v0.4.2; if support is needed, file an issue with a pointer to the spec and we'll add a v0.4.3 patch.
+- **ACP** (Agent Client Protocol from Zed): chat-session control, distinct from AGENTS.md's "give me context." Tracked in `docs/roadmap.md` as a future minor.
+- **`clawbot` adapter**: this tool is not publicly documented in any source verified at the time of v0.4.2; if support is needed, file an issue with a pointer to the spec.
 
 ## Compared to MCP (v0.4.1)
 

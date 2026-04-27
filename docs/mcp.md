@@ -99,7 +99,7 @@ The server resolves `<repo_id>` from the current working directory at the time o
 1. Launch a separate instance per project (set the working directory in the MCP client config), or
 2. Pass `cwd` via the MCP client's per-server config field if it has one.
 
-This is a known limitation of the v0.4.1 implementation. v0.4.2 may add an explicit `repo_id` parameter to `resources/read` for clients that want to switch repos without restarting the server.
+This is a known limitation of the v0.4.1 implementation. A future minor may add an explicit `repo_id` parameter to `resources/read` for clients that want to switch repos without restarting the server.
 
 ## What's NOT exposed
 
@@ -116,5 +116,5 @@ This is a known limitation of the v0.4.1 implementation. v0.4.2 may add an expli
 
 ## Roadmap
 
-- v0.4.2: explicit `repo_id` parameter for cross-repo reads.
+- Future: explicit `repo_id` parameter for cross-repo reads (so a single MCP server instance can serve multiple projects without restart).
 - Future: `resources/subscribe` so MCP clients can watch for new commits / revert detections in real time.
