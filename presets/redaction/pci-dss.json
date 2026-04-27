@@ -1,0 +1,16 @@
+{
+  "_schema_version": 1,
+  "_description": "Patterns commonly considered sensitive cardholder data under PCI DSS.",
+  "_disclaimer": "Using this profile does not constitute PCI DSS compliance. It only enables redaction of patterns commonly considered sensitive cardholder data. PCI DSS compliance requires controls far beyond log redaction.",
+  "_last_reviewed": "2026-04-27",
+  "_review_owner": "presence-maintainers",
+  "patterns": [
+    {
+      "name": "pan-luhn",
+      "pattern": "\\b(?:\\d[ -]?){12,18}\\d\\b",
+      "kind": "pan",
+      "validator": "luhn",
+      "notes": "PAN candidate: 13 to 19 digits with optional space or dash separators. Final acceptance gated by Luhn validator (digits-only). CVVs alone (3-4 digits) are too short to safely pattern-match; PCI DSS requires CVVs not be stored at all, so logging a stray CVV is a separate workflow problem."
+    }
+  ]
+}

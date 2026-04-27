@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.5.0
+
+Composable redaction profiles for jurisdiction-aware sensitive-data handling.
+
+A regulated-workload user asking "does presence support GDPR / HIPAA / PCI?" used to get a wishy-washy "kind of, via aggressive redaction" answer. v0.5.0 ships an honest one: opt-in pattern bundles for jurisdiction-relevant data plus a written-down `docs/compliance.md` that says exactly what presence does and does not do.
+
+The hard rule for this release is what is NOT shipping: no preset named after a compliance framework (`fedramp`, `hipaa`, `us-gov`, etc.). Such a name would imply certification we do not have. Profile names describe the data class (`pii-eu`, `pci-dss`), not the framework.
+
+### Added
+
+- **`presets/redaction/`** (new directory): three composable redaction profiles, opt-in via `redact.profiles` in settings. Each profile JSON declares `_schema_version`, `_description`, `_disclaimer`, `_last_reviewed`, `_review_owner`, and a list of `patterns`. Each pattern declares `name`, `pattern` (Python regex), `kind` (used in the `[REDACTED:<kind>]` replacement), optional `validator` (registered post-match check), and optional `notes`.
+  - `pii-eu.json`: EU IBAN, Dutch BSN (with prefix), Italian codice fiscale, French INSEE/NIR (with prefix).
+  - `pii-us.json`: US SSN (with hyphens), US EIN (with prefix), US bank routing (with prefix).
+  - `pci-dss.json`: PAN candidates 13-19 digits, gated by Luhn validator so non-PAN 16-digit strings pass through.
+- **`lib/redact.py`**: extended with `profiles=` kwarg on `redact_text` / `redact_command` / `redact_iter`. New `_VALIDATORS` registry (currently `luhn` only) so future structured patterns plug in without touching the redaction loop. New `ProfileLoadResult` type carries load status (`ok`, `not_found`, `parse_error`, `compile_error`, `unknown_validator`, `partial`) so failed loads surface in `/presence-doctor` instead of warning silently. Process-cached. User-authored profiles in `~/.claude/presence/presets/redaction/<name>.json` shadow built-ins of the same name.
+- **`python3 -m redact` CLI**: read-only inspector. `--list-profiles` (status, last_reviewed, pattern count); `--show-profile NAME` (full metadata); `--test-profile NAME --input FILE` or `--stdin` (redact and print result). Stdlib-only; usable as a pre-commit check.
+- **`/presence-doctor` redact section**: shows level + active profiles + per-profile load status. A typo'd profile name now shows up here as `not_found` instead of disappearing.
+- **`docs/compliance.md`** (new): honest scope for regulated workloads. Lists what presence does (local-only, AES-GCM at rest under zerotrust, audit log with hash chain, fail-closed integrity, redaction profiles) and what it explicitly does NOT do (no certification, no ATO, no formal attestation, not legal/security advice). Recommended posture for regulated users.
+- **`presets/redaction/README.md`** (new): profile JSON schema, how to author custom profiles, where they live, the bar for shipping a built-in.
+- **`tests/test_redact_profiles.py`** (new, 27 tests): per-profile positive + negative coverage, composition test, backward-compat test (no-profile call equals v0.4.x behavior), Luhn unit tests with PCI test card numbers, load-failure modes (malformed JSON, unknown validator, bad regex, partial load), user-override-shadows-builtin, forward-compat schema-version compat-mode.
+- **`docs/index.md`** + **`README.md` Privacy** + **`llms.txt`**: link to `docs/compliance.md` and call out the opt-in profile flow.
+
+### Changed
+
+- **`lib/telemetry.py`**: new `_redact_profiles()` helper alongside `_redact_level()`; threaded through `record_commit_claim` and `record_push_claim` so profile-configured patterns redact telemetry events the same as the standard set.
+- **`lib/hook_post_tool_bash.py`**: same `_redact_profiles(cfg)` threading; bash event payloads honor configured profiles.
+- **`lib/integrity.py`**: `presets/redaction/*.json` added to `_INCLUDE_GLOBS` so the SHA-256 manifest covers profile files. Tampering with a profile is detected at SessionStart under zerotrust.
+- **`install.sh`**: `SCRIPT_DIR` now uses `pwd -P` instead of `pwd`, so `install.sh --verify` invoked through the `~/.claude/plugins/presence` symlink no longer false-positives the symlink check. The bug was visible only when running verify through the symlink (CI invokes from the repo, where it worked).
+- **`docs/roadmap.md`**: redaction-profiles entry removed (shipped here). ACP-for-Zed entry kept; em-dash replaced with colon to keep the file ASCII-only.
+- **`.claude-plugin/plugin.json`** and **`lib/__init__.py`**: version `0.4.2` -> `0.5.0`.
+
+### Backward compat
+
+- Every existing user sees zero behavior change unless they add `redact.profiles` to their settings. The `profiles=` kwarg defaults to `None`, which is identical to the v0.4.x code path. The 4 shipped presets (`solo-dev`, `team-oss`, `enterprise-strict`, `zerotrust`) do NOT add profiles by default; opt-in only.
+
+### What's NOT in v0.5.0 (deliberate)
+
+- **Compliance-framework-named presets** (`fedramp`, `hipaa`, `us-gov`, `cmmc`, etc.). Names imply certification we do not have.
+- **`phi-hipaa.json` and `cui-us-gov.json` profiles**. Documented as deferred until a contributor with healthcare or federal-contractor domain expertise validates the patterns.
+- **Auto-detection of jurisdiction**. The user names the profile explicitly.
+- **A "compliance dashboard"**. The existing `audit.jsonl` + `lib/integrity.py --audit-verify` is the audit surface.
+- **JSON Schema validation of profile files**. Defers to the existing roadmap item "Preset JSON schema validation".
+
+### Quality gates
+
+- 287 tests passing on Python 3.12 / 3.13 / 3.14 (was 256 in v0.4.2; +27 from `test_redact_profiles.py`, +3 from `test_telemetry.py`, +1 from `test_post_tool_bash.py`).
+- ruff clean. shellcheck clean. MANIFEST regenerated and verifies. ASCII-only. No em-dashes.
+
 ## v0.4.2
 
 Cross-tool AGENTS.md adapter. Closes roadmap issue #8 (multi-AI-tool support).

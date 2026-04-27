@@ -85,3 +85,35 @@ def test_b1_zero_exit_code_records_claim(hook_env):
     lines = [json.loads(line) for line in claims_file.read_text().splitlines() if line.strip()]
     assert len(lines) == 1
     assert lines[0]["kind"] == "commit"
+
+
+def test_redact_profiles_threaded_to_bash_event(hook_env):
+    """settings.redact.profiles must reach redact_command in the bash hook event log."""
+    env, state, fake_repo = hook_env
+    # Plant settings opting into pii-eu
+    (state / "settings.json").write_text(
+        json.dumps({"preset": "solo-dev", "overrides": {"redact": {"profiles": ["pii-eu"]}}}),
+        encoding="utf-8",
+    )
+    payload = {
+        "cwd": str(fake_repo),
+        "tool_input": {"command": "echo IBAN GB82WEST12345698765432"},
+        "tool_response": {"exit_code": 0, "stdout": ""},
+    }
+    result = _run_hook(payload, env)
+    assert result.returncode == 0, f"hook crashed: {result.stderr}"
+
+    # Find the events file and check the bash event payload was redacted.
+    events_root = state / "events"
+    bash_lines: list[str] = []
+    for p in events_root.rglob("pending.jsonl"):
+        for line in p.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            ev = json.loads(line)
+            if ev.get("kind") == "bash":
+                bash_lines.append(ev.get("cmd") or "")
+    assert bash_lines, f"expected a bash event under {events_root}; found: {list(events_root.rglob('*'))}"
+    joined = " ".join(bash_lines)
+    assert "GB82WEST12345698765432" not in joined
+    assert "[REDACTED:iban]" in joined

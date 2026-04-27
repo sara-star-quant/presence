@@ -26,6 +26,11 @@ def _redact_level(cfg: dict) -> str:
     return ((cfg.get("redact") or {}).get("level")) or "standard"
 
 
+def _redact_profiles(cfg: dict) -> list[str]:
+    raw = (cfg.get("redact") or {}).get("profiles") or []
+    return [str(p) for p in raw if isinstance(p, str)]
+
+
 def _resolve_commit_cwd(session_cwd: str, cmd: str) -> str:
     """If the command runs in a different directory (cd X && git commit / git -C X commit),
     use that directory for SHA lookup so we don't record a SHA from the wrong repo."""
@@ -56,18 +61,19 @@ def main() -> None:
         exit_code = None
 
     level = _redact_level(cfg)
+    profiles = _redact_profiles(cfg)
 
     if (cfg.get("events") or {}).get("enabled", True):
         append_event({
             "kind": "bash",
-            "cmd": redact_command(cmd[:500], level=level),
+            "cmd": redact_command(cmd[:500], level=level, profiles=profiles),
             "exit": exit_code if exit_code is not None else "?",
         }, cwd=session_cwd)
 
         # Classify only when we know the exit code; never silently bless a failed test as a pass
         classified = classify_command(cmd, exit_code)
         if classified:
-            append_event({"kind": classified, "cmd": redact_command(cmd[:500], level=level)}, cwd=session_cwd)
+            append_event({"kind": classified, "cmd": redact_command(cmd[:500], level=level, profiles=profiles)}, cwd=session_cwd)
 
     if not (cfg.get("telemetry") or {}).get("enabled", True):
         return

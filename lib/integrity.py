@@ -33,6 +33,7 @@ _INCLUDE_GLOBS = (
     "agents/*.md",
     "commands/*.md",
     "presets/*.json",
+    "presets/redaction/*.json",
 )
 # Things never included: tests, docs, README, LICENSE (these don't affect runtime).
 
