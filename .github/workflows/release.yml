@@ -53,6 +53,18 @@ jobs:
         if: steps.check_ext.outputs.have_ext == 'true'
         with:
           targets: ${{ matrix.target }}
+      - name: Install system libraries (Linux only)
+        # The git2 crate links against libgit2 which needs pkg-config +
+        # libssh2 + libssl headers. Bare ubuntu-latest runners don't have
+        # them. macOS runners get equivalents via Apple's frameworks.
+        if: steps.check_ext.outputs.have_ext == 'true' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libssh2-1-dev \
+            libssl-dev \
+            zlib1g-dev
       - name: Build presence-client
         if: steps.check_ext.outputs.have_ext == 'true'
         env:
@@ -71,8 +83,10 @@ jobs:
           chmod +x "/tmp/release-assets/$ARTIFACT_NAME"
           ls -la /tmp/release-assets/
       - name: Upload artifact
+        # v6 runs on Node 24; v4 was deprecated by GitHub Actions (Node 20
+        # removal scheduled for September 2026, default flip June 2026).
         if: steps.check_ext.outputs.have_ext == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: /tmp/release-assets/${{ matrix.artifact }}
@@ -142,7 +156,8 @@ jobs:
           fi
 
       - name: Download Rust build artifacts (best-effort)
-        uses: actions/download-artifact@v4
+        # v6 runs on Node 24; matches the upload-artifact bump above.
+        uses: actions/download-artifact@v6
         with:
           path: /tmp/release-assets
         continue-on-error: true   # release notes still publish even if Rust builds failed
