@@ -75,6 +75,72 @@ def test_read_decrypts_and_returns_plain_dict(isolated_state, in_memory_keychain
     assert rows[1] == {"id": 2, "msg": "second"}
 
 
+def test_redact_profile_pii_eu_under_zerotrust_e2e(isolated_state, in_memory_keychain, fake_repo):
+    """End-to-end: zerotrust + redact.profiles=['pii-eu'] override -> commit message
+    containing an EU IBAN is redacted in the encrypted-on-disk claims.jsonl, and the
+    decrypted readback shows [REDACTED:iban].
+
+    This is the regulated-workload smoke path: settings opt-in, claim recorded, file
+    on disk is ciphertext, but the redaction happened before encryption so a future
+    decrypt cannot recover the IBAN."""
+    import importlib
+
+    (isolated_state / "settings.json").write_text(json.dumps({
+        "preset": "zerotrust",
+        "overrides": {"redact": {"profiles": ["pii-eu"]}},
+    }))
+    from unlock import unlock
+    unlock(ttl_seconds=60)
+
+    # Reload modules so the new settings (and profile cache reset) take effect.
+    importlib.reload(_common)
+    import telemetry
+    importlib.reload(telemetry)
+    from redact import _clear_profile_cache
+    _clear_profile_cache()
+
+    telemetry.record_commit_claim(
+        str(fake_repo), "abc1234567890",
+        "transferred to GB82WEST12345698765432 today", intent=None,
+    )
+
+    # On-disk: must be encrypted ciphertext (zerotrust contract).
+    raw = telemetry.claims_path().read_text().strip()
+    assert crypto.is_encrypted_line(raw), f"expected encrypted line, got: {raw[:80]}"
+    assert "GB82WEST12345698765432" not in raw, "raw IBAN must not appear in ciphertext file"
+
+    # Decrypted readback: redaction marker present, IBAN absent.
+    rows = _common.read_jsonl(telemetry.claims_path())
+    assert len(rows) == 1
+    assert "GB82WEST12345698765432" not in rows[0]["message"]
+    assert "[REDACTED:iban]" in rows[0]["message"]
+
+
+def test_no_profile_override_under_zerotrust_leaves_iban_alone(isolated_state, in_memory_keychain, fake_repo):
+    """Negative control for the e2e above: without redact.profiles, the IBAN is NOT
+    redacted (it's not part of the standard set). Proves the redaction in the previous
+    test came from the profile, not from incidental coverage."""
+    import importlib
+
+    (isolated_state / "settings.json").write_text(json.dumps({"preset": "zerotrust"}))
+    from unlock import unlock
+    unlock(ttl_seconds=60)
+
+    importlib.reload(_common)
+    import telemetry
+    importlib.reload(telemetry)
+    from redact import _clear_profile_cache
+    _clear_profile_cache()
+
+    telemetry.record_commit_claim(
+        str(fake_repo), "abc1234567890",
+        "transferred to GB82WEST12345698765432 today", intent=None,
+    )
+    rows = _common.read_jsonl(telemetry.claims_path())
+    assert len(rows) == 1
+    assert "GB82WEST12345698765432" in rows[0]["message"]
+
+
 def test_mixed_file_handled_per_line(isolated_state, in_memory_keychain):
     """A file with both encrypted and plain lines must read correctly: encrypted lines
     decrypt, plain lines parse directly."""

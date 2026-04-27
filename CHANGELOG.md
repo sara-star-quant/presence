@@ -45,8 +45,8 @@ The hard rule for this release is what is NOT shipping: no preset named after a 
 
 ### Quality gates
 
-- 287 tests passing on Python 3.12 / 3.13 / 3.14 (was 256 in v0.4.2; +27 from `test_redact_profiles.py`, +3 from `test_telemetry.py`, +1 from `test_post_tool_bash.py`).
-- ruff clean. shellcheck clean. MANIFEST regenerated and verifies. ASCII-only. No em-dashes.
+- 291 tests passing on Python 3.12 / 3.13 / 3.14 (was 256 in v0.4.2; +27 from `test_redact_profiles.py`, +3 from `test_telemetry.py`, +1 from `test_post_tool_bash.py`, +2 from `test_zerotrust_integration.py` covering the regulated-workload e2e path: zerotrust + `redact.profiles=["pii-eu"]` -> IBAN redacted before encryption + negative control without the profile).
+- MANIFEST regenerated and verifies; the `presets/redaction/*.json` profiles are SHA-256 covered by zerotrust integrity.
 
 ## v0.4.2
 
