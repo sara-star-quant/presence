@@ -180,6 +180,7 @@ State at `~/.claude/presence/` is preserved by default. Pass `--purge` to also r
 - No analytics, no telemetry-to-vendor, no remote calls.
 - The `outcome-check` skill makes one optional `gh` call to read PR status if `gh` is on `$PATH` and authenticated; this hits GitHub's API directly, not any third party. Disable in preset.
 - Under `zerotrust`, even that optional call is disabled.
+- Composable redaction profiles for jurisdiction-relevant patterns (EU PII, US PII, PCI-DSS) ship in [`presets/redaction/`](presets/redaction/). See [`docs/compliance.md`](docs/compliance.md) for the honest scope (presence has no formal certification).
 
 ## Architecture
 
@@ -192,6 +193,7 @@ Start at [`docs/index.md`](docs/index.md) for a map. Highlights:
 - [`docs/architecture.md`](docs/architecture.md) - how the pieces fit together
 - [`docs/security.md`](docs/security.md) - threat model (T1 through T12)
 - [`docs/zerotrust.md`](docs/zerotrust.md) - the opt-in Zero-Trust profile
+- [`docs/compliance.md`](docs/compliance.md) - what presence does / does not do for regulated workloads (no certification framing)
 - [`docs/glossary.md`](docs/glossary.md) - definitions for project-specific terms
 - [`docs/recipes.md`](docs/recipes.md) - common preset customizations
 - [`docs/roadmap.md`](docs/roadmap.md) - what we've deferred and why

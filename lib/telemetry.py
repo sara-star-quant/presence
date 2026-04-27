@@ -35,6 +35,16 @@ def _redact_level() -> str:
     return ((settings().get("redact") or {}).get("level")) or "standard"
 
 
+def _redact_profiles() -> list[str]:
+    """Return the list of redaction-profile names from settings, or empty.
+
+    Profiles compose on top of the level-based redactors (standard / aggressive)
+    and add jurisdiction-specific patterns. Opt-in only; default is no profiles.
+    """
+    raw = (settings().get("redact") or {}).get("profiles") or []
+    return [str(p) for p in raw if isinstance(p, str)]
+
+
 def _git_timeout() -> int:
     return int(((settings().get("git") or {}).get("timeout_seconds")) or DEFAULT_GIT_TIMEOUT)
 
@@ -72,14 +82,16 @@ def get_head_commit(cwd) -> dict | None:
 
 
 def record_commit_claim(cwd, sha: str, message: str, intent: str | None = None) -> None:
+    level = _redact_level()
+    profiles = _redact_profiles()
     append_jsonl_rotating(claims_path(), {
         "ts": now_ts(),
         "kind": "commit",
         "repo": repo_id(cwd),
         "root": str(repo_root(cwd)),
         "sha": sha,
-        "message": redact_command(message or "", level=_redact_level()),
-        "intent": redact_command(intent or "", level=_redact_level()) if intent else None,
+        "message": redact_command(message or "", level=level, profiles=profiles),
+        "intent": redact_command(intent or "", level=level, profiles=profiles) if intent else None,
     })
 
 
@@ -88,7 +100,7 @@ def record_push_claim(cwd, intent: str | None = None) -> None:
         "ts": now_ts(),
         "kind": "push",
         "repo": repo_id(cwd),
-        "intent": redact_command(intent or "", level=_redact_level()) if intent else None,
+        "intent": redact_command(intent or "", level=_redact_level(), profiles=_redact_profiles()) if intent else None,
     })
 
 

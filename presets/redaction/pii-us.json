@@ -1,0 +1,27 @@
+{
+  "_schema_version": 1,
+  "_description": "Patterns commonly considered sensitive PII under US jurisdictions (notably CCPA).",
+  "_disclaimer": "Using this profile does not constitute compliance with CCPA, HIPAA, or any framework. It only enables redaction of patterns commonly considered sensitive in the named jurisdiction.",
+  "_last_reviewed": "2026-04-27",
+  "_review_owner": "presence-maintainers",
+  "patterns": [
+    {
+      "name": "us-ssn",
+      "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+      "kind": "us-ssn",
+      "notes": "US SSN with mandatory hyphen separators (NNN-NN-NNNN). Hyphen-less 9-digit SSNs are not matched; redact those via the standard env-style patterns or the aggressive level."
+    },
+    {
+      "name": "us-ein",
+      "pattern": "(?i)\\bEIN[\\s:=]+\\d{2}-\\d{7}\\b",
+      "kind": "us-ein",
+      "notes": "US Employer Identification Number (NN-NNNNNNN). Requires 'EIN' prefix; the bare NN-NNNNNNN shape collides with too many other ID conventions."
+    },
+    {
+      "name": "us-routing",
+      "pattern": "(?i)\\b(?:routing|ABA)[\\s:=#]+\\d{9}\\b",
+      "kind": "us-routing",
+      "notes": "US bank routing number is 9 digits with an ABA checksum, but 9-digit substrings appear constantly (zip+4, ints, ids). Requiring 'routing' or 'ABA' prefix is the safe narrowing for v0.5.0."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "_schema_version": 1,
+  "_description": "Patterns commonly considered sensitive PII under EU jurisdictions (notably GDPR).",
+  "_disclaimer": "Using this profile does not constitute compliance with GDPR or any framework. It only enables redaction of patterns commonly considered sensitive in the named jurisdiction.",
+  "_last_reviewed": "2026-04-27",
+  "_review_owner": "presence-maintainers",
+  "patterns": [
+    {
+      "name": "eu-iban",
+      "pattern": "\\b[A-Z]{2}\\d{2}[A-Z0-9]{11,30}\\b",
+      "kind": "iban",
+      "notes": "ISO 13616 shape: 2-letter country, 2 check digits, 11-30 alphanumeric BBAN. No checksum validator in v0.5.0 (Luhn-style mod-97 deferred); narrow length keeps false-positive rate manageable."
+    },
+    {
+      "name": "nl-bsn",
+      "pattern": "(?i)\\bBSN[\\s:=]+\\d{9}\\b",
+      "kind": "nl-bsn",
+      "notes": "Dutch BSN is 9 digits with an 11-test checksum, but 9-digit substrings false-positive constantly. Requiring an explicit 'BSN' prefix is the cheapest narrowing."
+    },
+    {
+      "name": "it-codice-fiscale",
+      "pattern": "\\b[A-Z]{6}\\d{2}[A-Z]\\d{2}[A-Z]\\d{3}[A-Z]\\b",
+      "kind": "it-codice-fiscale",
+      "notes": "Italian fiscal code: 6 letters, 2 digits, 1 letter, 2 digits, 1 letter, 3 digits, 1 letter. Distinctive shape; low false-positive rate."
+    },
+    {
+      "name": "fr-insee",
+      "pattern": "(?i)\\b(?:INSEE|NIR)[\\s:=]+[12]\\d{12}(?:\\d{2})?\\b",
+      "kind": "fr-insee",
+      "notes": "French INSEE/NIR 13-digit social-security number, with optional 2-digit cle (key) for the 15-digit form. Requires explicit 'INSEE' or 'NIR' prefix to avoid catching arbitrary 13- or 15-digit numbers."
+    }
+  ]
+}

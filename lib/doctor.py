@@ -68,6 +68,36 @@ def _pinned_python() -> str | None:
         return None
 
 
+def _redact_summary() -> dict:
+    """Surface active redaction config so regulated-workload users can verify it.
+
+    Returns level + configured profile names, plus per-profile load status so a
+    typo'd or broken profile shows up here instead of failing silently.
+    """
+    from _common import settings
+    from redact import _load_profile, list_available_profiles
+    cfg = (settings().get("redact") or {})
+    level = cfg.get("level") or "standard"
+    raw = cfg.get("profiles") or []
+    names = [str(p) for p in raw if isinstance(p, str)]
+    statuses = []
+    for n in names:
+        r = _load_profile(n)
+        statuses.append({
+            "name": n,
+            "status": r.status,
+            "patterns": len(r.patterns),
+            "last_reviewed": r.last_reviewed,
+            "error": r.error,
+        })
+    return {
+        "level": level,
+        "profiles": names,
+        "profile_statuses": statuses,
+        "available_profiles": [n for n, _ in list_available_profiles()],
+    }
+
+
 def report(cwd: str | None = None) -> dict:
     cwd = cwd or "."
     rid = repo_id(cwd)
@@ -94,10 +124,26 @@ def report(cwd: str | None = None) -> dict:
         "pinned_python": _pinned_python(),
         "git_available": has_git(),
         "integrity": integrity_status(),
+        "redact": _redact_summary(),
     }
 
 
 def render(rep: dict) -> str:
+    redact = rep.get("redact") or {}
+    redact_profiles = redact.get("profiles") or []
+    if redact_profiles:
+        prof_lines = []
+        for s in redact.get("profile_statuses") or []:
+            tag = "OK" if s["status"] == "ok" else f"!! {s['status']}"
+            extra = f" ({s['error']})" if s.get("error") else ""
+            prof_lines.append(
+                f"               - {s['name']:<16} {tag}  patterns={s['patterns']}  "
+                f"reviewed={s.get('last_reviewed') or '(none)'}{extra}"
+            )
+        profiles_block = "\n".join(prof_lines)
+    else:
+        profiles_block = "               (none beyond level)"
+
     lines = [
         "presence: doctor report",
         "-" * 40,
@@ -111,6 +157,10 @@ def render(rep: dict) -> str:
         f"pinned python: {rep['pinned_python'] or '(none; using PATH python3)'}",
         f"git on PATH  : {'OK' if rep['git_available'] else 'FAIL (telemetry disabled)'}",
         f"integrity    : {rep['integrity']}",
+        "",
+        f"redact level : {redact.get('level', 'standard')}",
+        "redact profiles:",
+        profiles_block,
         "",
         f"errors since last session   : {rep['errors_since_last_session']}",
         f"warnings since last session : {rep['warnings_since_last_session']}",

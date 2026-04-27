@@ -56,6 +56,10 @@ ignore = [
 # must fall through to subprocess; try/except/pass is the right semantic.
 "lib/telemetry.py" = ["S110"]
 "lib/crypto.py" = ["S110"]
+# v0.5.0 redaction profiles: _load_profile parses JSON, compiles patterns and
+# tracks per-pattern issues in one linear pass; _cli dispatches three read-only
+# subcommands. Both single-purpose; splitting obscures the flow.
+"lib/redact.py" = ["PLR0915"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

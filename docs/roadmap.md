@@ -4,29 +4,6 @@ Things `presence` is **not** doing today, but where we have a written decision a
 
 The bar to add an item here is: someone asked, the maintainer thought about it, decided "not now," and wrote down both the reason and the realistic shape of the eventual work. Items disappear from this list when they ship or when we conclude they will not ship.
 
-## Multi-tool adapter architecture (Gemini, Codex, Cursor, ...)
-
-**Status**: deferred to a future major version (v1.0+).
-
-**What's asked**: ship presence's session-continuity behaviors (living model, outcome telemetry, event digest, calibrated confidence) on AI coding tools other than Claude Code.
-
-**Why this is not a patch**: each tool has its own extension model. Hook event names differ (Claude Code's `SessionStart` vs Gemini's lifecycle vs Cursor's vs whatever Codex exposes). Context-injection mechanisms differ (Claude Code's `additionalContext` is unique). Plugin packaging formats differ (`.claude-plugin/` vs `.cursorrules` vs Gemini's format vs nothing). Some tools do not expose hooks at all.
-
-**Realistic shape**:
-
-```
-presence-core/             tool-agnostic state, redaction, telemetry, crypto
-adapters/
-  claude-code/             current code, refactored into adapter
-  gemini-code/             new
-  codex/                   new
-  cursor/                  new
-```
-
-**Cost estimate**: months of work, repo restructure, possibly a rebrand from `presence` to a tool-agnostic name.
-
-**Decision criteria**: do not start until presence has documented Claude Code users actually requesting cross-tool support. First prove the value on one platform.
-
 ## Native Windows support without WSL2
 
 **Status**: WSL2 is the supported Windows path; native deferred until demand.
@@ -47,25 +24,15 @@ adapters/
 
 **Recommended decision**: stay on option 1 until a real Windows user files an issue requesting native. Then revisit, prefer option 2 (pure-Python) over option 3 (split codebase).
 
-## Automate GitHub releases on tag push
-
-**Status**: every release is currently manual; automation is one workflow file away.
-
-**Today**: `gh release create ... --notes-file /tmp/...` for v0.3.0, v0.3.1, v0.3.2, v0.3.3. Risk: someone forgets to attach the CHANGELOG section, or pastes the wrong one, or includes em-dashes that should not be there.
-
-**Proposal**: `.github/workflows/release.yml` triggered on `push: tags: 'v*'`. Steps: extract the matching `## v<tag>` section from `CHANGELOG.md` (same `awk`/`python` extraction we use locally); create the GitHub Release with that body and `--latest` if the tag is the highest semver; assert ASCII-only and no em-dash in the body before posting.
-
-**Why deferred**: small file, but adds a public side-effect to every tag push. Want one more manual release cycle to confirm the format is stable before automating.
-
 ## Cross-machine state snapshot and migration tooling
 
-**Status**: design discussion needed; deferred.
+**Status**: partially shipped in v0.3.4 (non-zerotrust path); zerotrust case still open.
 
-**Today**: `~/.claude/presence/` lives on one machine. A user with macOS-at-home + Linux-at-work has two disjoint memories per repo. The `outcome-check` skill could surface "you reverted X on the other box" but does not, because state is not shared.
+**Today**: `install.sh --snapshot` and `--restore` work for non-zerotrust presets (v0.3.4+). The remaining gap is zerotrust, where state is encrypted with a per-machine OS-keychain-stored key. Snapshotting that state across machines requires either re-wrapping the data key for the destination's keychain or stripping encryption.
 
-**Proposal**: `install.sh --snapshot <path.tar.gz>` writes a redacted, optionally encrypted tarball of the state dir; `install.sh --restore <path.tar.gz>` re-imports. Or a separate `lib/snapshot.py` exposing the same. Schema-versioned so v0.4 changes do not break old snapshots.
+**Proposal for the open case**: extend `lib/snapshot.py` with a `--rewrap-for <machine-pubkey>` flag that derives a transport-encryption key from a destination keypair the user provides. Or simpler: `--decrypt-on-snapshot` that strips encryption (with a loud warning) so the snapshot tarball is plain and the destination machine re-encrypts on restore.
 
-**Why deferred**: needs design discussion. Encryption story (does the snapshot carry the data key, and how does that survive a key rotation?). Key portability across platforms when zerotrust is involved. Conflict resolution if both sides made writes between snapshots.
+**Why deferred**: encryption story needs a real design call. Key portability across platforms is its own subproblem (macOS Keychain != Linux secret-service != hypothetical other backend). Conflict resolution if both sides made writes between snapshots.
 
 ## Preset JSON schema validation
 
@@ -86,3 +53,15 @@ adapters/
 **Proposal**: `install.sh --name presence-dev` symlinks at `~/.claude/plugins/presence-dev/` and uses `~/.claude/presence-dev/` for state.
 
 **Why deferred**: niche use case (only repo maintainers + plugin authors). Not worth the install.sh complexity until someone other than the maintainer asks for it.
+
+## Agent Client Protocol (ACP) for Zed and other ACP-aware tools
+
+**Status**: distinct from MCP; tracked separately for a future minor once a real Zed-side use case shows up.
+
+**Today**: v0.4.1 ships an MCP server (any MCP client can read presence's living model + telemetry). v0.4.2 ships the AGENTS.md adapter (cross-tool file refresh). Both are "give me context" mechanisms. ACP (Zed's protocol) is "control the agent's chat session": distinct mechanism, distinct verbs.
+
+**Proposal**: `lib/acp_server.py` implementing the Agent Client Protocol so Zed's chat panel can be driven by presence (e.g., proactive nudges from the calibrated-confidence Stop hook delivered as Zed chat messages). Probably routes through the same `lib/cli.py` pattern as the MCP server.
+
+**Why deferred**: ACP is Zed-specific in practice. Building support without a Zed user testing the round-trip is guess-work. The MCP server (v0.4.1) already serves Zed's reading needs since Zed has MCP support; ACP is the writing/control side, which is a different project.
+
+**Decision criterion**: ship when (a) we have a documented Zed user who wants the chat-control flow specifically, or (b) a second tool adopts ACP and the multi-host story changes shape.
