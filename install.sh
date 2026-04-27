@@ -19,7 +19,7 @@
 #
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 PLUGINS_DIR="$CLAUDE_HOME/plugins"
 PLUGIN_LINK="$PLUGINS_DIR/presence"
