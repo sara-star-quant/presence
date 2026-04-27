@@ -1,6 +1,6 @@
 [package]
 name = "presence_ext"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [lib]
@@ -24,7 +24,13 @@ pyext = ["pyo3"]
 security-framework = "2.9"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-secret-service = "3.0"
+# secret-service 3.x has no default async-runtime feature; without one of
+# rt-async-io-crypto-{rust,openssl} or rt-tokio-crypto-{rust,openssl},
+# zbus compiles without its async backend and the build fails referencing
+# missing async_fs / blocking / async_io modules. Picking the rust-crypto
+# async-io variant keeps us on a single async runtime (we already use
+# async-io transitively elsewhere) and avoids dragging in OpenSSL.
+secret-service = { version = "3.0", features = ["rt-async-io-crypto-rust"] }
 
 [dependencies.git2]
 version = "0.18"

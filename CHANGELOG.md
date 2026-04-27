@@ -48,6 +48,10 @@ The hard rule for this release is what is NOT shipping: no preset named after a 
 - 291 tests passing on Python 3.12 / 3.13 / 3.14 (was 256 in v0.4.2; +27 from `test_redact_profiles.py`, +3 from `test_telemetry.py`, +1 from `test_post_tool_bash.py`, +2 from `test_zerotrust_integration.py` covering the regulated-workload e2e path: zerotrust + `redact.profiles=["pii-eu"]` -> IBAN redacted before encryption + negative control without the profile).
 - MANIFEST regenerated and verifies; the `presets/redaction/*.json` profiles are SHA-256 covered by zerotrust integrity.
 
+### Native extension
+
+- `ext/Cargo.toml` 0.1.0 -> 0.1.1: secret-service 3.x has no default async-runtime feature, so the Linux Rust build was failing transitively on zbus (`async_fs` / `async_io` / `blocking` modules unresolved). Pinned `features = ["rt-async-io-crypto-rust"]` so zbus compiles with its async-io backend. macOS path unchanged. Local macOS builds never exercised this because the `cfg(target_os = "linux")` deps are not resolved on macOS; the failure surfaced on the first real CI Linux Rust build during the v0.5.0 release.
+
 ## v0.4.2
 
 Cross-tool AGENTS.md adapter. Closes roadmap issue #8 (multi-AI-tool support).
