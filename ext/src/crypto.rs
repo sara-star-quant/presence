@@ -108,7 +108,7 @@ fn delete_key(_py: Python) -> bool {
     platform::delete_key()
 }
 
-pub fn register(m: &PyModule) -> PyResult<()> {
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_key, m)?)?;
     m.add_function(wrap_pyfunction!(set_key, m)?)?;
     m.add_function(wrap_pyfunction!(delete_key, m)?)?;

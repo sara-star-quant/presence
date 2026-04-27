@@ -1,9 +1,12 @@
+// pyo3 0.22+ Bound API: PyDict::new returns Bound<PyDict> directly; convert to
+// Py<PyAny> via .into_any().unbind() (Bound -> Py<PyAny>). register() takes
+// &Bound<'_, PyModule> per the new add_function signature.
 use pyo3::prelude::*;
 use git2::{Repository, Sort};
 use pyo3::types::PyDict;
 
 #[pyfunction]
-fn get_head_commit(py: Python, cwd: &str) -> PyResult<Option<PyObject>> {
+fn get_head_commit(py: Python<'_>, cwd: &str) -> PyResult<Option<Py<PyAny>>> {
     if let Ok(repo) = Repository::open(cwd) {
         if let Ok(head) = repo.head() {
             if let Ok(commit) = head.peel_to_commit() {
@@ -11,7 +14,7 @@ fn get_head_commit(py: Python, cwd: &str) -> PyResult<Option<PyObject>> {
                 dict.set_item("sha", commit.id().to_string())?;
                 dict.set_item("ct", commit.time().seconds())?;
                 dict.set_item("message", commit.message().unwrap_or("").trim())?;
-                return Ok(Some(dict.into()));
+                return Ok(Some(dict.into_any().unbind()));
             }
         }
     }
@@ -19,7 +22,7 @@ fn get_head_commit(py: Python, cwd: &str) -> PyResult<Option<PyObject>> {
 }
 
 #[pyfunction]
-fn scan_for_revert(py: Python, cwd: &str, since_ts: i64, tracked_shas: Vec<String>) -> PyResult<Vec<PyObject>> {
+fn scan_for_revert(py: Python<'_>, cwd: &str, since_ts: i64, tracked_shas: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
     let mut findings = Vec::new();
     if let Ok(repo) = Repository::open(cwd) {
         if let Ok(mut revwalk) = repo.revwalk() {
@@ -42,7 +45,7 @@ fn scan_for_revert(py: Python, cwd: &str, since_ts: i64, tracked_shas: Vec<Strin
                                 dict.set_item("by", commit.id().to_string())?;
                                 dict.set_item("ts", commit.time().seconds())?;
                                 dict.set_item("message", commit.message().unwrap_or("").trim())?;
-                                findings.push(dict.into());
+                                findings.push(dict.into_any().unbind());
                                 break;
                             }
                         }
@@ -54,7 +57,7 @@ fn scan_for_revert(py: Python, cwd: &str, since_ts: i64, tracked_shas: Vec<Strin
     Ok(findings)
 }
 
-pub fn register(m: &PyModule) -> PyResult<()> {
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_head_commit, m)?)?;
     m.add_function(wrap_pyfunction!(scan_for_revert, m)?)?;
     Ok(())
