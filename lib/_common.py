@@ -31,6 +31,36 @@ DEFAULT_GIT_TIMEOUT = 15  # seconds; overridable via settings: git.timeout_secon
 
 
 # ---------------------------------------------------------------------------
+# JSON helpers (v0.4.0): prefer orjson when available, fall back to stdlib
+# json. Centralized so callers don't need to repeat the try/except pattern.
+# orjson is a fully optional dep; presence remains stdlib-only by default.
+# ---------------------------------------------------------------------------
+
+try:
+    import orjson as _orjson
+    _HAS_ORJSON = True
+except ImportError:
+    _orjson = None
+    _HAS_ORJSON = False
+
+
+def _dumps(obj: dict) -> str:
+    """Serialize ``obj`` to a single-line JSON string."""
+    if _HAS_ORJSON:
+        return _orjson.dumps(obj).decode("utf-8")
+    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+
+
+def _loads(data: str | bytes) -> dict:
+    """Parse a JSON document from str or bytes. Raises on malformed input."""
+    if _HAS_ORJSON:
+        return _orjson.loads(data)
+    if isinstance(data, bytes):
+        data = data.decode("utf-8")
+    return json.loads(data)
+
+
+# ---------------------------------------------------------------------------
 # State directory bootstrap with strict perms
 # ---------------------------------------------------------------------------
 
@@ -249,7 +279,7 @@ def append_jsonl(path: str | os.PathLike[str], obj: dict, mode: int = 0o600) -> 
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    plain = json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+    plain = _dumps(obj)
     line = _maybe_encrypt(plain) + "\n"
     with open(p, "a", encoding="utf-8") as f:
         unlock = _flock(f.fileno(), exclusive=True)
@@ -456,13 +486,13 @@ def read_jsonl(path: str | os.PathLike[str]) -> list[dict]:
                         corrupt += 1
                         continue
                     try:
-                        out.append(json.loads(plain.decode("utf-8")))
-                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        out.append(_loads(plain))
+                    except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
                         corrupt += 1
                 else:
                     try:
-                        out.append(json.loads(s))
-                    except json.JSONDecodeError:
+                        out.append(_loads(s))
+                    except (json.JSONDecodeError, ValueError):
                         corrupt += 1
     except OSError as exc:
         warn("io_read_failed", f"could not read {p}: {exc}")
@@ -542,11 +572,11 @@ def hook_input() -> dict:
     if not data:
         return {}
     try:
-        obj = json.loads(data)
-    except json.JSONDecodeError as exc:
+        obj = _loads(data)
+    except (json.JSONDecodeError, ValueError) as exc:
         warn(
             "hook_input_malformed",
-            f"malformed hook JSON: {exc.msg} at pos {exc.pos}",
+            f"malformed hook JSON: {exc}",
             head=data[:200],
         )
         return {}
@@ -554,19 +584,18 @@ def hook_input() -> dict:
 
 
 def emit(payload: dict) -> None:
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False))
+    # Retain raw emit for non-context JSON needs (e.g., telemetry flush or doctor JSON)
+    if _HAS_ORJSON:
+        sys.stdout.buffer.write(_orjson.dumps(payload))
+    else:
+        sys.stdout.write(_dumps(payload))
     sys.stdout.flush()
 
 
 def emit_context(event_name: str, text: str) -> None:
-    if not text:
-        return
-    emit({
-        "hookSpecificOutput": {
-            "hookEventName": event_name,
-            "additionalContext": text,
-        }
-    })
+    from adapters import get_adapter
+    adapter = get_adapter()
+    adapter.emit_context(event_name, text)
 
 
 def safe_main(fn: Callable[[], None]) -> None:
@@ -662,7 +691,7 @@ def settings(strict: bool = False) -> dict:
     user_settings: dict = {}
     if s_path.exists():
         try:
-            user_settings = json.loads(s_path.read_text(encoding="utf-8"))
+            user_settings = _loads(s_path.read_bytes())
             if not isinstance(user_settings, dict):
                 raise ValueError("settings.json must be a JSON object")
         except (json.JSONDecodeError, ValueError, OSError) as exc:
@@ -702,7 +731,7 @@ def _load_preset(name: str) -> dict | None:
         if not c.exists():
             continue
         try:
-            data = json.loads(c.read_text(encoding="utf-8"))
+            data = _loads(c.read_bytes())
             if not isinstance(data, dict):
                 raise ValueError("preset must be a JSON object")
             return data

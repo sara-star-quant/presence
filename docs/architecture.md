@@ -111,6 +111,34 @@ When `SessionStart` injects `additionalContext`, it wraps the assembled summary 
 
 `UserPromptSubmit` and `Stop` hooks emit single-purpose `additionalContext` strings without the wrapper (they have one logical block of content, not a composite). The schema is stable: tag names are part of the public contract for any downstream skill that wants to parse or cross-reference presence's output.
 
+## v0.4.0: optional native fast-path (`--build-ext`)
+
+By default, every hook fire spawns a fresh `bash` -> `python3 hook_*.py` process (~80 ms cold-startup on macOS arm64). v0.4.0 adds an opt-in fast path:
+
+1. `lib/presence-client` (compiled from `ext/src/client.rs`) connects to a Unix socket at `~/.claude/presence/presence.sock`.
+2. `lib/daemon.py` is a warm Python process that pre-imports all 6 hook modules and dispatches by name on each socket message.
+3. The bash wrapper (`hooks/scripts/_common.sh::exec_hook`) prefers `lib/presence-client` when present; falls through to the classical Python exec when not.
+
+The daemon auto-spawns on first request, auto-exits after 5 min of idleness, auto-respawns on the next request. Socket is `0o600`. PID file at `~/.claude/presence/presence.pid` is used by the Rust client to clean up stale processes.
+
+Trade-off: cold-hook latency drops from ~80 ms to ~9 ms (-89%), but installing the fast path requires either `cargo` (`./install.sh --build-ext`) or a network call to GitHub Releases (`./install.sh --download-ext`). Both are opt-in. The default path is unchanged stdlib-only Python.
+
+The PyO3 extension (`ext/src/lib.rs` + `crypto.rs` + `git.rs`) ships native fast paths for keychain access (security-framework on macOS, secret-service on Linux) and `git log` reads (libgit2 via `git2`). `lib/crypto.py` and `lib/telemetry.py` use these when present and fall through to the existing subprocess-based code path when not.
+
+## Adapter seam (`lib/adapters/`)
+
+v0.4.0 routes `_common.emit_context()` through a host-AI-tool adapter:
+
+- `ClaudeAdapter` (default; v0.4.0 ships only this one) emits the `hookSpecificOutput` JSON shape Claude Code consumes.
+- `PRESENCE_HOST=...` env var selects the adapter at runtime.
+
+Future adapters land later:
+
+- v0.4.1: MCP server (`lib/mcp_server.py`, currently parked) exposes `presence://<repo-id>/model` and `presence://<repo-id>/telemetry` over stdio JSON-RPC. Any MCP-compliant client (Cursor, Claude Desktop, Continue, custom agents) can read presence's living model + outcome telemetry.
+- v0.4.2: per-host adapters for Cursor, Gemini, Codex, claude-code, clawbot, plus a `GenericAdapter` fallback. Each host has its own context-injection mechanism; the adapter pattern is the seam where that knowledge lives.
+
+The seam is the v1.0 architectural goal from roadmap issue #8 brought forward to v0.4.x because the cloud-agent prototype already proved the pattern works.
+
 ## Failure modes
 
 Every hook entry point is wrapped in `safe_main`. On any exception:

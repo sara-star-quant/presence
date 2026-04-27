@@ -52,6 +52,15 @@ def parse_commit_sha_from_stdout(stdout: str | None) -> str | None:
 
 
 def get_head_commit(cwd) -> dict | None:
+    try:
+        import presence_ext.git as ext_git
+        try:
+            return ext_git.get_head_commit(str(cwd))
+        except Exception:
+            pass
+    except ImportError:
+        pass
+
     out = git_run_safe(cwd, "log", "-1", "--format=%H%x09%ct%x09%s", timeout=_git_timeout())
     if not out:
         return None
@@ -109,6 +118,16 @@ def scan_for_revert(cwd, since_ts: int) -> list[dict]:
     tracked = {c["sha"] for c in read_jsonl(claims_path()) if c.get("kind") == "commit" and c.get("repo") == rid}
     if not tracked:
         return []
+
+    try:
+        import presence_ext.git as ext_git
+        try:
+            return ext_git.scan_for_revert(str(cwd), since_ts, list(tracked))
+        except Exception:
+            pass
+    except ImportError:
+        pass
+
     out = git_run_safe(
         cwd, "log", f"--since=@{since_ts}", "--max-count=500", "--format=%H%x09%s%x09%ct",
         timeout=_git_timeout(),
@@ -150,6 +169,16 @@ async def async_scan_for_revert(cwd, since_ts: int) -> list[dict]:
     tracked = {c["sha"] for c in claims_rows if c.get("kind") == "commit" and c.get("repo") == rid}
     if not tracked:
         return []
+
+    try:
+        import presence_ext.git as ext_git
+        try:
+            return await asyncio.to_thread(ext_git.scan_for_revert, str(cwd), since_ts, list(tracked))
+        except Exception:
+            pass
+    except ImportError:
+        pass
+
     out = await async_git_run_safe(
         cwd, "log", f"--since=@{since_ts}", "--max-count=500", "--format=%H%x09%s%x09%ct",
         timeout=_git_timeout(),

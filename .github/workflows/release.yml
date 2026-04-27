@@ -1,9 +1,10 @@
 name: release
 
 # Triggered when a tag matching v* is pushed. Extracts the matching
-# `## v<TAG>` section from CHANGELOG.md, asserts ASCII + no em-dash, and
-# creates a GitHub Release with that body. Marks --latest when the tag
-# is the highest semver in the repo.
+# `## v<TAG>` section from CHANGELOG.md, asserts ASCII + no em-dash, builds
+# Rust release artifacts (presence-client) on three platforms when ext/
+# is present in the tagged tree, attaches them to the release, and creates
+# the GitHub Release marked --latest when this is the highest semver.
 #
 # Replaces the manual `gh release create` flow used for v0.3.0 - v0.3.3.
 # All values flowing into shell commands are passed via env: per
@@ -15,10 +16,72 @@ on:
       - "v*"
 
 permissions:
-  contents: write   # required for gh release create
+  contents: write   # required for gh release create + asset upload
 
 jobs:
+  build-rust:
+    name: build presence-client (${{ matrix.target }})
+    # Skip if ext/ is not present (older tags, doc-only tags). The build
+    # job continues on if Cargo.toml is missing; the release job below
+    # tolerates absent artifacts.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: presence-client-linux-x86_64
+          - target: x86_64-apple-darwin
+            os: macos-13   # Intel runner
+            artifact: presence-client-macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: presence-client-macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Skip if ext/ missing
+        id: check_ext
+        run: |
+          if [ -f ext/Cargo.toml ]; then
+            echo "have_ext=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_ext=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ext/ not present in this tag; skipping Rust build"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.check_ext.outputs.have_ext == 'true'
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build presence-client
+        if: steps.check_ext.outputs.have_ext == 'true'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          cd ext
+          cargo build --release --bin presence-client --no-default-features --target "$TARGET"
+      - name: Stage artifact
+        if: steps.check_ext.outputs.have_ext == 'true'
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+        run: |
+          mkdir -p /tmp/release-assets
+          cp "ext/target/$TARGET/release/presence-client" "/tmp/release-assets/$ARTIFACT_NAME"
+          chmod +x "/tmp/release-assets/$ARTIFACT_NAME"
+          ls -la /tmp/release-assets/
+      - name: Upload artifact
+        if: steps.check_ext.outputs.have_ext == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: /tmp/release-assets/${{ matrix.artifact }}
+          retention-days: 7
+
   release:
+    name: publish GitHub release
+    needs: build-rust
+    if: always()   # publish even if some Rust builds fail; release notes are independent
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -78,6 +141,18 @@ jobs:
             echo "tag $TAG_NAME is not the highest semver ($highest); release will not be marked latest"
           fi
 
+      - name: Download Rust build artifacts (best-effort)
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/release-assets
+        continue-on-error: true   # release notes still publish even if Rust builds failed
+
+      - name: List available release assets
+        run: |
+          if [ -d /tmp/release-assets ]; then
+            find /tmp/release-assets -type f -name 'presence-client-*' | sort
+          fi
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -85,9 +160,17 @@ jobs:
           TITLE: ${{ steps.changelog.outputs.title }}
           LATEST_FLAG: ${{ steps.latest.outputs.flag }}
         run: |
+          # Collect any presence-client-* artifacts that were uploaded.
+          asset_args=()
+          if [ -d /tmp/release-assets ]; then
+            while IFS= read -r f; do
+              [ -f "$f" ] && asset_args+=("$f")
+            done < <(find /tmp/release-assets -type f -name 'presence-client-*' | sort)
+          fi
           # shellcheck disable=SC2086  # LATEST_FLAG is intentionally split when set
           gh release create "$TAG_NAME" \
             --target main \
             --title "$TITLE" \
             --notes-file /tmp/release-notes.md \
-            $LATEST_FLAG
+            $LATEST_FLAG \
+            "${asset_args[@]}"

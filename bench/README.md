@@ -2,6 +2,17 @@
 
 Four reproducible scripts that quantify the runtime cost of presence on Claude Code's hot paths. All stdlib-only, no external dependencies. Used to publish SLOs in the CHANGELOG and the GitHub release notes, and to catch performance regressions in PRs.
 
+## Modes (v0.4.0+)
+
+The same scripts produce different numbers depending on whether the optional Rust daemon client is installed:
+
+- **Default (stdlib only)**: hooks fire via the classical `bash` -> `python3 hook_*.py` exec path. v0.3.x baseline numbers (cold hook ~80 ms median).
+- **`--build-ext`** (or `--download-ext`): hooks route through `lib/presence-client` -> warm Python daemon. v0.4.0 perf numbers (cold hook ~9 ms median).
+
+Run `./install.sh --build-ext` to opt in; remove `lib/presence-client` to fall back to the default path. The bench scripts auto-detect which path is active (whichever the bash wrapper resolves to).
+
+See [HISTORY.md](HISTORY.md) for verified per-version numbers in both modes.
+
 ## Scripts
 
 | Script | What it measures | Default sample count |
@@ -40,12 +51,20 @@ done
 
 ## Reference numbers
 
-The published v0.3.2 SLOs (macOS arm64, Python 3.14.4, on-laptop, no other heavy processes):
+**v0.4.0 with `--build-ext`** (Rust daemon client, macOS arm64, Python 3.14.4):
 
-- `cold_startup` median 80 ms / p95 87 ms (n=50)
-- `session_start_populated` median 108 ms / p95 113 ms (n=50)
-- `install_to_working` total median 237 ms (install 152 + status 85), n=25
-- `aggregate_session` median 6.4 s for 77 fires (n=10)
+- `cold_startup` median **8.6 ms** / p95 9.3 ms (n=50)
+- `session_start_populated` median **8.5 ms** / p95 9.2 ms (n=50)
+- `aggregate_session` median **698 ms** for 77 fires (n=10)
+
+**v0.4.0 stdlib-only** (no `--build-ext`, same machine):
+
+- `cold_startup` median 82 ms / p95 84 ms (n=50)
+- `session_start_populated` median 112 ms / p95 139 ms (n=50)
+- `install_to_working` total median 246 ms (install 158 + status 88), n=10
+- `aggregate_session` median 6.5 s for 77 fires (n=10)
+
+See [`HISTORY.md`](HISTORY.md) for the full version-by-version benchmark history.
 
 Linux numbers are typically 10-25% slower depending on the runner; the CI matrix bench tier (if/when added) will publish per-platform medians.
 

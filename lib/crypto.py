@@ -55,7 +55,14 @@ def keychain_backend() -> str | None:
 
 def is_available() -> bool:
     """True iff cryptography is importable AND a keychain backend is present."""
-    return _crypto_lib() is not None and keychain_backend() is not None
+    has_ext = False
+    try:
+        import importlib.util
+        if importlib.util.find_spec("presence_ext.crypto") is not None:
+            has_ext = True
+    except (ImportError, ValueError):
+        pass
+    return _crypto_lib() is not None and (has_ext or keychain_backend() is not None)
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +161,12 @@ def _linux_delete_key() -> bool:
 
 
 def _backend_ops():
+    try:
+        import presence_ext.crypto as ext_crypto
+        return ext_crypto.get_key, ext_crypto.set_key, ext_crypto.delete_key
+    except ImportError:
+        pass
+
     backend = keychain_backend()
     if backend == "macos":
         return _macos_get_key, _macos_set_key, _macos_delete_key

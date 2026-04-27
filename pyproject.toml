@@ -48,6 +48,14 @@ ignore = [
 "tests/*" = ["S101", "S108"]
 "lib/_common.py" = ["S110", "BLE001"]
 "lib/warnings_log.py" = ["E731"]
+# v0.4.0 daemon: try/except/pass is the right pattern in the outermost guards
+# (we never want a hook crash to kill the daemon process); 53 statements in
+# handle_client is fine for a single dispatch entry point.
+"lib/daemon.py" = ["S110", "PLR0915", "BLE001"]
+# v0.4.0 telemetry/crypto fast paths: presence_ext is optional, missing it
+# must fall through to subprocess; try/except/pass is the right semantic.
+"lib/telemetry.py" = ["S110"]
+"lib/crypto.py" = ["S110"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
