@@ -12,6 +12,11 @@ mod git;
 #[cfg(feature = "pyext")]
 #[pymodule]
 fn presence_ext(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Expose the compiled ext crate version so the Python plugin can
+    // cross-check it against lib/__init__.py._MIN_EXT_VERSION at SessionStart.
+    // env!("CARGO_PKG_VERSION") evaluates at compile time from ext/Cargo.toml.
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+
     let crypto_mod = PyModule::new(m.py(), "crypto")?;
     crypto::register(&crypto_mod)?;
     m.add_submodule(&crypto_mod)?;
