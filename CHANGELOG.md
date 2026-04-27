@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.5.4
+
+CI-only patch. Adds the `wheel-build` job to `.github/workflows/ci.yml` to catch pyo3 / pyext-feature-gated dep bumps that the binary build misses. Closes the "Wheel build in CI" roadmap entry (added in PR #30).
+
+### Why
+
+dependabot PR #17 (v0.5.3 cycle) bumped pyo3 0.21 -> 0.24 with green CI on all 6 test cells + shellcheck + manifest + bench. The wheel build was actually broken with 15 compile errors from the missing Bound API migration. CI did not catch this because no job exercised `maturin build`. Caught locally during PR review (became v0.5.3 / PR #29 instead). v0.5.4 adds the gate so future bumps fail at PR time.
+
+### What changed
+
+- `.github/workflows/ci.yml`: new `wheel-build` job. Matrix `ubuntu-latest` + `macos-latest`, Python 3.13. Sets up rust-toolchain stable, installs Linux libssh2/libssl/zlib1g system libs (mirroring `release.yml`), caches the cargo registry + `ext/target` keyed on `ext/Cargo.lock` hash, installs maturin, runs `maturin build --release`, installs the wheel into the runner Python, and smoke-tests `import presence_ext` + `presence_ext.git.get_head_commit('.')`.
+
+### What is unchanged
+
+- Plugin runtime: zero changes. No code under `lib/`, `hooks/`, `presets/`, `ext/src/`, `tests/`, or `ext/Cargo.toml`.
+- Release matrix: unchanged from v0.5.3 (Linux x86_64 + macOS arm64 + macOS x86_64 cross-compile).
+
 ## v0.5.3
 
 ext: pyo3 0.21 -> 0.28, full Bound API migration. ext crate 0.1.2 -> 0.1.3.
