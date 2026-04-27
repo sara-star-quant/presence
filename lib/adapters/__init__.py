@@ -1,30 +1,47 @@
 """Host-AI-tool adapter seam.
 
-v0.4.0 ships only the Claude Code adapter (the project's primary host).
-Future versions add adapters for other AI coding tools:
-  v0.4.1 - MCP server entry (any MCP-aware client)
-  v0.4.2 - Cursor, Gemini, Codex, claude-code (Anthropic), clawbot,
-           plus a generic-fallback adapter for any other host.
-
 Selected by the ``PRESENCE_HOST`` environment variable; defaults to
-``claude``. The full list of recognized values lives in this file's
-get_adapter() so the supported set is discoverable by ``grep``.
+``claude``. Recognized values:
+
+  ``claude``     -> ClaudeAdapter: emits Claude Code's hookSpecificOutput
+                    JSON shape. Default; matches v0.3.x and v0.4.0 behavior.
+  ``agents-md``  -> AgentsMdAdapter: refresh a delimited section of
+                    ``<repo_root>/AGENTS.md`` (or ``$PRESENCE_AGENTS_MD_FILENAME``)
+                    on SessionStart. AGENTS.md is the cross-tool open
+                    standard read by Codex, Cursor, Gemini CLI, Windsurf,
+                    GitHub Copilot, and others. v0.4.2+.
+  ``generic``    -> GenericAdapter: plain-text stdout. Useful for debugging
+                    presence outside Claude Code.
+
+Unknown hosts fall through to ClaudeAdapter (the safest default for hooks
+running inside Claude Code).
 """
 import os
 
+from .agents_md import AgentsMdAdapter
 from .base import Adapter
 from .claude import ClaudeAdapter
+from .generic import GenericAdapter
+
+_REGISTRY: dict[str, type[Adapter]] = {
+    "claude": ClaudeAdapter,
+    "agents-md": AgentsMdAdapter,
+    "agents_md": AgentsMdAdapter,   # tolerate underscore form
+    "agents":    AgentsMdAdapter,   # short alias
+    "generic":   GenericAdapter,
+}
 
 
 def get_adapter() -> Adapter:
-    # ``host`` is normalized to lowercase. Unknown hosts fall through to
-    # ClaudeAdapter (default) rather than raising; presence's "never break a
-    # hook" stance applies even to misconfiguration.
-    host = os.environ.get("PRESENCE_HOST", "claude").lower()
-    # The recognized list will grow in v0.4.2; for now only "claude" is wired.
-    if host == "claude":
-        return ClaudeAdapter()
-    return ClaudeAdapter()
+    host = os.environ.get("PRESENCE_HOST", "claude").lower().strip()
+    cls = _REGISTRY.get(host, ClaudeAdapter)
+    return cls()
 
 
-__all__ = ["Adapter", "ClaudeAdapter", "get_adapter"]
+__all__ = [
+    "Adapter",
+    "AgentsMdAdapter",
+    "ClaudeAdapter",
+    "GenericAdapter",
+    "get_adapter",
+]

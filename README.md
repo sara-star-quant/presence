@@ -38,8 +38,9 @@ The `--build-ext` column reflects optional native acceleration via the Rust daem
 All measurements: macOS arm64, Python 3.14.4. Reproduce locally with `python3 bench/<name>.py --runs N`. See [`bench/README.md`](bench/README.md) for the full convention.
 
 > **Recent changes**: see [`CHANGELOG.md`](CHANGELOG.md) for the full per-version diff.
-> v0.4.1 ships the MCP server: any MCP-aware client (Claude Desktop, Cursor, Continue, custom agents) can read presence's living model + outcome telemetry over JSON-RPC stdio. See [`docs/mcp.md`](docs/mcp.md).
-> v0.4.0 shipped the Rust daemon client + warm Python daemon + adapter seam. Optional via `--build-ext` / `--download-ext`. Cuts hot-path latency from 82 ms to 8.9 ms (-89%). Multi-host adapters (Cursor, Gemini, Codex, claude-code, clawbot, generic) land in v0.4.2.
+> v0.4.2 ships the cross-tool AGENTS.md adapter. Set `PRESENCE_HOST=agents-md` and presence refreshes `<repo>/AGENTS.md` on every Claude Code SessionStart, picked up automatically by Codex, Cursor, Gemini CLI, Windsurf, GitHub Copilot, and others reading the open AGENTS.md standard. See [`docs/multi-host.md`](docs/multi-host.md).
+> v0.4.1 shipped the MCP server: any MCP-aware client (Claude Desktop, Cursor, Continue, custom agents) can read presence's living model + outcome telemetry over JSON-RPC stdio. See [`docs/mcp.md`](docs/mcp.md).
+> v0.4.0 shipped the Rust daemon client + warm Python daemon + adapter seam. Optional via `--build-ext` / `--download-ext`. Cuts hot-path latency from 82 ms to 8.9 ms (-89%).
 > v0.3.x cut cold-hook latency by ~27% and fixed a latent v0.2 bug where Zero-Trust users had their event digest silently emptied.
 > v0.2.0 shipped the Zero-Trust preset: AES-GCM at rest, tamper-evident audit log, fail-closed SessionStart integrity. See [`docs/zerotrust.md`](docs/zerotrust.md).
 

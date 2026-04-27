@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.4.2
+
+Cross-tool AGENTS.md adapter. Closes roadmap issue #8 (multi-AI-tool support).
+
+The original v0.4.2 plan called for per-tool adapters (Cursor, Gemini, Codex, claude-code, clawbot, generic). Verification against current docs (April 2026) revealed that **AGENTS.md is now an open standard under the Agentic AI Foundation (Linux Foundation)**, read by Codex, Cursor, Gemini CLI, Windsurf, GitHub Copilot, and dozens of other tools. That collapses the design to **one adapter** that refreshes the project's `AGENTS.md` at Claude Code's SessionStart event, with a filename override for users who prefer a tool-specific name (`GEMINI.md`, `.cursor/rules/presence.mdc`, etc.).
+
+### Added
+
+- **`lib/adapters/agents_md.py`**: `AgentsMdAdapter`. Refreshes a delimited section (`<!-- presence:start --> ... <!-- presence:end -->`) of `<repo_root>/AGENTS.md` on `SessionStart` events. Idempotent; preserves user-authored content outside the markers; never raises (failed write is silent). Honors `PRESENCE_AGENTS_MD_FILENAME` for filename override (e.g., `GEMINI.md`, `.cursor/rules/presence.mdc`). Subdirectory paths in the override work; parent dirs are created.
+- **`lib/adapters/generic.py`**: `GenericAdapter`. Plain-text stdout for unknown / debug hosts. Useful when running presence outside Claude Code.
+- **`lib/adapters/__init__.py`**: `PRESENCE_HOST` env var dispatches between `claude` (default), `agents-md` (with `agents_md` and `agents` aliases), `generic`, and any unknown value (falls through to `ClaudeAdapter`).
+- **`docs/multi-host.md`** (new): full guide for the cross-tool flow. Hosts that read AGENTS.md (verified April 2026), the file-contract guarantees (idempotent, user-content-preserving, refresh-only-on-SessionStart), filename override examples, the should-I-commit-AGENTS.md tradeoff, and a comparison with MCP (v0.4.1).
+- **`docs/index.md`**: links to the new `multi-host.md`.
+- **16 new tests** in `tests/test_adapter_agents_md.py`: pure-unit coverage of `_replace_section` (idempotent, append-when-missing, replace-in-place, preserve-prefix-suffix, malformed-marker tolerance), integration coverage with a real git repo (writes/skips by event, preserves user content, filename override including subdirectory paths, write-failure swallowed), and dispatch coverage (all 3 PRESENCE_HOST aliases routing correctly).
+
+### Changed
+
+- **`README.md`**: recent-changes callout names v0.4.2 as the cross-tool release; v0.4.1 (MCP) is now positioned as the live-pull complement to v0.4.2's push-to-file approach.
+- **`README.md` "By the numbers"**: surface area row updated to mention the multi-host adapter (alongside the existing MCP server).
+
+### What's NOT in v0.4.2
+
+- **Per-tool adapters** (separate Cursor, Gemini, Codex classes): unnecessary because AGENTS.md serves all of them. The `PRESENCE_AGENTS_MD_FILENAME` override covers the rare case where a user prefers a specific tool's filename over the cross-tool standard.
+- **`clawbot` adapter**: not shipping. The tool is not publicly documented in any source verified at v0.4.2 time. File an issue with a pointer to the spec; we'll add a v0.4.3 patch.
+- **ACP (Agent Client Protocol from Zed)**: distinct from AGENTS.md (chat-session control vs. give-me-context). Tracked as v0.4.3 / v0.5.0.
+
+### Closes
+
+- Roadmap issue #8 (Multi-AI-tool adapter architecture). Originally planned as v1.0 work; brought forward to v0.4.x and shipped in 3 minor releases (v0.4.0 seam, v0.4.1 MCP, v0.4.2 AGENTS.md). The remaining open question (Zed ACP) is its own scope and stays open under a separate roadmap entry.
+
+### Quality gates
+
+- 256 tests passing on Python 3.12 / 3.13 / 3.14 (was 240 in v0.4.1; +16 from `test_adapter_agents_md.py`).
+- ruff clean. shellcheck clean. MANIFEST verifies. ASCII-only. No em-dashes.
+- Backward compat: every v0.3.x / v0.4.x state file remains readable. The `claude` host (default) is byte-identical to v0.4.1 behavior. AGENTS.md adapter only writes when `PRESENCE_HOST=agents-md` is explicitly set; default users see no change to their working tree.
+
 ## v0.4.1
 
 Ships the Model Context Protocol (MCP) server (`lib/mcp_server.py`) deferred from v0.4.0. Any MCP-aware client (Claude Desktop, Cursor, Continue, custom agents) can now read presence's living project model and outcome telemetry over JSON-RPC stdio without going through Claude Code-specific hook plumbing.
