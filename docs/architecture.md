@@ -132,10 +132,10 @@ v0.4.0 routes `_common.emit_context()` through a host-AI-tool adapter:
 - `ClaudeAdapter` (default; v0.4.0 ships only this one) emits the `hookSpecificOutput` JSON shape Claude Code consumes.
 - `PRESENCE_HOST=...` env var selects the adapter at runtime.
 
-Future adapters land later:
+Adapters that have shipped:
 
-- v0.4.1: MCP server (`lib/mcp_server.py`, currently parked) exposes `presence://<repo-id>/model` and `presence://<repo-id>/telemetry` over stdio JSON-RPC. Any MCP-compliant client (Cursor, Claude Desktop, Continue, custom agents) can read presence's living model + outcome telemetry.
-- v0.4.2: per-host adapters for Cursor, Gemini, Codex, claude-code, clawbot, plus a `GenericAdapter` fallback. Each host has its own context-injection mechanism; the adapter pattern is the seam where that knowledge lives.
+- v0.4.1: MCP server (`lib/mcp_server.py`) exposes `presence://<repo-id>/model` and `presence://<repo-id>/telemetry` over stdio JSON-RPC. Any MCP-compliant client (Cursor, Claude Desktop, Continue, custom agents) can read presence's living model + outcome telemetry.
+- v0.4.2: cross-tool AGENTS.md adapter (`AgentsMdAdapter`) refreshes `<repo>/AGENTS.md` on SessionStart so Codex, Cursor, Gemini CLI, Windsurf, GitHub Copilot, and other tools reading the open AGENTS.md standard pick up presence's context. Plus `GenericAdapter` for debugging. Per-host classes turned out to be unnecessary because AGENTS.md serves all of them; one `PRESENCE_AGENTS_MD_FILENAME` override covers tool-specific filenames.
 
 The seam is the v1.0 architectural goal from roadmap issue #8 brought forward to v0.4.x because the cloud-agent prototype already proved the pattern works.
 

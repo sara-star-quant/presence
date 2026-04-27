@@ -78,7 +78,7 @@ Then in any Claude Code session: `/presence-status` to confirm.
 ## Key files
 
 - `README.md` - full project overview, install, presets, privacy, disclaimer
-- `CHANGELOG.md` - per-version diff (current: v0.3.1)
+- `CHANGELOG.md` - per-version diff (current: v0.5.0)
 - `install.sh` - idempotent installer (and `--uninstall [--purge]`)
 - `lib/` - all hook entry points and shared helpers (stdlib-only)
 - `hooks/scripts/` - bash wrappers for the 6 hook events
