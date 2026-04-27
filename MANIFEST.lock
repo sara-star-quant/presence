@@ -2,7 +2,7 @@
   "_format": 1,
   "files": {
     ".claude-plugin/marketplace.json": "066ae0d198f750ebfb7b1df4d1b2dffc3db01030d8c5d5865be0064c007c79ff",
-    ".claude-plugin/plugin.json": "4dbf05c11ef2646186666eedf697cb97395cf566a0723327735481d3b2764898",
+    ".claude-plugin/plugin.json": "8ba8643dfae9ee94da3852f0bf0cc8bc61531c6ada99538aee9147d104fae625",
     "agents/model-curator.md": "1b8381997ea4c29944e1388b7467ca38787c893801e8bfd79460c103d0e169d5",
     "commands/presence-bugreport.md": "dfa35b61dfcf30f0f268fb0c8fed6dbd92f7da058fca34f07b9beab8a52ddf79",
     "commands/presence-curate.md": "9295204486515a9dfd1a66ee77b64b067fdcb04ca436f182106659b33d504986",
@@ -19,7 +19,7 @@
     "hooks/scripts/session-start.sh": "8d1c7ae9ae0884fb88bc9e18f949dc9d5bd1c3ce1aff40da14088128917b09fb",
     "hooks/scripts/stop.sh": "54ead2f0f29aefcf9120f44f99f9c7f5357fbbacc9330d28e942200947595267",
     "hooks/scripts/user-prompt-submit.sh": "006cc582419f061934dc94842de6240722b48ac23578c1b0c84ae1ceaad6df60",
-    "lib/__init__.py": "032795fe4a7259ae172ea753c3b1af3141c354309f0fc2dd1307bfb323a1e18b",
+    "lib/__init__.py": "ac3b61bc511aebccee55c57686b7ae2b9272f8467468261d36c8f35189ec2701",
     "lib/_common.py": "207cbcc6d0327aafd8cbea6f666564e2d2d937c2c54473fe03803b7e09300e95",
     "lib/audit.py": "d71dada0ad335a0495e17afd04bbcb2f7c6e81fd163d8d3036ba83b5dbc1fa2a",
     "lib/bugreport.py": "6d1f518382e33e032dedff37a4007c7dcc1d7a196100431d86f1d48c36f049fd",

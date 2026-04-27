@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/insta
 
 The installer is idempotent. It checks for Python 3.12+, symlinks the plugin into `~/.claude/plugins/presence`, creates the state directory at `~/.claude/presence/` with `0700` perms, generates `MANIFEST.lock`, and pre-compiles `lib/` to bytecode.
 
-If you don't have Python 3.12+, the installer prints a clear message and exits. To auto-install Python 3.13 via [uv](https://github.com/astral-sh/uv) (single binary, no sudo, ~5 MB), pass `--bootstrap`:
+If you don't have Python 3.12+, the installer prints a warning and continues; presence is installed but stays inactive until a 3.12+ Python is on `PATH`. This is intentional so you can install on a machine that will get Python later (or run `--bootstrap`). To auto-install Python 3.13 via [uv](https://github.com/astral-sh/uv) (single binary, no sudo, ~5 MB), pass `--bootstrap`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash -s -- --bootstrap
