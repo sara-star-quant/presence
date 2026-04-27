@@ -163,3 +163,87 @@ Real-world cost of this gap: dependabot PR #17 (April 2026) bumped `pyo3 0.21 ->
 - **Cross-check at every hook fire.** SessionStart only. The cost of importing `presence_ext` and parsing `__version__` is microseconds, but doing it 6+ times per turn adds up and the result rarely changes within a session.
 - **Hit GitHub on every SessionStart.** Cache TTL is the whole point; without it we drown the API in requests across the user base.
 - **Mark presence "incompatible" on minor pyo3 bumps.** `_MIN_EXT_VERSION` is a runtime check between *our* plugin Python and *our* ext crate, not a check on pyo3 itself. The pyo3 version is internal to the ext.
+
+## Wheel build in CI
+
+**Status**: deferred; designed. Implementation is a single new job in `.github/workflows/ci.yml`; can land in any patch release.
+
+**Today**: `.github/workflows/ci.yml` has 4 jobs: `test` (Python 3.12 / 3.13 / 3.14 x ubuntu-latest / macos-latest = 6 cells), `shellcheck`, `manifest-integrity`, `bench`. None build the `presence_ext` wheel. `release.yml` builds the `presence-client` binary on tag push for 3 architectures (Linux x86_64 + macOS arm64 + macOS x86_64 cross-compile post v0.5.2) but also does not build the wheel. The wheel build only happens locally via `./install.sh --build-ext` for end users (line 461 of install.sh: `maturin build --release --out target/wheels`).
+
+**The gap**: dependabot PR #17 (April 2026) bumped `pyo3 0.21 -> 0.24` with green CI on all 6 test cells + shellcheck + manifest + bench. The wheel build was actually broken with 15 compile errors from the missing Bound API migration. CI did not catch this because no job exercises `maturin build` or any pyext-feature-enabled cargo build. The breakage was caught locally with `maturin build` during PR review (see v0.5.3 / PR #29). A non-vigilant maintainer who trusted CI green would have merged a wheel-broken plugin.
+
+**Realistic shape**: one new job in `.github/workflows/ci.yml`:
+
+```yaml
+wheel-build:
+  name: wheel build (${{ matrix.os }})
+  strategy:
+    fail-fast: false
+    matrix:
+      os: [ubuntu-latest, macos-latest]
+  runs-on: ${{ matrix.os }}
+  steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-python@v6
+      with:
+        python-version: "3.13"
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Install Linux system libraries
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          pkg-config libssh2-1-dev libssl-dev zlib1g-dev
+    - name: Cache cargo registry + ext target
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ext/target
+        key: wheel-build-${{ matrix.os }}-${{ hashFiles('ext/Cargo.lock') }}
+    - name: Install maturin
+      run: pip install maturin
+    - name: Build wheel
+      run: cd ext && maturin build --release --out target/wheels
+    - name: Smoke-test the wheel
+      run: |
+        WHEEL=$(find ext/target/wheels -name '*.whl' -type f | head -1)
+        pip install --force-reinstall "$WHEEL"
+        python3 -c "
+        import presence_ext
+        head = presence_ext.git.get_head_commit('.')
+        assert head is None or 'sha' in head, f'unexpected get_head_commit shape: {head}'
+        print('wheel smoke-test ok')
+        "
+```
+
+**Three things this catches that current CI does not**:
+
+1. Bound API breakage from any pyo3 / pyext-feature-gated dep bump.
+2. Platform-specific build failures in the wheel path (e.g., a future `secret-service` regression that affects only Linux's `cfg(target_os = "linux")` branch). The Linux + macOS cells together cover both `cfg` branches in `ext/src/crypto.rs`.
+3. Dynamic-link / ABI mismatches that compile-time misses but `import presence_ext` catches.
+
+**Cost**: ~2-4 minutes per PR (two parallel cells, ~1-2 min each on warm cache). First-run on a clean cache is ~3-4 min for libgit2-sys + zbus + secret-service compilation. The cargo registry cache (above) makes the warm-path closer to ~30 seconds. Acceptable for a gate that catches a class of bug current CI misses entirely.
+
+**Why deferred** (and shorter than the version-observability deferral above):
+
+- It is a CI workflow change, not a code change. Lower risk profile; could ship in any patch release.
+- It is partially redundant with item #2 (doctor cross-check) of the version-observability entry: doctor catches the issue post-install on the user's machine, wheel-CI catches it pre-merge. They are complementary; shipping wheel-CI first does not block the version-observability work and vice versa.
+- The deferral is a "small queue item" not a "needs design call". The only design questions (matrix shape, smoke-test depth, cache strategy) are answered above.
+
+**Decision criterion**: ship when (a) the next pyo3 / pyext-gated dep bump is on the horizon (proactive defense; dependabot will eventually open the next pyo3 bump), OR (b) anyone refactors `ext/src/{lib,git,crypto}.rs` and wants the safety net, OR (c) we are doing a v-patch that is otherwise small and want to bundle the CI hardening with it.
+
+**What we will NOT do as a workaround**:
+
+- **Block CI on the wheel build for all 6 test cells** (3 Pythons x 2 platforms). The wheel-build job runs once per platform with Python 3.13. The matrix-Python angle is the existing `test` job's responsibility - it exercises subprocess fallback paths (`telemetry.py:get_head_commit` falls through to `git_run_safe` when `import presence_ext` fails), not wheel-loading.
+- **Build wheels for Windows.** presence is documented as "install in WSL2" for Windows; wheel-CI does not need to lead the Windows native story.
+- **Run on every push event.** `pull_request` + `push: branches: [main]` is the right scope (mirrors the existing `test` job).
+- **Smoke-test deeply.** The wheel-CI smoke test verifies "the wheel imports and the basic shape of one function works". Full ext behavior is the responsibility of `tests/test_zerotrust_integration.py` and the daemon-fallback paths in the existing `test` job.
+- **Publish the wheel.** The wheel is a build-time artifact for verification only. presence does not distribute wheels via GitHub Releases (per `docs/architecture.md` the ext is built locally with `--build-ext`). Adding wheel publishing is a separate decision that this entry does not make.
+
+**Critical files referenced** (for the implementer's eventual use):
+
+- `.github/workflows/ci.yml` (one new top-level job)
+- `install.sh:413-470` (existing `--build-ext` logic; mirror the cargo + maturin invocation but skip the venv-creation step since CI's `actions/setup-python` already provides the interpreter)
+- `ext/Cargo.toml` and `ext/src/lib.rs` (no changes; just the build target)
