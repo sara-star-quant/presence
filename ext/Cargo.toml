@@ -1,6 +1,6 @@
 [package]
 name = "presence_ext"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [lib]
@@ -33,4 +33,14 @@ security-framework = "2.9"
 secret-service = { version = "3.0", features = ["rt-async-io-crypto-rust"] }
 
 [dependencies.git2]
+# default-features disabled because git2's defaults pull in openssl-sys
+# (via the `https` feature) for HTTPS git operations. presence is local-only;
+# we use git2 only for read-only repo introspection (Repository + Sort in
+# ext/src/git.rs - log walk, HEAD resolution, blame). No network ops, no
+# HTTPS, no SSH. Disabling defaults eliminates the openssl-sys requirement
+# that otherwise breaks cross-compilation from arm64 -> x86_64 macOS where
+# the host's OpenSSL paths don't match the target architecture. Without
+# this, release.yml's x86_64-apple-darwin build fails on the macos-latest
+# (arm64) runner trying to find x86_64 OpenSSL.
 version = "0.18"
+default-features = false
