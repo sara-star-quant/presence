@@ -28,6 +28,10 @@ def hook_env(tmp_path, fake_repo):
         "PRESENCE_STATE": str(state),
         "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
         "PATH": os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", ""),
+        # Force the bash exec path even when the Rust daemon client is built.
+        # These tests assert behavior of the bash wrapper itself (python-version
+        # cache marker, version probe, etc.); the daemon path bypasses that.
+        "PRESENCE_NO_DAEMON": "1",
     }
     return env, state, fake_repo
 

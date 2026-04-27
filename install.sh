@@ -38,12 +38,14 @@ check_python() {
   # Returns 0 iff a usable python3 (>= 3.12) is on PATH. Side effect: prints
   # ok/warn line. Callers (install, bootstrap_python_via_uv) consult the
   # return code to decide whether to invoke the bootstrap.
-  if ! command -v python3 >/dev/null 2>&1; then
+  local py_bin
+  py_bin="$(command -v python3 2>/dev/null || true)"
+  if [ -z "$py_bin" ]; then
     warn "python3 not found on PATH. presence will be installed but inactive until Python 3.12+ is available"
     return 1
   fi
   local v
-  v=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') || true
+  v=$("$py_bin" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') || true
   case "$v" in
     3.1[2-9]|3.[2-9][0-9])  ok "python3 $v"; return 0 ;;
     *) warn "python3 $v detected. presence requires 3.12+; upgrade Python to enable hooks"; return 1 ;;
@@ -407,6 +409,98 @@ uninstall() {
   exit 0
 }
 
+build_ext() {
+  # Build the optional Rust extension. Two artifacts:
+  #   1. presence-client (the daemon Unix-socket client; required for the
+  #      v0.4.0 cold-hook latency speedup). Built with cargo.
+  #   2. presence_ext Python wheel (libgit2 + native keychain bindings;
+  #      secondary speedup on a few read paths). Built with maturin if
+  #      available; skipped silently otherwise.
+  info "building native Rust extension (presence-ext)..."
+  if ! command -v cargo >/dev/null 2>&1; then
+    die "cargo not found. Install Rust (https://rustup.rs/) and rerun --build-ext."
+  fi
+  if [ ! -d "$SCRIPT_DIR/ext" ]; then
+    die "$SCRIPT_DIR/ext is missing. Rust extension source is not bundled with this checkout."
+  fi
+
+  local py_bin
+  py_bin="$(_resolve_python)"
+  [ -z "$py_bin" ] && die "no usable python3 found to build the extension; see ./install.sh --verify"
+
+  # Step 1: presence-client (required for the daemon-path perf win).
+  info "compiling presence-client (Rust client binary)..."
+  if ! (cd "$SCRIPT_DIR/ext" && cargo build --release --bin presence-client --no-default-features); then
+    warn "presence-client cargo build failed; hooks will fall back to direct python exec"
+    return 0
+  fi
+  local client_bin="$SCRIPT_DIR/ext/target/release/presence-client"
+  if [ -x "$client_bin" ]; then
+    cp "$client_bin" "$SCRIPT_DIR/lib/presence-client"
+    chmod 755 "$SCRIPT_DIR/lib/presence-client"
+    ok "presence-client installed: $SCRIPT_DIR/lib/presence-client"
+  else
+    warn "expected $client_bin to exist after cargo build; skipping client install"
+  fi
+
+  # Step 2: presence_ext wheel (optional secondary speedup).
+  info "compiling presence_ext wheel via maturin (optional)..."
+  local venv_dir
+  venv_dir=$(mktemp -d)
+  if ! "$py_bin" -m venv "$venv_dir" >/dev/null 2>&1; then
+    warn "could not create venv for maturin; skipping wheel build"
+    rm -rf "$venv_dir"
+    return 0
+  fi
+  if ! "$venv_dir/bin/pip" install --quiet maturin >/dev/null 2>&1; then
+    warn "could not pip install maturin; skipping wheel build"
+    rm -rf "$venv_dir"
+    return 0
+  fi
+  if ! (cd "$SCRIPT_DIR/ext" && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
+        "$venv_dir/bin/maturin" build --release --out target/wheels >/dev/null 2>&1); then
+    warn "maturin build failed; presence-client (above) is still installed"
+    rm -rf "$venv_dir"
+    return 0
+  fi
+  local wheel_file
+  wheel_file=$(find "$SCRIPT_DIR/ext/target/wheels" -name '*.whl' -type f | head -n 1 || true)
+  if [ -n "$wheel_file" ]; then
+    "$venv_dir/bin/pip" install --quiet --target "$SCRIPT_DIR/lib" "$wheel_file" >/dev/null 2>&1 || true
+    ok "presence_ext wheel installed: $wheel_file"
+  fi
+  rm -rf "$venv_dir"
+}
+
+download_ext() {
+  # Pull pre-built presence-client from the latest GitHub Release matching
+  # this host's platform. Skips if curl is missing or no asset matches.
+  if ! command -v curl >/dev/null 2>&1; then
+    die "curl not found; rerun with --build-ext (requires Rust toolchain) or install curl"
+  fi
+
+  local repo asset uname_s uname_m
+  repo="sara-star-quant/presence"
+  uname_s=$(uname -s)
+  uname_m=$(uname -m)
+  case "$uname_s/$uname_m" in
+    Darwin/arm64)        asset="presence-client-macos-arm64" ;;
+    Darwin/x86_64)       asset="presence-client-macos-x86_64" ;;
+    Linux/x86_64)        asset="presence-client-linux-x86_64" ;;
+    *) die "no pre-built presence-client for $uname_s/$uname_m; use --build-ext instead" ;;
+  esac
+
+  info "fetching $asset from latest release of $repo..."
+  local url
+  url="https://github.com/${repo}/releases/latest/download/${asset}"
+  local target="$SCRIPT_DIR/lib/presence-client"
+  if ! curl -fsSL --output "$target" "$url"; then
+    die "could not download $asset from $url; verify a release exists with that asset, or use --build-ext"
+  fi
+  chmod 755 "$target"
+  ok "presence-client downloaded: $target"
+}
+
 install() {
   info "presence installer"
   info "plugin source: $SCRIPT_DIR"
@@ -521,9 +615,11 @@ for arg in "$@"; do
     continue
   fi
   case "$arg" in
-    --bootstrap) BOOTSTRAP=1 ;;
-    --json)      VERIFY_JSON=1 ;;
-    --overwrite) RESTORE_OVERWRITE="--overwrite" ;;
+    --bootstrap)    BOOTSTRAP=1 ;;
+    --json)         VERIFY_JSON=1 ;;
+    --overwrite)    RESTORE_OVERWRITE="--overwrite" ;;
+    --build-ext)    SUBCOMMAND="build_ext" ;;
+    --download-ext) SUBCOMMAND="download_ext" ;;
     --snapshot)
       [ -z "$SUBCOMMAND" ] && SUBCOMMAND="--snapshot"
       expect_path_for="snapshot"
@@ -544,6 +640,8 @@ case "$SUBCOMMAND" in
   install)               install ;;
   --update|update)       update ;;
   --verify|verify)       verify ;;
+  build_ext)             build_ext ;;
+  download_ext)          download_ext ;;
   --snapshot)            snapshot_state "$SNAPSHOT_PATH" ;;
   --restore)             restore_state "$RESTORE_PATH" "$RESTORE_OVERWRITE" ;;
   --uninstall|uninstall)
@@ -568,6 +666,11 @@ Usage:
   ./install.sh --verify                 full pre-Claude-Code health check (exits 0 if ready)
   ./install.sh --verify --json          same as --verify but emits a JSON blob
   ./install.sh --update                 git pull + re-install (refuses if dirty)
+  ./install.sh --build-ext              build the optional Rust extension locally
+                                        (needs cargo from https://rustup.rs/)
+  ./install.sh --download-ext           download a pre-built Rust client binary from
+                                        the latest GitHub Release (faster path; no Rust
+                                        toolchain needed; macOS arm64/x86_64 + Linux x86_64)
   ./install.sh --snapshot <out.tar.gz>  back up state for cross-machine portability
                                         (refused under zerotrust; see issue #11)
   ./install.sh --restore <in.tar.gz>    restore state from a snapshot (refuses if state

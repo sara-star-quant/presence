@@ -88,6 +88,21 @@ _presence_warn_python_missing_for_session_start() {
 exec_hook() {
   local hook_entry python_bin
   hook_entry="$1"
+
+  # Fast path: if the Rust daemon client binary exists, use it.
+  # It connects to a resident Python daemon via Unix socket (~9 ms median).
+  # Falls back to spawning the daemon or running Python directly.
+  # Skipped when PRESENCE_NO_DAEMON=1 (debug / test escape hatch).
+  if [ "${PRESENCE_NO_DAEMON:-0}" != "1" ]; then
+    local client_bin="${CLAUDE_PLUGIN_ROOT}/lib/presence-client"
+    if [ -x "$client_bin" ]; then
+      # The client binary derives the hook name from argv[0], so we
+      # exec it with the hook entry filename as the process name.
+      exec "$client_bin" "$hook_entry"
+    fi
+  fi
+
+  # Slow path: classical bash -> python exec (for users without --build-ext).
   # Prefer a pinned (uv-bootstrapped) interpreter; fall back to PATH.
   python_bin="$(_presence_pinned_python || true)"
   [ -z "$python_bin" ] && python_bin="$(command -v python3 2>/dev/null || true)"

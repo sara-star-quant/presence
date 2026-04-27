@@ -31,5 +31,17 @@ env/
 errors.log
 warnings.log
 
+# Rust extension (v0.4.0+): build artifacts and compiled binaries are
+# distributed via GitHub Release assets, not git. The Rust source under
+# ext/src/ + ext/Cargo.toml + ext/Cargo.lock IS tracked.
+ext/target/
+lib/presence-client
+lib/presence_ext/
+lib/presence_ext-*.dist-info/
+*.dylib
+*.so
+*.whl
+
 # DO NOT ignore MANIFEST.lock; it ships with the plugin and CI verifies it
 # DO NOT ignore presets/*.json; those are part of the plugin
+# DO NOT ignore ext/Cargo.toml or ext/Cargo.lock; Rust source is part of the plugin
