@@ -18,6 +18,14 @@ A Claude Code plugin with read-only projections (MCP server, AGENTS.md adapter) 
 
 State lives in `~/.claude/presence/`, fully local, never uploaded.
 
+## Install (30 seconds)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash
+```
+
+That's the whole thing. Idempotent installer, makes no outbound network calls beyond fetching itself, applies globally to every Claude Code project. Restart Claude Code and run `/presence-status` to confirm. For options (`--bootstrap` to auto-install Python, `--verify`, `--build-ext` for the native fast path), see [Quickstart](#quickstart) below.
+
 ## By the numbers
 
 | Metric | Default (stdlib) | With `--build-ext` | Method |
@@ -95,11 +103,26 @@ git clone https://github.com/sara-star-quant/presence ~/code/presence
 ~/code/presence/install.sh
 ```
 
-For the Zero-Trust preset's at-rest encryption (opt-in), also install the `cryptography` library:
+For the Zero-Trust preset's at-rest encryption (opt-in), also install the `cryptography` library into the same Python presence uses. On modern macOS / Linux this matters because Homebrew and most distros mark the system Python as PEP 668 externally-managed; a bare `pip install` exits with `error: externally-managed-environment`.
+
+Pick the path that matches how you got Python:
 
 ```bash
-pip install --user cryptography
+# A. You used --bootstrap (presence has its own uv-managed Python).
+#    pip works directly there, no PEP 668 wall.
+"$(cat ~/.claude/presence/.python_bin)" -m pip install cryptography
+
+# B. You're on Homebrew / a system Python and want to override PEP 668
+#    (installs into your user site, not system; safe in practice).
+python3 -m pip install --user --break-system-packages cryptography
+
+# C. You want isolation (cleanest): create a venv and pin presence at it.
+python3 -m venv ~/.claude/presence-venv
+~/.claude/presence-venv/bin/pip install cryptography
+echo "$HOME/.claude/presence-venv/bin/python3" > ~/.claude/presence/.python_bin
 ```
+
+If unsure which Python presence is using, run `/presence-doctor` and look at the `pinned python` / `python` lines, then use that interpreter's `-m pip install cryptography`.
 
 Other presets and the rest of the Zero-Trust controls (integrity check, redaction, gates, audit log) are stdlib-only.
 
