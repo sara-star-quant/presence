@@ -7,7 +7,7 @@
 [![Stdlib only](https://img.shields.io/badge/runtime-stdlib--only-success)](pyproject.toml)
 [![Local only](https://img.shields.io/badge/state-local--only-success)](docs/security.md)
 
-A Claude Code plugin that turns every session into part of a continuum.
+A Claude Code plugin with read-only projections (MCP server, AGENTS.md adapter) so MCP-aware clients (Cursor, Claude Desktop, Continue) and AGENTS.md-aware tools (Codex, Gemini CLI, Windsurf, GitHub Copilot) can also read its accumulated context. Turns every session into part of a continuum.
 
 `presence` adds four things to Claude Code, globally, with one install and zero per-project setup:
 
