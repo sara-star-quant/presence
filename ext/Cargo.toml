@@ -42,5 +42,5 @@ secret-service = { version = "3.0", features = ["rt-async-io-crypto-rust"] }
 # the host's OpenSSL paths don't match the target architecture. Without
 # this, release.yml's x86_64-apple-darwin build fails on the macos-latest
 # (arm64) runner trying to find x86_64 OpenSSL.
-version = "0.18"
+version = "0.20"
 default-features = false
