@@ -105,3 +105,56 @@ jobs:
               print(f'::error::aggregate_session median {median} exceeded {threshold} ms threshold')
               sys.exit(1)
           PY
+
+  wheel-build:
+    # Catches pyo3 / pyext-feature-gated dep bumps that the binary build misses.
+    # Existing CI compiles only `presence-client` with --no-default-features
+    # (which excludes pyo3); this job compiles the wheel via maturin and smoke-
+    # tests it. PR #17 (pyo3 0.21 -> 0.24, broken Bound API) green-lit on every
+    # other job; this is the gate that would have caught it.
+    name: wheel build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux system libraries
+        # Mirrors release.yml; libgit2-sys + secret-service need these on bare
+        # ubuntu-latest. macOS uses Apple frameworks via the SDK so no apt step.
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssh2-1-dev libssl-dev zlib1g-dev
+      - name: Cache cargo registry + ext target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ext/target
+          key: wheel-build-${{ matrix.os }}-${{ hashFiles('ext/Cargo.lock') }}
+      - name: Install maturin
+        run: pip install --upgrade pip && pip install maturin
+      - name: Build wheel
+        run: cd ext && maturin build --release --out target/wheels
+      - name: Smoke-test the wheel
+        # Install + import + one function call. Catches dynamic-link / ABI
+        # mismatches that compile time misses. The runner's checkout is a git
+        # repo so get_head_commit returns a dict; the `is None` allowance
+        # documents the contract without being brittle.
+        run: |
+          WHEEL=$(find ext/target/wheels -name '*.whl' -type f | head -1)
+          pip install --force-reinstall --break-system-packages "$WHEEL"
+          python3 -c "
+          import presence_ext
+          head = presence_ext.git.get_head_commit('.')
+          assert head is None or 'sha' in head, f'unexpected get_head_commit shape: {head}'
+          print('wheel smoke-test ok')
+          "
