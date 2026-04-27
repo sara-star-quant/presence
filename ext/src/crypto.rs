@@ -27,7 +27,15 @@ mod platform {
 
 #[cfg(target_os = "linux")]
 mod platform {
-    use secret_service::{EncryptionType, SecretService};
+    // secret-service 3.1 with `rt-async-io-crypto-rust` makes the top-level
+    // SecretService::connect() async (returns impl Future). Our crypto helpers
+    // are synchronous and called from sync Python via PyO3, so we use the
+    // `blocking` re-export which exposes the same API but with sync semantics
+    // (it internally uses block_on via the async-io runtime). Without this,
+    // the wheel build fails to compile on Linux: `no method named 'ok' found
+    // for opaque type 'impl Future<...>'` on the .ok()/.is_ok() chains below.
+    use secret_service::EncryptionType;
+    use secret_service::blocking::SecretService;
     use std::collections::HashMap;
 
     const SERVICE: &str = "presence";
