@@ -12,6 +12,7 @@ Quick map of what lives where. If you're a new user start with the README; this 
 - **[recipes.md](recipes.md)** - common preset customizations as copy-paste snippets ("warn-only commit gate", "longer transcript scan", "back up my state", etc.).
 - **[mcp.md](mcp.md)** - Model Context Protocol integration. Exposes presence's living model + telemetry as MCP resources for Claude Desktop, Cursor, Continue, and any other MCP-aware client.
 - **[multi-host.md](multi-host.md)** - cross-tool AGENTS.md adapter (v0.4.2+). One env var lets Codex, Cursor, Gemini CLI, Windsurf, GitHub Copilot, and others read presence's accumulated context.
+- **[positioning.md](positioning.md)** - presence vs Obsidian, MCP-memory servers, and other context tools. Reliability axes, where each path shines, why they compose. Read this if you're evaluating presence against an existing setup.
 - **[roadmap.md](roadmap.md)** - what we've decided to defer and why (multi-tool, native Windows, release automation, snapshots, schema validation, side-by-side installs). Each item has a tracking issue with the same title.
 
 ## See also
