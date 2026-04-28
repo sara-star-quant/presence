@@ -136,6 +136,16 @@ For installs done via curl or git clone:
 
 `--update` does `git fetch` + `git pull --ff-only` + a re-run of the installer. It refuses to proceed if the working tree has uncommitted changes (so it never clobbers WIP). For installs done via the `/plugin` flow, use Claude Code's native plugin update mechanism.
 
+### Get notified of new releases (opt-in)
+
+`/presence-doctor` can surface the latest released tag against your installed version. Off by default; enable by adding the following to `~/.claude/presence/settings.json`:
+
+```json
+{ "update_check": { "enabled": true } }
+```
+
+The next SessionStart pre-warms a 24 h cache (one anonymous HTTPS GET to `api.github.com`); the doctor then renders one line, e.g. `latest       : v0.6.0 (you have v0.5.4) [checked 12h ago]`. Forced off under the `zerotrust` preset (no network egress under that posture). Run `/presence-doctor --refresh` to bypass the TTL when verifying a fresh tag.
+
 ## Verify install
 
 The fastest check is `./install.sh --verify` from the previous section. From inside Claude Code you can also run:
