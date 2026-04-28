@@ -161,6 +161,26 @@ async def gather_version_warn() -> str:
     return ""
 
 
+async def gather_update_check_refresh(cfg: dict) -> str:
+    """Pre-warm the update-check cache. Returns "" — surface lives in /presence-doctor.
+
+    Hard-bounded by asyncio.wait_for (TIMEOUT_SECONDS + 1) on top of the
+    inner urlopen timeout: belt + braces so a misbehaving network layer
+    cannot stall SessionStart.
+
+    No-op for the vast majority of users: the feature is opt-in (default
+    off), forced off under zerotrust, and short-circuits when the cache is
+    less than 24 h old. Only the rare "first session of the day after the
+    feature was enabled" actually pays the network round-trip.
+    """
+    from update_check import TIMEOUT_SECONDS, maybe_refresh
+    try:
+        await asyncio.wait_for(maybe_refresh(cfg), timeout=TIMEOUT_SECONDS + 1)
+    except Exception:  # noqa: BLE001, S110  fail-open is the contract; do not log network failures
+        pass
+    return ""
+
+
 async def fail_closed_integrity_check(cfg: dict) -> str | None:
     """If the active preset has integrity.fail_closed=true, run the manifest check.
 
@@ -216,16 +236,18 @@ async def async_main():
         return
     clear_integrity_block()
 
-    # Execute all I/O bound tasks concurrently. gather_version_warn returns ""
-    # by design (its surface is the warnings banner, not an inline block) so
-    # it does not feed into `parts`.
-    warnings_text, model_text, telemetry_text, events_text, curate_hint, _vw = await asyncio.gather(
+    # Execute all I/O bound tasks concurrently. gather_version_warn and
+    # gather_update_check_refresh both return "" by design (their surfaces
+    # are the warnings banner and /presence-doctor respectively, not inline
+    # blocks) so they do not feed into `parts`.
+    warnings_text, model_text, telemetry_text, events_text, curate_hint, _vw, _uc = await asyncio.gather(
         gather_warnings(),
         gather_model(cwd, cfg),
         gather_telemetry(cwd, cfg),
         gather_events(cwd, cfg),
         gather_curate_hint(cwd, cfg),
         gather_version_warn(),
+        gather_update_check_refresh(cfg),
     )
     parts = [t for t in (warnings_text, model_text, telemetry_text, events_text, curate_hint) if t]
 
