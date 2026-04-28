@@ -247,3 +247,49 @@ wheel-build:
 - `.github/workflows/ci.yml` (one new top-level job)
 - `install.sh:413-470` (existing `--build-ext` logic; mirror the cargo + maturin invocation but skip the venv-creation step since CI's `actions/setup-python` already provides the interpreter)
 - `ext/Cargo.toml` and `ext/src/lib.rs` (no changes; just the build target)
+
+## Positioning doc: presence vs Claude+Obsidian (and other MCP-mediated memory)
+
+**Status**: deferred; not blocking any release. Authored as `docs/positioning.md` (or a section in `docs/architecture.md`) when the next pass of README / docs polish lands.
+
+**Today**: presence has zero comparison content. `docs/{architecture,security,multi-host,mcp,recipes,zerotrust,glossary,index,roadmap}.md` and `README.md` describe presence on its own terms. Users evaluating "should I use presence vs my existing Claude+Obsidian setup vs Claude+local-MCP-memory vs Claude+Cursor-rules" have nothing in-repo to read.
+
+**The gap**: a real maintainer question came up — "is presence more reliable than Claude + Obsidian, given that 3rd-party services can go down?" There is a substantive answer but it lives nowhere users will find it.
+
+**Realistic shape** (one new file, ~150 lines):
+
+- **One-paragraph framing**: presence is a *headless context-continuity layer*, not a knowledge vault. It auto-captures what Claude actually did via hooks and feeds it back into the next session. Obsidian is a knowledge vault with a UI; you can wire it to Claude through MCP, but the integration itself is the failure surface presence avoids.
+
+- **Comparison table** with these axes (rows = candidate setups; columns = these properties):
+  - Backend service in request path (presence: none; Obsidian Sync: hosted; Smithery-hosted MCP: hosted; local MCP: local process)
+  - Failure mode when service is down (presence: N/A; Obsidian Sync: stale across machines but local files OK; hosted MCP: tool error mid-conversation; local MCP: tool error if process not running)
+  - Auto-capture vs manual capture (presence: auto via PostToolUse hooks; Obsidian: manual unless user wires post-session note generation; MCP-memory: depends on the server)
+  - Network egress (presence: zero in v0.5.x; opt-in GitHub release check at v0.6.0+; Obsidian Sync: continuous; hosted MCP: every tool call)
+  - Data location (presence: `~/.claude/presence/` local; Obsidian: vault folder; hosted MCP: depends on host)
+  - UI for browsing memory (presence: none, headless; Obsidian: rich; MCP-memory: typically none)
+  - Multi-device sync (presence: out of scope, no sync; Obsidian: built-in; MCP: depends)
+  - Mobile (presence: no; Obsidian: yes; MCP: depends)
+
+- **"Where presence shines"** section: zero-service request path; fail-open hooks (`safe_main` wrapper) so presence breakage never breaks Claude Code; subprocess fallback for missing/broken `presence_ext` wheel; stdlib-only Python core; auto-capture means coverage of what Claude actually did, not what the user remembered to write down.
+
+- **"Where Obsidian wins"** section: rich UI, graph view, plugin ecosystem, multi-device sync, mobile. presence has none of those because it is not in that job category.
+
+- **"They compose"** section: nothing in presence prevents the user from also using Obsidian. presence's `model.md` is a plain markdown file in `~/.claude/presence/<repo-id>/`; users who want to surface it in their vault can symlink or include it. Stop short of recommending a specific integration — that would be an out-of-scope feature.
+
+**Why deferred**: positioning docs are most valuable when the product is feature-stable enough that the comparison axes don't keep shifting. v0.5.x is a stabilization line; v0.6.0 adds version-observability (no positioning impact); the right time is after v0.6.0 ships and the doc-polish pass that will accompany it.
+
+**Decision criterion**: write when (a) we are doing a README / landing-page pass anyway and the comparison would slot in cleanly, OR (b) more than one user asks the same question and answering them in-thread no longer scales, OR (c) a public submission (awesome-claude-code, HN, X thread) needs a one-link answer.
+
+**What we will NOT do as a workaround**:
+
+- **Compare against every memory plugin in the ecosystem.** The doc names categories (hosted-MCP, local-MCP, vault-with-manual-capture) not vendors. Vendor-by-vendor comparisons rot fast and invite "you got our feature wrong" issues.
+- **Mark presence as a "replacement for" anything.** It is a different job category from Obsidian; the doc says so explicitly.
+- **Inline the comparison into README.md.** README is for "what is this and how do I install it"; positioning is one click deep.
+- **Cite specific outage incidents of competitor services.** Reliability claims are made structurally (service-in-path vs not), not by counting incidents.
+
+**Critical files referenced** (for the eventual implementer):
+
+- `docs/architecture.md` (the data-flow diagram is the substrate for the "no service in path" claim)
+- `docs/security.md` (the zerotrust posture is the substrate for the "data location" axis)
+- `lib/_common.py::safe_main` (the fail-open contract referenced in "where presence shines")
+- `lib/telemetry.py::get_head_commit` + `lib/crypto.py` (the subprocess-fallback paths referenced in the same section)
