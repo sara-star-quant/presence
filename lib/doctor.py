@@ -119,6 +119,57 @@ def _version_observability() -> dict:
     }
 
 
+def _update_check_block() -> dict:
+    """Read-only update-check status. Reads cfg via settings() so report() does
+    not need a new parameter; matches the pattern used by active_preset_name()
+    and the redact helpers. Never makes a network call — the SessionStart
+    background gather and `lib/doctor.py --refresh` are the only callers
+    that touch the network.
+    """
+    from __init__ import __version__
+    from _common import settings
+    from update_check import status
+    return status(settings(), current_tag=f"v{__version__}")
+
+
+def _format_age(seconds: int) -> str:
+    """Compact age string for the update-check render line: 'Nm', 'Nh', 'Nd'."""
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m"
+    if seconds < 86400:
+        return f"{seconds // 3600}h"
+    return f"{seconds // 86400}d"
+
+
+def _render_update_line(uc: dict) -> str:
+    """One column-aligned line summarising the update-check state for `render()`.
+    All six possible states are handled; unknown future states fall through to a
+    bare 'latest       : (unknown)' rather than KeyError.
+    """
+    state = uc.get("state")
+    if state == "disabled":
+        return "latest       : (update check disabled; enable via update_check.enabled in settings)"
+    if state == "zerotrust":
+        return "latest       : (disabled under zerotrust)"
+    if state == "no_cache":
+        return "latest       : (check pending; will refresh next session)"
+    if state == "fresh":
+        latest = uc.get("latest_tag", "?")
+        current = uc.get("current_tag", "?")
+        age = _format_age(int(uc.get("age_seconds", 0)))
+        version_part = "(up to date)" if latest == current else f"(you have {current})"
+        return f"latest       : {latest} {version_part} [checked {age} ago]"
+    if state == "stale":
+        latest = uc.get("latest_tag", "?")
+        current = uc.get("current_tag", "?")
+        age = _format_age(int(uc.get("age_seconds", 0)))
+        version_part = "(up to date)" if latest == current else f"(you have {current})"
+        return f"latest       : {latest} {version_part} [STALE: checked {age} ago]"
+    return "latest       : (unknown)"
+
+
 def report(cwd: str | None = None) -> dict:
     cwd = cwd or "."
     rid = repo_id(cwd)
@@ -147,6 +198,7 @@ def report(cwd: str | None = None) -> dict:
         "integrity": integrity_status(),
         "redact": _redact_summary(),
         "version_observability": _version_observability(),
+        "update_check": _update_check_block(),
     }
 
 
@@ -174,11 +226,14 @@ def render(rep: dict) -> str:
     else:
         ext_line = f"ext (rust)   : {vo['ext_version']} STALE: {vo.get('ext_compat_message', '')}"
 
+    update_line = _render_update_line(rep.get("update_check") or {})
+
     lines = [
         "presence: doctor report",
         "-" * 40,
         f"plugin       : v{vo.get('plugin_version', '?')}",
         ext_line,
+        update_line,
         f"plugin root  : {rep['presence_root']}",
         f"state dir    : {rep['state_dir']}",
         f"active preset: {rep['active_preset']}",
@@ -307,7 +362,18 @@ def _cli() -> int:
     ap.add_argument("--cwd", default=".", help="project directory to inspect")
     ap.add_argument("--fix", action="store_true",
                     help="auto-correct recoverable issues (perm drift, missing manifest, stale block marker)")
+    ap.add_argument("--refresh", action="store_true",
+                    help="force a synchronous update-check network call (bypasses cache TTL)")
     args = ap.parse_args()
+    if args.refresh:
+        from _common import settings
+        from update_check import force_refresh, is_enabled
+        if not is_enabled(settings()):
+            print("update_check disabled (or zerotrust active); not refreshing")
+            return 1
+        ok, msg = force_refresh()
+        print(msg)
+        return 0 if ok else 1
     if args.fix:
         actions, remaining = fix()
         if args.json:
