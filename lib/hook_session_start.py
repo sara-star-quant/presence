@@ -138,6 +138,29 @@ async def gather_curate_hint(cwd: str, cfg: dict) -> str:
     )
 
 
+async def gather_version_warn() -> str:
+    """Cross-check the loaded presence_ext crate against _MIN_EXT_VERSION.
+
+    On mismatch, emit a structured warning via warnings_log.warn_once. The
+    warning surfaces in /presence-doctor's recent-warnings panel; warn_once
+    creates a per-category marker so we tell the user once per ext upgrade,
+    not every SessionStart (otherwise the warning counter would stay pinned
+    above zero for any user who hasn't yet rebuilt).
+
+    Returns "" — the user-facing surface is the warnings panel, not an inline
+    SessionStart block (an inline block would nag).
+
+    Fail-open: check_ext_compat already returns (True, None, None) on any
+    import or parse error, so a broken ext never produces a warning.
+    """
+    from _common import check_ext_compat
+    ok, _ext_ver, msg = await asyncio.to_thread(check_ext_compat)
+    if not ok and msg:
+        from warnings_log import warn_once
+        warn_once("ext_version_stale", msg, fix="run install.sh --update --build-ext")
+    return ""
+
+
 async def fail_closed_integrity_check(cfg: dict) -> str | None:
     """If the active preset has integrity.fail_closed=true, run the manifest check.
 
@@ -193,13 +216,16 @@ async def async_main():
         return
     clear_integrity_block()
 
-    # Execute all I/O bound tasks concurrently
-    warnings_text, model_text, telemetry_text, events_text, curate_hint = await asyncio.gather(
+    # Execute all I/O bound tasks concurrently. gather_version_warn returns ""
+    # by design (its surface is the warnings banner, not an inline block) so
+    # it does not feed into `parts`.
+    warnings_text, model_text, telemetry_text, events_text, curate_hint, _vw = await asyncio.gather(
         gather_warnings(),
         gather_model(cwd, cfg),
         gather_telemetry(cwd, cfg),
         gather_events(cwd, cfg),
         gather_curate_hint(cwd, cfg),
+        gather_version_warn(),
     )
     parts = [t for t in (warnings_text, model_text, telemetry_text, events_text, curate_hint) if t]
 
