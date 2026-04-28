@@ -751,3 +751,62 @@ def _apply_dotted(target: dict, key: str, value) -> None:
             node[part] = {}
         node = node[part]
     node[parts[-1]] = value
+
+
+def _parse_semver(s: str) -> tuple[int, int, int]:
+    """Parse 'X.Y.Z' or 'X.Y.Z-suffix' into a comparable (major, minor, patch).
+
+    Raises ValueError/IndexError on unparseable input. Callers that need fail-open
+    semantics (currently only check_ext_compat) must catch explicitly — returning
+    a (0,0,0) sentinel here would silently compare as "older than" any real version
+    and produce false-stale warnings, which violates the roadmap fail-open contract.
+    """
+    core = s.split("-", 1)[0].split("+", 1)[0]
+    parts = core.split(".")
+    return (
+        int(parts[0]),
+        int(parts[1]) if len(parts) > 1 else 0,
+        int(parts[2]) if len(parts) > 2 else 0,
+    )
+
+
+def check_ext_compat() -> tuple[bool, str | None, str | None]:
+    """Cross-check the loaded presence_ext crate version against _MIN_EXT_VERSION.
+
+    Returns ``(ok, ext_version, message)``:
+      - ``(True, version, None)``  ext loaded and meets the bound.
+      - ``(True, None, None)``     ext not installed; subprocess fallback path
+                                   (lib/telemetry.py, lib/crypto.py) runs unchanged.
+      - ``(False, version, msg)``  ext loaded but is older than _MIN_EXT_VERSION.
+
+    Fail-open in every error path: import errors, missing __version__ attribute,
+    and unparseable version strings all return ``(True, ...)``. A broken ext
+    must never block hooks; the subprocess fallback already covers ext absence.
+    """
+    try:
+        import presence_ext
+        ext_version = getattr(presence_ext, "__version__", None)
+    except ImportError:
+        return (True, None, None)
+    if not isinstance(ext_version, str) or not ext_version.strip():
+        return (True, None, None)
+
+    try:
+        from __init__ import _MIN_EXT_VERSION
+    except ImportError:
+        return (True, ext_version, None)
+
+    try:
+        ext_parsed = _parse_semver(ext_version)
+        min_parsed = _parse_semver(_MIN_EXT_VERSION)
+    except (ValueError, IndexError):
+        return (True, ext_version, None)
+
+    if ext_parsed >= min_parsed:
+        return (True, ext_version, None)
+    return (
+        False,
+        ext_version,
+        f"presence_ext {ext_version} is older than required {_MIN_EXT_VERSION}; "
+        f"run install.sh --update --build-ext to refresh",
+    )

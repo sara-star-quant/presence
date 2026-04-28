@@ -98,6 +98,27 @@ def _redact_summary() -> dict:
     }
 
 
+def _version_observability() -> dict:
+    """Plugin / ext crate / min-required ext version cross-check for the doctor.
+
+    Returns a dict with plugin_version (lib/__init__.py.__version__),
+    ext_version (presence_ext.__version__ or None when the wheel is absent),
+    min_ext_version (lib/__init__.py._MIN_EXT_VERSION), ext_compat_ok, and
+    ext_compat_message. Reuses lib/_common.check_ext_compat which is fail-open
+    by design so a broken ext never breaks the doctor.
+    """
+    from __init__ import _MIN_EXT_VERSION, __version__
+    from _common import check_ext_compat
+    ok, ext_ver, msg = check_ext_compat()
+    return {
+        "plugin_version": __version__,
+        "ext_version": ext_ver,
+        "min_ext_version": _MIN_EXT_VERSION,
+        "ext_compat_ok": ok,
+        "ext_compat_message": msg,
+    }
+
+
 def report(cwd: str | None = None) -> dict:
     cwd = cwd or "."
     rid = repo_id(cwd)
@@ -125,6 +146,7 @@ def report(cwd: str | None = None) -> dict:
         "git_available": has_git(),
         "integrity": integrity_status(),
         "redact": _redact_summary(),
+        "version_observability": _version_observability(),
     }
 
 
@@ -144,9 +166,19 @@ def render(rep: dict) -> str:
     else:
         profiles_block = "               (none beyond level)"
 
+    vo = rep.get("version_observability") or {}
+    if vo.get("ext_version") is None:
+        ext_line = "ext (rust)   : not installed (using subprocess fallback)"
+    elif vo.get("ext_compat_ok"):
+        ext_line = f"ext (rust)   : {vo['ext_version']} (>= {vo['min_ext_version']}) OK"
+    else:
+        ext_line = f"ext (rust)   : {vo['ext_version']} STALE: {vo.get('ext_compat_message', '')}"
+
     lines = [
         "presence: doctor report",
         "-" * 40,
+        f"plugin       : v{vo.get('plugin_version', '?')}",
+        ext_line,
         f"plugin root  : {rep['presence_root']}",
         f"state dir    : {rep['state_dir']}",
         f"active preset: {rep['active_preset']}",
