@@ -34,7 +34,7 @@ dependabot PR #17 (April 2026) bumped pyo3 0.21 -> 0.24 with green CI; the wheel
 - Default user experience: zero behavioral change. The version-observability surfaces appear in `/presence-doctor`; the network check is off by default.
 - All non-zerotrust presets (solo-dev, team-oss, enterprise-strict) remain unmodified.
 
-
+## v0.5.4
 
 CI hardening + the Linux ext build fix the new gate immediately surfaced. Closes the "Wheel build in CI" roadmap entry (added in PR #30).
 
