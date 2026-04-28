@@ -119,6 +119,9 @@ jobs:
         run: |
           python3 - <<'PY'
           import os, pathlib, re, sys
+          # TAG_NAME comes from github.ref_name via env (safe per the workflow-
+          # injection guide referenced in the file header). first_line is read
+          # from the in-repo CHANGELOG.md at the tagged commit; not user input.
           tag = os.environ["TAG_NAME"].lstrip("v")
           text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
           m = re.search(rf"^## v{re.escape(tag)}\n(.*?)(?=^## v|\Z)", text, re.MULTILINE | re.DOTALL)
@@ -126,7 +129,26 @@ jobs:
               sys.exit(f"no CHANGELOG section for v{tag}")
           body = m.group(1).strip()
           first_line = next((ln for ln in body.splitlines() if ln.strip() and not ln.startswith("#")), "").strip()
-          title = f"v{tag}: {first_line[:80].rstrip('.')}" if first_line else f"v{tag}"
+
+          # Title clipping. GitHub's release-name field truncates around 100 chars;
+          # blind [:80] cuts mid-word (v0.6.0 shipped with title ending "...and fresh").
+          # Prefer the first sentence boundary; fall back to a word-boundary clip near
+          # 80 chars and strip dangling punctuation. Empty CHANGELOG falls back to
+          # "vX.Y.Z" with no suffix.
+          if not first_line:
+              title = f"v{tag}"
+          else:
+              sentence_end = first_line.find(". ")
+              if 0 < sentence_end <= 80:
+                  clipped = first_line[:sentence_end]
+              else:
+                  clipped = first_line[:80]
+                  last_space = clipped.rfind(" ")
+                  if last_space > 40:
+                      clipped = clipped[:last_space]
+                  clipped = clipped.rstrip(".,;:\"' ")
+              title = f"v{tag}: {clipped}"
+
           pathlib.Path("/tmp/release-notes.md").write_text(body, encoding="utf-8")
           gh_out = pathlib.Path(os.environ["GITHUB_OUTPUT"])
           with gh_out.open("a", encoding="utf-8") as f:
