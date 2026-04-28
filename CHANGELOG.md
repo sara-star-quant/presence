@@ -1,6 +1,40 @@
 # Changelog
 
-## v0.5.4
+## v0.6.0
+
+Version observability and freshness. Closes the "Version observability and freshness" roadmap entry as four coordinated surfaces: ext static surfaces, doctor cross-check, SessionStart stale-ext warn, and an opt-in network freshness check against GitHub releases.
+
+### Why
+
+dependabot PR #17 (April 2026) bumped pyo3 0.21 -> 0.24 with green CI; the wheel build was actually broken with 15 compile errors. The wheel-build CI gate added in v0.5.4 prevents the silent-broken-wheel scenario at PR time, but it does nothing for a user who ran `git pull` after a future similar dependabot PR and forgot `--build-ext`. v0.6.0 closes that gap on the user's machine: the doctor reports the cross-check unconditionally, a stale ext fires one warning into the existing `/presence-doctor` channel, and users who opt in get a one-line "you have v0.6.0, latest is v0.6.1" surface in the doctor without leaving Claude Code.
+
+### What changed
+
+- `presence_ext.__version__` exposed via `m.add(env!("CARGO_PKG_VERSION"))?` in `ext/src/lib.rs`.
+- `presence-client --version` short-circuits at the top of `main()` and prints the compiled crate version.
+- `lib/__init__.py` adds `_MIN_EXT_VERSION = "0.2.0"`. Bumped manually when a Python-side change requires a new ext API.
+- `lib/_common.py::check_ext_compat()` returns `(ok, ext_version, msg)`. Fail-open on every error path: import failure, missing `__version__`, empty version, unparseable version. Critically, unparseable versions return `(True, ver, None)` rather than falling through to a `(0,0,0)` sentinel that would silently report stale.
+- `lib/doctor.py` adds a `version_observability` block to `report()` and a column-aligned `plugin       :` / `ext (rust)   :` / `latest       :` block to `render()`. The latest line covers six states (disabled / zerotrust / no_cache / fresh / fresh-up-to-date / stale).
+- `lib/hook_session_start.py::gather_version_warn` runs in the existing `asyncio.gather` and emits via `warn_once` (not `warn`) so a user who has not yet rebuilt does not see the warning counter pinned every SessionStart.
+- `lib/update_check.py` (new): opt-in network freshness check. First network-egress feature in `lib/`. Off by default in every preset; runtime-gated on `network.egress_allowed != false` AND `update_check.enabled == true`. Cache file `~/.claude/presence/.update_check_cache.json` (ISO8601 `checked_at`, 0o600, 24 h TTL). SessionStart background gather pre-warms with a 5 s + 1 watchdog. `/presence-doctor --refresh` forces a synchronous fetch for maintainers verifying a freshly tagged release.
+- `presets/zerotrust.json` adds `"update_check": {"enabled": false}` as defense-in-depth alongside the existing `network.egress_allowed: false`. Either condition alone short-circuits.
+- `ext/Cargo.toml`: ext crate `0.1.4` -> `0.2.0` (per the ext-versioning rule; minor bump because new public surface).
+- 47 new tests across `tests/test_version_observability.py` + `tests/test_update_check.py` (309 -> 338 total + 1 skipped).
+
+### Two roadmap deviations, both for long-run project benefit
+
+- Network timeout reduced from the roadmap-literal 30 s to 5 s on the SessionStart path. SessionStart is the user's interactive critical path; 30 s would erode the never-blocks contract. Cache TTL 24 h means a 5 s miss costs nothing but a one-day delay in seeing the new release.
+- The runtime gate reads `network.egress_allowed` instead of `settings.immutable`. The former is the precise semantic (zerotrust.json already had it as a documentary-only flag); update_check is its first reader, and any future network feature should follow the same pattern.
+
+### What is unchanged
+
+- Subprocess fallback paths in `lib/telemetry.py::get_head_commit` and `lib/crypto.py` are untouched. Users without an ext wheel see identical behavior; the only difference is the doctor block now states absence explicitly.
+- No new dependencies. `urllib.request` is stdlib.
+- No credentials touched. Anonymous public GitHub API only.
+- Default user experience: zero behavioral change. The version-observability surfaces appear in `/presence-doctor`; the network check is off by default.
+- All non-zerotrust presets (solo-dev, team-oss, enterprise-strict) remain unmodified.
+
+
 
 CI hardening + the Linux ext build fix the new gate immediately surfaced. Closes the "Wheel build in CI" roadmap entry (added in PR #30).
 
