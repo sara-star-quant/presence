@@ -21,6 +21,17 @@ python3 ~/.claude/plugins/presence/lib/cli.py mcp
 
 The server reads JSON-RPC messages from stdin, one per line, and writes responses to stdout. It exits when stdin closes. No daemon is involved on the MCP path; the MCP client owns the lifecycle.
 
+### Alternative: PyPI launcher
+
+[`presence-mcp`](https://github.com/sara-star-quant/presence-mcp) is a thin PyPI package that locates the local presence install and runs the command above for you. Install it once, then point every per-client config at a single command name:
+
+```bash
+pip install presence-mcp   # or `pipx install presence-mcp`, `uv tool install presence-mcp`
+presence-mcp               # equivalent to `python3 ~/.claude/plugins/presence/lib/cli.py mcp`
+```
+
+Listed in the official MCP Registry as `io.github.sara-star-quant/presence-mcp`.
+
 ## Per-client config
 
 ### Claude Desktop
@@ -43,6 +54,18 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 Restart Claude Desktop. The two presence resources will appear in the resource picker.
 
+Or with the PyPI launcher installed:
+
+```json
+{
+  "mcpServers": {
+    "presence": {
+      "command": "presence-mcp"
+    }
+  }
+}
+```
+
 ### Cursor
 
 Add to your project's `.cursor/mcp.json` (or the global Cursor MCP settings, depending on your version):
@@ -60,6 +83,18 @@ Add to your project's `.cursor/mcp.json` (or the global Cursor MCP settings, dep
 
 Cursor expands `~` itself; if it doesn't, use the absolute path.
 
+Or with the PyPI launcher installed:
+
+```json
+{
+  "mcpServers": {
+    "presence": {
+      "command": "presence-mcp"
+    }
+  }
+}
+```
+
 ### Continue
 
 In `~/.continue/config.json`:
@@ -72,6 +107,19 @@ In `~/.continue/config.json`:
       "name": "presence",
       "command": "python3",
       "args": ["/path/to/presence/lib/cli.py", "mcp"]
+    }
+  ]
+}
+```
+
+Or with the PyPI launcher installed:
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "presence",
+      "command": "presence-mcp"
     }
   ]
 }
