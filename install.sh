@@ -29,10 +29,58 @@ STATE_DIR="${PRESENCE_STATE:-$CLAUDE_HOME/presence}"
 BOOTSTRAP=0
 VERIFY_JSON=0
 
+SETTINGS_FILE="$CLAUDE_HOME/settings.json"
+PLUGIN_KEY="presence"
+
 die()  { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 warn() { printf '\033[33mwarn :\033[0m %s\n' "$*" >&2; }
 info() { printf '\033[36minfo :\033[0m %s\n' "$*"; }
 ok()   { printf '\033[32mok   :\033[0m %s\n' "$*"; }
+
+register_plugin() {
+  local py_bin
+  py_bin="$(command -v python3 2>/dev/null || true)"
+  if [ -z "$py_bin" ]; then
+    warn "python3 not available; cannot register plugin in settings.json (commands like /presence-status won't load until fixed)"
+    return 0
+  fi
+  if "$py_bin" -c '
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+key  = sys.argv[2]
+data = json.loads(path.read_text()) if path.exists() else {}
+ep   = data.setdefault("enabledPlugins", {})
+if ep.get(key) is True:
+    sys.exit(0)
+ep[key] = True
+path.write_text(json.dumps(data, indent=2) + "\n")
+' "$SETTINGS_FILE" "$PLUGIN_KEY" 2>/dev/null; then
+    ok "plugin registered in settings.json"
+  else
+    warn "could not update $SETTINGS_FILE; you may need to enable the plugin manually"
+  fi
+}
+
+unregister_plugin() {
+  local py_bin
+  py_bin="$(command -v python3 2>/dev/null || true)"
+  [ -z "$py_bin" ] && return 0
+  if "$py_bin" -c '
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+key  = sys.argv[2]
+if not path.exists():
+    sys.exit(0)
+data = json.loads(path.read_text())
+ep   = data.get("enabledPlugins", {})
+if key not in ep:
+    sys.exit(0)
+del ep[key]
+path.write_text(json.dumps(data, indent=2) + "\n")
+' "$SETTINGS_FILE" "$PLUGIN_KEY" 2>/dev/null; then
+    ok "plugin unregistered from settings.json"
+  fi
+}
 
 check_python() {
   # Returns 0 iff a usable python3 (>= 3.12) is on PATH. Side effect: prints
@@ -174,7 +222,26 @@ verify() {
     fi
   fi
 
-  # 3. Hook scripts executable (all 6).
+  # 3. Plugin registered in settings.json (commands/skills/agents won't load without this).
+  if [ -f "$SETTINGS_FILE" ] && [ -n "$py_bin" ]; then
+    local is_registered
+    is_registered=$("$py_bin" -c '
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print("yes" if data.get("enabledPlugins", {}).get(sys.argv[2]) is True else "no")
+' "$SETTINGS_FILE" "$PLUGIN_KEY" 2>/dev/null || echo "error")
+    case "$is_registered" in
+      yes) _record "settings_registered" "true" "$PLUGIN_KEY enabled in $SETTINGS_FILE" ;;
+      no)  _record "settings_registered" "false" "$PLUGIN_KEY not in enabledPlugins (commands won't load; rerun install)" ;;
+      *)   _record "settings_registered" "false" "could not read $SETTINGS_FILE" ;;
+    esac
+  elif [ ! -f "$SETTINGS_FILE" ]; then
+    _record "settings_registered" "false" "$SETTINGS_FILE does not exist (rerun install)"
+  else
+    _record "settings_registered" "false" "no usable python to check settings"
+  fi
+
+  # 4. Hook scripts executable (all 6).
   local hook_missing=""
   for h in session-start.sh user-prompt-submit.sh pre-tool-bash.sh post-tool-bash.sh post-tool-edit.sh stop.sh; do
     if [ ! -x "$SCRIPT_DIR/hooks/scripts/$h" ]; then
@@ -187,7 +254,7 @@ verify() {
     _record "hook_scripts_executable" "false" "not executable:$hook_missing"
   fi
 
-  # 4. State perms (portable across BSD/GNU stat via python).
+  # 5. State perms (portable across BSD/GNU stat via python).
   if [ -d "$STATE_DIR" ]; then
     if [ -n "$py_bin" ]; then
       local mode
@@ -204,7 +271,7 @@ verify() {
     _record "state_perms" "false" "$STATE_DIR does not exist"
   fi
 
-  # 5. MANIFEST.lock present + integrity verifies.
+  # 6. MANIFEST.lock present + integrity verifies.
   if [ ! -f "$SCRIPT_DIR/MANIFEST.lock" ]; then
     _record "manifest_integrity" "false" "MANIFEST.lock missing (run install)"
   elif [ -z "$py_bin" ]; then
@@ -215,7 +282,7 @@ verify() {
     _record "manifest_integrity" "false" "MANIFEST.lock present but integrity --verify failed"
   fi
 
-  # 6. Synthetic fire of all 6 hooks. Each must exit 0; stdout (if any) must
+  # 7. Synthetic fire of all 6 hooks. Each must exit 0; stdout (if any) must
   # be valid JSON. Catches import regressions in any hook entry point.
   local hooks_failed=""
   for entry in \
@@ -248,7 +315,7 @@ verify() {
     _record "hook_synthetic_fire" "false" "$hooks_failed"
   fi
 
-  # 7. Doctor pass (optional, informative).
+  # 8. Doctor pass (optional, informative).
   local doctor_json_file=""
   if [ -n "$py_bin" ]; then
     doctor_json_file=$(mktemp)
@@ -390,6 +457,7 @@ uninstall() {
   for arg in "$@"; do
     [ "$arg" = "--purge" ] && purge=1
   done
+  unregister_plugin
   if [ -L "$PLUGIN_LINK" ]; then
     rm -f "$PLUGIN_LINK"
     ok "removed plugin symlink: $PLUGIN_LINK"
@@ -541,6 +609,8 @@ install() {
     ln -s "$SCRIPT_DIR" "$PLUGIN_LINK"
     ok "plugin linked: $PLUGIN_LINK -> $SCRIPT_DIR"
   fi
+
+  register_plugin
 
   # Create state directory with restrictive perms
   mkdir -p "$STATE_DIR"
