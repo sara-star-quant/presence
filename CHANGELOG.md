@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.1
+
+Installer registers plugin in enabledPlugins so commands load.
+
+`install.sh` created the symlink and registered hooks, but never added `"presence": true` to `enabledPlugins` in `~/.claude/settings.json`. Without that entry, Claude Code loaded the hooks but ignored the plugin's commands, skills, and agents — `/presence-status` and friends returned "Unknown command."
+
+- `install.sh`: `register_plugin` adds the entry during install; `unregister_plugin` removes it during uninstall. Both are idempotent and use python3 for safe JSON manipulation.
+- `install.sh --verify`: new `settings_registered` check (check #3) reports whether the entry is present.
+
 ## v0.6.0
 
 Version observability and freshness. Closes the "Version observability and freshness" roadmap entry as four coordinated surfaces: ext static surfaces, doctor cross-check, SessionStart stale-ext warn, and an opt-in network freshness check against GitHub releases.
