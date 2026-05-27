@@ -79,7 +79,7 @@ curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/insta
 ~/.claude/plugins/presence/install.sh --verify
 ```
 
-Checks the symlink, perms, Python, the `MANIFEST.lock` integrity, and synthetically fires all 6 hooks against the real lib/ tree. Exit 0 means ready. `FAIL` lines tell you exactly what is missing. For machine-readable output: `--verify --json`.
+Checks the symlink, plugin registration in `settings.json`, perms, Python, the `MANIFEST.lock` integrity, and synthetically fires all 6 hooks against the real lib/ tree. Exit 0 means ready. `FAIL` lines tell you exactly what is missing. For machine-readable output: `--verify --json`.
 
 ### 3. Use it
 

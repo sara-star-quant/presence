@@ -35,7 +35,7 @@ To also auto-install Python 3.13 via uv if missing (opt-in network call):
 curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash -s -- --bootstrap
 ```
 
-Then verify without opening Claude Code:
+The installer also registers the plugin in `~/.claude/settings.json` `enabledPlugins` so commands are available. Then verify without opening Claude Code:
 
 ```
 ~/.claude/plugins/presence/install.sh --verify

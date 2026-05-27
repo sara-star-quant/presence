@@ -4,10 +4,12 @@
 
 Installer registers plugin in enabledPlugins so commands load.
 
-`install.sh` created the symlink and registered hooks, but never added `"presence": true` to `enabledPlugins` in `~/.claude/settings.json`. Without that entry, Claude Code loaded the hooks but ignored the plugin's commands, skills, and agents — `/presence-status` and friends returned "Unknown command."
+Hooks (session-start, pre/post-tool, stop) were unaffected. Commands (`/presence-status`, `/presence-doctor`, etc.), skills, and agents require an `enabledPlugins` entry in `~/.claude/settings.json` that `install.sh` never created.
 
-- `install.sh`: `register_plugin` adds the entry during install; `unregister_plugin` removes it during uninstall. Both are idempotent and use python3 for safe JSON manipulation.
-- `install.sh --verify`: new `settings_registered` check (check #3) reports whether the entry is present.
+- `install.sh`: `register_plugin` adds `"presence": true` during install; `unregister_plugin` removes it during uninstall. Both are idempotent.
+- `install.sh --verify`: new `settings_registered` check reports whether the entry is present.
+
+Existing users: run `install.sh` or `install.sh --update` and restart Claude Code.
 
 ## v0.6.0
 
