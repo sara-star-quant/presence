@@ -7,6 +7,8 @@
 [![Stdlib only](https://img.shields.io/badge/runtime-stdlib--only-success)](pyproject.toml)
 [![Local only](https://img.shields.io/badge/state-local--only-success)](docs/security.md)
 
+**Every Claude Code session starts cold. presence makes the next one start where the last one left off.**
+
 A Claude Code plugin with read-only projections (MCP server, AGENTS.md adapter) so MCP-aware clients (Cursor, Claude Desktop, Continue) and AGENTS.md-aware tools (Codex, Gemini CLI, Windsurf, GitHub Copilot) can also read its accumulated context. Turns every session into part of a continuum.
 
 `presence` adds four things to Claude Code, globally, with one install and zero per-project setup:
@@ -23,6 +25,8 @@ State lives in `~/.claude/presence/`, fully local, never uploaded.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/install.sh | bash
 ```
+
+> No Python 3.12+? Append `-s -- --bootstrap` to auto-install it via [uv](https://github.com/astral-sh/uv) (one call to astral.sh). The plain command above makes zero outbound calls.
 
 That's the whole thing. Idempotent installer, makes no outbound network calls beyond fetching itself, applies globally to every Claude Code project. Restart Claude Code and run `/presence-status` to confirm. For options (`--bootstrap` to auto-install Python, `--verify`, `--build-ext` for the native fast path), see [Quickstart](#quickstart) below.
 
