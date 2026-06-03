@@ -58,13 +58,13 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 **Tracking**: #39
 
-**Status**: CI gates coverage at 65% as of v0.6.2; 80% waits on hook tests.
+**Status**: deterministic gate at 67% (69% measured); climbing to 80 incrementally.
 
-**Today**: the `coverage` job measures ~67%. It captures the hooks and daemon (which run as subprocesses) via `COVERAGE_PROCESS_START` + `coverage combine`; a plain in-process `--cov` reads 59% because it misses them. Most of the gap to 80% sits in the action hooks (`lib/hook_stop.py`, `lib/hook_post_tool_bash.py`, `lib/hook_pre_tool_bash.py`, `lib/hook_post_tool_edit.py`): `tests/test_hooks_smoke.py` checks only that they run on trivial input, not their branches.
+**Today**: the `coverage` job measures statement coverage in-process, so the number is stable (the earlier subprocess capture swung 60-67% run to run). `daemon.py` is omitted - it only runs as a spawned subprocess, so in-process coverage can't see it; it is behavior-tested by `tests/test_daemon.py`. The action hooks now have real branch tests (`hook_pre_tool_bash` 93%, `hook_post_tool_edit` 89%, `hook_stop` 79%, `hook_post_tool_bash` 73%). The remaining gap to 80% is spread across `_common`, `doctor`, `telemetry`, `redact`, `integrity`, and `hook_session_start`.
 
-**Proposal**: test each hook with real payloads (transcript parsing, revert detection, redaction, the confidence gate), then step the CI `--fail-under` up to 80.
+**Proposal**: add branch tests for those next-largest gaps and step the CI `--fail-under` up toward 80.
 
-**Why deferred**: 80% is the Silver `test_statement_coverage80` criterion, and Silver already blocks on the single-maintainer rules (2+ contributors, bus factor >= 2, two-person review). Worth doing regardless, but no rush to hit the exact number while those block the badge.
+**Why incremental**: 80% is the Silver `test_statement_coverage80` criterion, and Silver already blocks on the single-maintainer rules (2+ contributors, bus factor >= 2, two-person review). Worth doing regardless, but no rush to the exact number while those block the badge.
 
 ## Agent Client Protocol (ACP) for Zed and other ACP-aware tools
 
