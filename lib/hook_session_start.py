@@ -147,7 +147,7 @@ async def gather_version_warn() -> str:
     not every SessionStart (otherwise the warning counter would stay pinned
     above zero for any user who hasn't yet rebuilt).
 
-    Returns "" — the user-facing surface is the warnings panel, not an inline
+    Returns "" -- the user-facing surface is the warnings panel, not an inline
     SessionStart block (an inline block would nag).
 
     Fail-open: check_ext_compat already returns (True, None, None) on any
@@ -162,7 +162,7 @@ async def gather_version_warn() -> str:
 
 
 async def gather_update_check_refresh(cfg: dict) -> str:
-    """Pre-warm the update-check cache. Returns "" — surface lives in /presence-doctor.
+    """Pre-warm the update-check cache. Returns "" -- surface lives in /presence-doctor.
 
     Hard-bounded by asyncio.wait_for (TIMEOUT_SECONDS + 1) on top of the
     inner urlopen timeout: belt + braces so a misbehaving network layer

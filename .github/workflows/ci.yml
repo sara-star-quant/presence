@@ -37,6 +37,74 @@ jobs:
           shellcheck hooks/scripts/*.sh
           shellcheck install.sh
 
+  ascii:
+    name: ascii-only (no em-dash / unicode)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reject non-ASCII outside the intentional unicode test fixtures
+        # Enforces CONTRIBUTING hard constraints #2 (ASCII-only) and #3 (no
+        # em-dashes). git grep -P exits 0 when it finds a match, so a match
+        # means the build fails. The three fixtures are deliberate unicode.
+        run: |
+          if git grep -nP '[^\x00-\x7F]' -- \
+              ':!tests/test_model.py' ':!tests/test_redact.py' ':!tests/test_crypto.py'; then
+            echo "::error::non-ASCII characters found above; the project is ASCII-only outside tests/test_{model,redact,crypto}.py. Use '--' instead of em-dashes."
+            exit 1
+          fi
+
+  ruff:
+    name: ruff (python lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install ruff
+        run: pip install --upgrade pip && pip install ruff
+      - name: Run ruff
+        run: ruff check lib tests bench
+
+  bandit:
+    name: bandit (python security scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install bandit
+        run: pip install --upgrade pip && pip install "bandit[toml]"
+      - name: Run bandit
+        run: bandit -c pyproject.toml -r lib
+
+  coverage:
+    name: coverage (statement)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install pytest + cryptography + coverage
+        run: pip install --upgrade pip && pip install pytest cryptography coverage
+      - name: Enable subprocess coverage
+        # The hooks and daemon run as subprocesses; this .pth makes each child
+        # python start coverage when COVERAGE_PROCESS_START is set, so their
+        # lines are measured instead of reading as 0%.
+        run: |
+          SP=$(python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
+          printf 'import coverage; coverage.process_startup()\n' > "$SP/subcov.pth"
+      - name: Run tests under coverage
+        env:
+          COVERAGE_PROCESS_START: ${{ github.workspace }}/pyproject.toml
+        run: PYTHONPATH=lib coverage run -m pytest -q
+      - name: Combine + report (gate 65%, Silver target 80%)
+        run: |
+          coverage combine
+          coverage report --fail-under=65
+
   manifest-integrity:
     name: regenerate MANIFEST.lock
     runs-on: ubuntu-latest

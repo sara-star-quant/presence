@@ -122,7 +122,7 @@ def _version_observability() -> dict:
 def _update_check_block() -> dict:
     """Read-only update-check status. Reads cfg via settings() so report() does
     not need a new parameter; matches the pattern used by active_preset_name()
-    and the redact helpers. Never makes a network call — the SessionStart
+    and the redact helpers. Never makes a network call -- the SessionStart
     background gather and `lib/doctor.py --refresh` are the only callers
     that touch the network.
     """

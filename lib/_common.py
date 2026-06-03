@@ -757,7 +757,7 @@ def _parse_semver(s: str) -> tuple[int, int, int]:
     """Parse 'X.Y.Z' or 'X.Y.Z-suffix' into a comparable (major, minor, patch).
 
     Raises ValueError/IndexError on unparseable input. Callers that need fail-open
-    semantics (currently only check_ext_compat) must catch explicitly — returning
+    semantics (currently only check_ext_compat) must catch explicitly -- returning
     a (0,0,0) sentinel here would silently compare as "older than" any real version
     and produce false-stale warnings, which violates the roadmap fail-open contract.
     """
