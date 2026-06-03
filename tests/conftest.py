@@ -35,3 +35,34 @@ def fake_repo(tmp_path, monkeypatch):
     subprocess.run(["git", "commit", "--allow-empty", "-m", "init", "-q"], cwd=repo, check=True)
     monkeypatch.chdir(repo)
     return repo
+
+
+@pytest.fixture
+def hook_runner(isolated_state, fake_repo, monkeypatch):
+    """Drive a hook's main() in-process. Returns (run, state, repo).
+
+    run(hook_name, payload, settings=None) plants settings.json (use dotted
+    override keys, e.g. {"overrides": {"confidence.stop_action": "block"}}),
+    reloads _common + the hook so they bind this test's PRESENCE_STATE and a
+    fresh settings cache, feeds payload as stdin, and calls main(). Read stdout
+    with the capsys fixture; inspect what the hook wrote under `state`.
+
+    In-process (not subprocess) so coverage is measured deterministically.
+    """
+    import importlib
+    import io
+    import json
+    import sys
+    state = isolated_state
+
+    def run(hook_name: str, payload: dict, settings: dict | None = None) -> None:
+        if settings is not None:
+            (state / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+        import _common
+        importlib.reload(_common)
+        mod = importlib.import_module(hook_name)
+        importlib.reload(mod)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+        mod.main()
+
+    return run, state, fake_repo

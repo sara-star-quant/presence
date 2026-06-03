@@ -117,3 +117,74 @@ def test_redact_profiles_threaded_to_bash_event(hook_env):
     joined = " ".join(bash_lines)
     assert "GB82WEST12345698765432" not in joined
     assert "[REDACTED:iban]" in joined
+
+
+# --- in-process branch coverage (hook_runner) --------------------------------
+
+def _claims(state):
+    f = state / "telemetry" / "claims.jsonl"
+    if not f.exists():
+        return []
+    return [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
+
+
+def _events_of_kind(state, kind):
+    out = []
+    for p in (state / "events").rglob("pending.jsonl"):
+        for line in p.read_text(encoding="utf-8").splitlines():
+            if line.strip() and json.loads(line).get("kind") == kind:
+                out.append(json.loads(line))
+    return out
+
+
+def test_git_push_records_push_claim(hook_runner):
+    run, state, repo = hook_runner
+    run("hook_post_tool_bash", {
+        "cwd": str(repo),
+        "tool_input": {"command": "git push origin main"},
+        "tool_response": {"exit_code": 0},
+    })
+    claims = _claims(state)
+    assert len(claims) == 1 and claims[0]["kind"] == "push"
+
+
+def test_gh_pr_create_records_push_claim(hook_runner):
+    run, state, repo = hook_runner
+    run("hook_post_tool_bash", {
+        "cwd": str(repo),
+        "tool_input": {"command": "gh pr create --fill"},
+        "tool_response": {"exit_code": 0},
+    })
+    claims = _claims(state)
+    assert len(claims) == 1 and claims[0]["kind"] == "push"
+
+
+def test_passing_test_command_classified(hook_runner):
+    run, state, repo = hook_runner
+    run("hook_post_tool_bash", {
+        "cwd": str(repo),
+        "tool_input": {"command": "pytest -q"},
+        "tool_response": {"exit_code": 0},
+    })
+    assert _events_of_kind(state, "test_pass")
+    assert _claims(state) == []  # a test run is not a commit/push claim
+
+
+def test_nonzero_exit_records_nothing(hook_runner):
+    run, state, repo = hook_runner
+    run("hook_post_tool_bash", {
+        "cwd": str(repo),
+        "tool_input": {"command": "git commit -m x"},
+        "tool_response": {"exit_code": 1},
+    })
+    assert _claims(state) == []
+
+
+def test_resolve_commit_cwd():
+    import os
+
+    from hook_post_tool_bash import _resolve_commit_cwd
+    assert _resolve_commit_cwd("/repo", "git -C /abs/dir commit -m x") == "/abs/dir"
+    assert _resolve_commit_cwd("/repo", "git -C sub commit -m x") == os.path.join("/repo", "sub")
+    assert _resolve_commit_cwd("/repo", "cd sub && git commit -m x") == os.path.join("/repo", "sub")
+    assert _resolve_commit_cwd("/repo", "git commit -m x") == "/repo"

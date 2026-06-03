@@ -78,14 +78,16 @@ addopts = ["-ra", "--strict-markers", "--strict-config"]
 filterwarnings = ["error"]
 
 [tool.coverage.run]
-# Statement coverage of the runtime source only. presence_ext is the compiled
-# Rust extension (gitignored build artifact), not Python under test.
-# parallel + a subprocess .pth (see the coverage CI job) capture the hooks and
-# daemon, which the tests exercise as subprocesses rather than in-process.
+# Statement coverage of the runtime source, measured in-process so the number is
+# deterministic. Omitted:
+#   presence_ext/*  - compiled Rust extension (gitignored build artifact).
+#   daemon.py       - runs only as a spawned subprocess, so in-process coverage
+#                     cannot see it; it is behavior-tested by tests/test_daemon.py
+#                     (socket perms, pid file, cache clearing, idle timeout,
+#                     malformed JSON). Counting it would require flaky subprocess
+#                     capture, which this project deliberately does not use.
 source = ["lib"]
-omit = ["lib/presence_ext/*"]
-parallel = true
-sigterm = true
+omit = ["lib/presence_ext/*", "lib/daemon.py"]
 
 [tool.coverage.report]
 show_missing = true

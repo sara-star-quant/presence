@@ -89,21 +89,13 @@ jobs:
           python-version: "3.13"
       - name: Install pytest + cryptography + coverage
         run: pip install --upgrade pip && pip install pytest cryptography coverage
-      - name: Enable subprocess coverage
-        # The hooks and daemon run as subprocesses; this .pth makes each child
-        # python start coverage when COVERAGE_PROCESS_START is set, so their
-        # lines are measured instead of reading as 0%.
-        run: |
-          SP=$(python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
-          printf 'import coverage; coverage.process_startup()\n' > "$SP/subcov.pth"
       - name: Run tests under coverage
-        env:
-          COVERAGE_PROCESS_START: ${{ github.workspace }}/pyproject.toml
+        # In-process measurement (deterministic). The hooks are unit-tested
+        # in-process; daemon.py is omitted (see pyproject [tool.coverage.run])
+        # since it only runs as a subprocess. No COVERAGE_PROCESS_START / combine.
         run: PYTHONPATH=lib coverage run -m pytest -q
-      - name: Combine + report (gate 65%, Silver target 80%)
-        run: |
-          coverage combine
-          coverage report --fail-under=65
+      - name: Report (gate 67%, Silver target 80% tracked in #39)
+        run: coverage report --fail-under=67
 
   manifest-integrity:
     name: regenerate MANIFEST.lock
