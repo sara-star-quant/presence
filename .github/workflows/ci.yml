@@ -38,7 +38,7 @@ jobs:
           shellcheck install.sh
 
   ascii:
-    name: ascii-only (no em-dash / unicode)
+    name: ascii check (unicode)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
