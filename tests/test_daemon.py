@@ -62,6 +62,19 @@ def _spawn_daemon(state_dir: Path) -> subprocess.Popen:
     )
 
 
+def _stop_daemon(proc: subprocess.Popen) -> None:
+    """Terminate a spawned daemon and reap it. Always wait after kill: coverage
+    instrumentation slows daemon shutdown past a short terminate timeout, and an
+    unreaped Popen trips a ResourceWarning in Popen.__del__ that filterwarnings
+    error escalates into a failure."""
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
 def _wait_for_socket(sock_path: Path, timeout: float = 5.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -106,11 +119,7 @@ def test_daemon_responds_to_user_prompt_submit(short_state_dir):
         # Daemon should still be alive after one request.
         assert proc.poll() is None
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_daemon(proc)
 
 
 def test_daemon_socket_perms_are_0600(short_state_dir):
@@ -127,11 +136,7 @@ def test_daemon_socket_perms_are_0600(short_state_dir):
         mode = stat.S_IMODE(sock.stat().st_mode)
         assert mode == 0o600, f"socket perms should be 0o600, got 0o{mode:03o}"
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_daemon(proc)
 
 
 def test_daemon_writes_pid_file(short_state_dir):
@@ -148,11 +153,7 @@ def test_daemon_writes_pid_file(short_state_dir):
         recorded_pid = int(pid_file.read_text().strip())
         assert recorded_pid == proc.pid
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_daemon(proc)
 
 
 def test_daemon_rejects_unknown_hook(short_state_dir):
@@ -167,11 +168,7 @@ def test_daemon_rejects_unknown_hook(short_state_dir):
         # Daemon stays alive after a bad request.
         assert proc.poll() is None
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_daemon(proc)
 
 
 def test_daemon_handles_multiple_sequential_requests(short_state_dir):
@@ -198,11 +195,7 @@ def test_daemon_handles_multiple_sequential_requests(short_state_dir):
                 assert b"hookSpecificOutput" in response or response == b""
             assert proc.poll() is None, f"daemon died after request {i}"
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_daemon(proc)
 
 
 def test_daemon_clears_caches_between_requests(short_state_dir, monkeypatch):
@@ -241,11 +234,7 @@ def test_daemon_clears_caches_between_requests(short_state_dir, monkeypatch):
         if response:
             assert b"hookSpecificOutput" in response or response == b""
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_daemon(proc)
 
 
 def test_daemon_idle_timeout_auto_exits(short_state_dir, monkeypatch):
@@ -298,11 +287,7 @@ def test_daemon_idle_timeout_auto_exits(short_state_dir, monkeypatch):
         assert not sock.exists(), "daemon left a stale socket on auto-exit"
     finally:
         if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            _stop_daemon(proc)
 
 
 def test_daemon_handles_malformed_json(short_state_dir):
@@ -328,8 +313,4 @@ def test_daemon_handles_malformed_json(short_state_dir):
         assert b"Malformed" in response
         assert proc.poll() is None
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _stop_daemon(proc)
