@@ -10,13 +10,22 @@ Do **not** file a public issue for security-relevant findings. The maintainer wi
 
 If GitHub Security Advisories is not available to you for any reason, contact the maintainer through the GitHub profile linked from the repo (`sara-star-quant`).
 
+## Response process
+
+Once a report arrives:
+
+1. The maintainer acknowledges receipt within 14 days (usually sooner).
+2. The report is triaged: reproduce, assess severity, and confirm whether it is in scope (see below).
+3. A fix is developed privately in the GitHub Security Advisory. Medium and higher severity issues are patched within 60 days of confirmation; critical issues are prioritized.
+4. A patched release is published, the advisory is disclosed, and the reporter is credited unless they request anonymity.
+
 ## Supported versions
 
 Only the most recent minor release of `presence` is actively supported. Patch releases backport security fixes within the same minor line; older minors do not receive backports unless an issue is severe and the upgrade path is blocked.
 
 | Version | Supported |
 |---|---|
-| latest minor (currently 0.3.x) | yes |
+| latest minor (currently 0.6.x) | yes |
 | earlier minor lines | no |
 
 ## Threat model in scope
@@ -39,6 +48,15 @@ The following are **not** considered vulnerabilities for the purposes of this po
 - Side-channel timing attacks on hook execution.
 - The optional `gh pr` outcome check (in `team-oss`+ presets) reaching GitHub's API. This is a documented opt-in network call and is disabled in `zerotrust`.
 - The opt-in `install.sh --bootstrap` flag fetching `https://astral.sh/uv/install.sh`. This is documented as an explicit network call requiring the user's `--bootstrap` flag; the default install path makes no outbound calls.
+
+## Verifying a release
+
+Release tags are GPG-signed. To verify a tag you have checked out:
+
+1. Import the maintainer's public signing key (GPG key `3D675B9061B2B930`), published on the maintainer's GitHub account at `https://github.com/pzverkov.gpg`.
+2. Run `git tag -v v<X.Y.Z>` and confirm a "Good signature" from that key.
+
+The private signing key is held only by the maintainer and is never stored on any distribution server.
 
 ## See also
 

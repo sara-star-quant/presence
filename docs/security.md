@@ -40,9 +40,42 @@
 
 Verified at every SessionStart; corrected automatically if loosened.
 
+## Assurance case
+
+This section is the project's assurance case: the argument that presence's security requirements are met. It ties the threat model above to the trust boundaries, the secure-design principles applied, and the common implementation weaknesses countered.
+
+**Claim.** presence does not weaken the security of a developer's machine or Claude Code session: it never crashes the host, never leaks private data into model context or to the network, keeps its state owner-only, and (under Zero-Trust) encrypts state at rest with a tamper-evident audit log.
+
+**Trust boundaries.**
+
+- Claude Code <-> hooks (stdin/stdout): hook input (cwd, tool input/response, transcript path) is untrusted and validated; output is only structured `additionalContext` / decision JSON (T2); a hook failure is contained and exits 0 (T1).
+- Workspace/repo <-> presence: repo content (commit messages, command strings, paths) is untrusted - redacted before storage (T4, T5), path-resolved and scope-checked (T10), never evaluated or imported (T9).
+- presence state <-> other local users: state is owner-only `0o700`/`0o600`, re-verified each SessionStart (T6); integrity is verifiable and fail-closed under Zero-Trust (T7).
+- presence <-> network: no outbound calls by default; the only calls (opt-in `gh pr` check, opt-in `--bootstrap`) are explicit, documented, HTTPS, and disabled under Zero-Trust (T8).
+- Out of scope (outside the boundary): a hostile Claude Code binary, a compromised local account, side-channel timing.
+
+**Secure-design principles applied.**
+
+- Fail-safe defaults: hooks never break the session (`safe_main`, T1); under Zero-Trust, integrity mismatch fails closed (T7).
+- Least privilege / least exposure: owner-only permissions (T6), zero network by default (T8), no shell execution (T11), no untrusted import/eval (T9).
+- Complete mediation: permissions and integrity are re-checked every SessionStart, not once; every stored command passes through redaction (T4).
+- Economy of mechanism: stdlib-only runtime, local files, no service in the default path.
+- Defense in depth: redaction + permissions + integrity + (Zero-Trust) at-rest encryption and a SHA-256 audit chain.
+
+**Common implementation weaknesses countered.**
+
+- OS command injection (CWE-78): subprocess calls use list args, never `shell=True` (T11).
+- Path traversal / link following (CWE-22/59): `Path.resolve()` plus a Zero-Trust allowlist for transcript paths (T10).
+- Sensitive data exposure (CWE-200/532): no private data to stdout (T2); redaction before any log/telemetry write (T4, T5).
+- Unsafe deserialization / code execution (CWE-502/94): JSON only via the standard library; no `eval`/`exec`; `sys.path` extended only with `lib/` (T9).
+- Uncontrolled resource consumption (CWE-400): tail-read caps and event-queue truncation with a hard emergency cap (T12).
+- Incorrect permissions (CWE-276): owner-only perms enforced and re-verified (T6).
+
+Static analysis (ruff including its security `S` rules, plus bandit) runs on every push and gates merges, providing ongoing evidence that these classes stay countered.
+
 ## Reporting a vulnerability
 
-Use the GitHub security advisory flow at `https://github.com/sara-star-quant/presence/security/advisories/new` (available after the repo is published). Until then, file a private issue or contact the maintainer via the GitHub profile contact link rather than disclosing publicly.
+Use the GitHub security advisory flow at `https://github.com/sara-star-quant/presence/security/advisories/new`. See [`SECURITY.md`](../SECURITY.md) for the full reporting and response process.
 
 ## See also
 

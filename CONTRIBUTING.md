@@ -29,6 +29,14 @@ Requires pip 25.1 or later. If your pip is older, the equivalent is:
 
 Python 3.12+ is required. CI runs against 3.12, 3.13, and 3.14 on both Linux and macOS.
 
+## Coding standards
+
+- **Python** follows PEP 8, enforced by ruff (configuration in `pyproject.toml [tool.ruff]`); ruff also applies bugbear, pyupgrade, security (flake8-bandit), and other rule sets.
+- **Shell** scripts follow shellcheck's recommendations.
+- **Rust** (the optional `ext/` extension) follows rustfmt formatting and clippy lints.
+
+These run in CI and must pass before merge. Style exceptions are rare and annotated inline at their location (e.g. `# noqa`, `# nosec`).
+
 ## Local checks before opening a PR
 
 All five must be green:
@@ -99,7 +107,7 @@ The `bench/` harness is the source of truth for any "X is faster" claim. Reprodu
 
 ## Code of conduct
 
-Be polite, be specific, assume good faith. Disagreements are welcome; personal attacks are not. The maintainer reserves the right to lock or close threads that get unproductive.
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). In short: be polite, be specific, assume good faith. See [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for the expected behavior and how to report unacceptable conduct.
 
 ## License
 
