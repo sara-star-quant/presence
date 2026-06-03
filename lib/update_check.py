@@ -128,11 +128,11 @@ def _fetch_latest_tag() -> str:
     error so the caller (maybe_refresh, force_refresh) can choose its own
     fail-open shape. Easy to monkeypatch in tests.
     """
-    req = urllib.request.Request(  # noqa: S310 — fixed https URL, not user input
+    req = urllib.request.Request(  # noqa: S310 -- fixed https URL, not user input
         GITHUB_RELEASES_URL,
         headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"},
     )
-    with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310  # nosec B310 fixed https URL, not user input
         body = resp.read()
     payload = json.loads(body)
     tag = payload.get("tag_name")
@@ -169,7 +169,7 @@ async def maybe_refresh(cfg: dict) -> None:
     try:
         tag = await asyncio.to_thread(_fetch_latest_tag)
         await asyncio.to_thread(_write_cache, tag)
-    except Exception:  # noqa: BLE001 — fail-open is the contract
+    except Exception:  # noqa: BLE001 -- fail-open is the contract
         return
 
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.2
+
+CI quality gates for Python: lint, security, coverage, ASCII.
+
+shellcheck already gated the shell scripts, but the primary language (Python) had no linter, security scanner, or coverage measurement in CI, and the ASCII-only / no-em-dash constraint went unenforced (the byte-class grep documented in CONTRIBUTING never actually matched em-dashes). This release closes those gaps, plus the remaining OpenSSF Best Practices passing-badge items (static_analysis, warnings, test_policy). No runtime behavior change.
+
+- CI: new `ruff`, `bandit`, `ascii`, and `coverage` jobs. The bandit config mirrors the accepted ruff `S` ignores; one fixed-URL `urlopen` is suppressed inline with `# nosec B310`. Coverage measures the subprocess-run hooks and daemon (via `COVERAGE_PROCESS_START`) and gates statement coverage at 65% (Silver target is 80%).
+- ASCII: swept pre-existing em-dashes out of `lib/`, `docs/`, and `bench/`, and corrected the verify command in CONTRIBUTING.
+- Releases: tags are now GPG-signed (`git tag -s`); the release flow in CONTRIBUTING documents the key and the GitHub "Verified" setup.
+- Docs: test-policy statement, README bug-reporting pointer; `bandit` and `coverage` added to the dev group and documented in CONTRIBUTING (bandit also in the local pre-PR checks).
+- `lib/__init__.py` version realigned with `.claude-plugin/plugin.json` (it had drifted to 0.6.0).
+
 ## v0.6.1
 
 Installer registers plugin in enabledPlugins so commands load.

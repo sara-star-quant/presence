@@ -7,12 +7,14 @@
 #   python3 -m venv .venv
 #   .venv/bin/pip install --group dev
 # (Requires pip >= 25.1; older pip can fall back to:
-#   .venv/bin/pip install pytest cryptography ruff)
+#   .venv/bin/pip install pytest cryptography ruff bandit)
 [dependency-groups]
 dev = [
   "pytest>=8",
   "cryptography",  # only needed to exercise the zerotrust at-rest encryption tests
   "ruff>=0.6",
+  "bandit>=1.7",  # security scan; CI parity with the lint job
+  "coverage>=7",  # statement-coverage measurement (incl. subprocess hooks); CI parity
 ]
 
 [tool.ruff]
@@ -61,7 +63,29 @@ ignore = [
 # subcommands. Both single-purpose; splitting obscures the flow.
 "lib/redact.py" = ["PLR0915"]
 
+[tool.bandit]
+# Skips chosen to match the project's already-accepted exceptions:
+#   B603/B607 = ruff S603/S607 (subprocess without shell, partial exec path)
+#   B110      = ruff S110 (try/except/pass guards; each site carries a noqa)
+#   B404      = plain `import subprocess` (informational; no ruff equivalent)
+# The one remaining Medium finding (B310 urlopen in update_check.py) is a fixed
+# https URL and is suppressed inline with `# nosec B310`, not skipped globally.
+skips = ["B603", "B607", "B110", "B404"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
 filterwarnings = ["error"]
+
+[tool.coverage.run]
+# Statement coverage of the runtime source only. presence_ext is the compiled
+# Rust extension (gitignored build artifact), not Python under test.
+# parallel + a subprocess .pth (see the coverage CI job) capture the hooks and
+# daemon, which the tests exercise as subprocesses rather than in-process.
+source = ["lib"]
+omit = ["lib/presence_ext/*"]
+parallel = true
+sigterm = true
+
+[tool.coverage.report]
+show_missing = true

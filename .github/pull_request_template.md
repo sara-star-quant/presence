@@ -14,8 +14,10 @@
 
 - [ ] `.venv/bin/python -m pytest -q` (all green)
 - [ ] `.venv/bin/python -m ruff check lib tests bench`
+- [ ] `.venv/bin/python -m bandit -c pyproject.toml -r lib`
 - [ ] `shellcheck install.sh hooks/scripts/*.sh`
 - [ ] `PYTHONPATH=lib python3 lib/integrity.py --verify`
+- [ ] New/changed behavior is covered by tests (required for behavior changes)
 - [ ] `bash install.sh --verify` (if you touched install/runtime paths)
 - [ ] Bench numbers (if you made a perf-relevant change): `python3 bench/<relevant>.py --runs 50`
 

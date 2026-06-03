@@ -233,6 +233,10 @@ Start at [`docs/index.md`](docs/index.md) for a map. Highlights:
 - [`docs/roadmap.md`](docs/roadmap.md) - what we've deferred and why
 - [`SECURITY.md`](SECURITY.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), [`bench/README.md`](bench/README.md), [`llms.txt`](llms.txt)
 
+## Reporting bugs
+
+Open a GitHub issue using the bug template. For security findings, do **not** file a public issue - follow the private disclosure process in [`SECURITY.md`](SECURITY.md).
+
 ## Disclaimer
 
 `presence` is provided **as is** under the [MIT License](LICENSE), without warranty of any kind, express or implied. The authors and copyright holders (Sara Star Quant LLC) and any contributors are **not responsible** for any damage, data loss, security incident, regression, lost productivity, or other adverse outcome arising from the installation or use of this plugin.

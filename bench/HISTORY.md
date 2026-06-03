@@ -4,7 +4,7 @@ Version-by-version benchmark results on the same machine (macOS arm64, Apple Sil
 
 ---
 
-## v0.4.0 — Rust Daemon Client + MCP + Adapter Pattern
+## v0.4.0 -- Rust Daemon Client + MCP + Adapter Pattern
 
 **Date**: 2026-04-27
 **Platform**: macOS arm64, Python 3.14.4
@@ -31,7 +31,7 @@ Per-hook breakdown (aggregate session):
 
 ---
 
-## v0.4.0 — Stdlib-only mode (no `--build-ext`)
+## v0.4.0 -- Stdlib-only mode (no `--build-ext`)
 
 **Date**: 2026-04-27
 **Platform**: macOS arm64, Python 3.14.4
@@ -41,14 +41,14 @@ Per-hook breakdown (aggregate session):
 |---|---|---|---|---|---|---|
 | `cold_startup` | 81.76 ms | 83.84 ms | 79.67 ms | 84.68 ms | 1.13 ms | 50 |
 | `session_start_populated` | 112.46 ms | 138.99 ms | 109.32 ms | 154.82 ms | 8.92 ms | 50 |
-| `install_to_working` | 245.77 ms | — | — | — | — | 10 |
+| `install_to_working` | 245.77 ms | -- | -- | -- | -- | 10 |
 | `aggregate_session` (77 fires) | 6,460 ms | 7,071 ms | 6,369 ms | 7,071 ms | 186 ms | 10 |
 
-**Changes**: Added `PYTHON_JIT=1`, `python3.14t` preference, lazy `orjson` imports, lazy `presence_ext` imports. No daemon; classical bash → Python exec path.
+**Changes**: Added `PYTHON_JIT=1`, `python3.14t` preference, lazy `orjson` imports, lazy `presence_ext` imports. No daemon; classical bash -> Python exec path.
 
 ---
 
-## v0.3.2 — Baseline (published SLOs)
+## v0.3.2 -- Baseline (published SLOs)
 
 **Date**: 2026-04 (pre-optimization)
 **Platform**: macOS arm64, Python 3.14.4
@@ -58,8 +58,8 @@ Per-hook breakdown (aggregate session):
 |---|---|---|---|
 | `cold_startup` | 80 ms | 87 ms | 50 |
 | `session_start_populated` | 108 ms | 113 ms | 50 |
-| `install_to_working` | 237 ms | — | 25 |
-| `aggregate_session` (77 fires) | 6,400 ms | — | 10 |
+| `install_to_working` | 237 ms | -- | 25 |
+| `aggregate_session` (77 fires) | 6,400 ms | -- | 10 |
 
 **Baseline**: Pure Python, stdlib-only. No JIT, no native extensions, no daemon.
 
@@ -69,6 +69,6 @@ Per-hook breakdown (aggregate session):
 
 | Metric | v0.3.2 | v0.4.0 (stdlib) | v0.4.0 (`--build-ext`) | Speedup vs v0.3.2 |
 |---|---|---|---|---|
-| Cold startup | 80 ms | 82 ms | **8.6 ms** | **9.3×** |
-| SessionStart | 108 ms | 112 ms | **8.5 ms** | **12.7×** |
-| Aggregate (77 fires) | 6.4 s | 6.5 s | **698 ms** | **9.2×** |
+| Cold startup | 80 ms | 82 ms | **8.6 ms** | **9.3x** |
+| SessionStart | 108 ms | 112 ms | **8.5 ms** | **12.7x** |
+| Aggregate (77 fires) | 6.4 s | 6.5 s | **698 ms** | **9.2x** |
