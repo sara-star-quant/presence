@@ -30,7 +30,7 @@ security-framework = "2.9"
 # missing async_fs / blocking / async_io modules. Picking the rust-crypto
 # async-io variant keeps us on a single async runtime (we already use
 # async-io transitively elsewhere) and avoids dragging in OpenSSL.
-secret-service = { version = "3.0", features = ["rt-async-io-crypto-rust"] }
+secret-service = { version = "5.1", features = ["rt-async-io-crypto-rust"] }
 
 [dependencies.git2]
 # default-features disabled because git2's defaults pull in openssl-sys
