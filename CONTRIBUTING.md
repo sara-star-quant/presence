@@ -88,7 +88,7 @@ All of these are integrity-tracked, so regenerate the manifest after.
 
 ## Adding a preset
 
-Drop a JSON under `presets/<name>.json`. The four shipped presets (`solo-dev`, `team-oss`, `enterprise-strict`, `zerotrust`) are the reference for valid keys. There is no formal schema yet (tracked under Issue E in the roadmap); a typo in a preset key is silently ignored.
+Drop a JSON under `presets/<name>.json`. The four shipped presets (`solo-dev`, `team-oss`, `enterprise-strict`, `zerotrust`) are the reference for valid keys, and `presets/_schema.json` declares every recognized field. `_load_preset` validates against it on read: an unrecognized or wrong-typed key emits a warning (surfaced by `/presence-doctor` and the next SessionStart) instead of being silently ignored. Add new fields to `_schema.json` in the same change that starts reading them. Custom user presets belong in `~/.claude/presence/presets/`, which loads first and sits outside the integrity manifest.
 
 ## Release flow (maintainer notes)
 
