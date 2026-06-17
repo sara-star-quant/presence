@@ -45,7 +45,7 @@ jobs:
             artifact: presence-client-macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Skip if ext/ missing
         id: check_ext
         run: |
@@ -89,10 +89,8 @@ jobs:
           chmod +x "/tmp/release-assets/$ARTIFACT_NAME"
           ls -la /tmp/release-assets/
       - name: Upload artifact
-        # v6 runs on Node 24; v4 was deprecated by GitHub Actions (Node 20
-        # removal scheduled for September 2026, default flip June 2026).
         if: steps.check_ext.outputs.have_ext == 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: /tmp/release-assets/${{ matrix.artifact }}
@@ -104,7 +102,7 @@ jobs:
     if: always()   # publish even if some Rust builds fail; release notes are independent
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0   # need full history so the tag commit is reachable
 
@@ -197,8 +195,10 @@ jobs:
           fi
 
       - name: Download Rust build artifacts (best-effort)
-        # v6 runs on Node 24; matches the upload-artifact bump above.
-        uses: actions/download-artifact@v6
+        # download-artifact v8 reads artifacts uploaded by upload-artifact v7
+        # (shared v4+ backend). No name filter, so it pulls every matrix
+        # artifact into its own subdir under path.
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/release-assets
         continue-on-error: true   # release notes still publish even if Rust builds failed
