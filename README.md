@@ -8,6 +8,8 @@
 [![Stdlib only](https://img.shields.io/badge/runtime-stdlib--only-success)](pyproject.toml)
 [![Local only](https://img.shields.io/badge/state-local--only-success)](docs/security.md)
 
+> **New in [v0.7.0](https://github.com/sara-star-quant/presence/releases/tag/v0.7.0):** relicensed from MIT to Apache-2.0 (still permissive, now with an explicit patent grant). No runtime change.
+
 **Every Claude Code session starts cold. presence makes the next one start where the last one left off.**
 
 A Claude Code plugin with read-only projections (MCP server, AGENTS.md adapter) so MCP-aware clients (Cursor, Claude Desktop, Continue) and AGENTS.md-aware tools (Codex, Gemini CLI, Windsurf, GitHub Copilot) can also read its accumulated context. Turns every session into part of a continuum.
