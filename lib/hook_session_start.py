@@ -13,6 +13,7 @@ from _common import (
     project_dir,
     read_counter,
     reset_counter,
+    reverify_state_perms,
     safe_main,
     set_integrity_block,
     settings,
@@ -194,7 +195,7 @@ async def fail_closed_integrity_check(cfg: dict) -> str | None:
         return None
     try:
         from integrity import verify_manifest
-        missing, mismatched, _extra = await asyncio.to_thread(verify_manifest)
+        missing, mismatched, extra = await asyncio.to_thread(verify_manifest)
     except Exception as exc:  # noqa: BLE001  never let integrity check itself break SessionStart
         return (
             "<presence_integrity_fail>\n"
@@ -202,10 +203,12 @@ async def fail_closed_integrity_check(cfg: dict) -> str | None:
             "Hooks remain inert this session.\n"
             "</presence_integrity_fail>"
         )
-    if not (missing or mismatched):
+    # Extra (undeclared) files fail the gate too: a dropped lib/*.py would shadow
+    # a real import via PYTHONPATH, so addition is as much tampering as modification.
+    if not (missing or mismatched or extra):
         return None
     active_preset = cfg.get("__active_preset__", "(unknown)")
-    return (
+    msg = (
         "<presence_integrity_fail>\n"
         f"  Plugin file integrity check FAILED under {active_preset} preset.\n"
         f"    Missing: {len(missing)} file(s)"
@@ -214,16 +217,35 @@ async def fail_closed_integrity_check(cfg: dict) -> str | None:
         f"    Mismatched: {len(mismatched)} file(s)"
         + (f" ({', '.join(mismatched[:3])}{'...' if len(mismatched) > 3 else ''})" if mismatched else "")
         + "\n"
+        f"    Extra: {len(extra)} file(s)"
+        + (f" ({', '.join(extra[:3])}{'...' if len(extra) > 3 else ''})" if extra else "")
+        + "\n"
         "  Hooks will remain INERT for the rest of this session. Reinstall the plugin\n"
         "  or investigate which files changed before continuing.\n"
         "</presence_integrity_fail>"
     )
+    # Record the tamper event in the audit chain (the one event it exists for).
+    # Best effort: audit.append never raises on OSError, but guard anything else
+    # so the gate itself can never break SessionStart.
+    try:
+        from audit import append as audit_append
+        audit_append(
+            "integrity_fail",
+            {"missing": len(missing), "mismatched": len(mismatched), "extra": len(extra)},
+        )
+    except Exception:  # noqa: BLE001, S110  audit is advisory; never let it break the gate
+        pass
+    return msg
 
 
 async def async_main():
     inp = hook_input()
     cfg = settings()
     cwd = _resolve_cwd(inp)
+
+    # Re-tighten state perms first (T6): correct any drift to owner-only before
+    # reading or writing anything, independent of the integrity outcome below.
+    reverify_state_perms()
 
     # Fail-closed integrity gate (zerotrust + any preset with integrity.fail_closed=true).
     # Runs FIRST. If it fails, set the inert-marker so other hooks short-circuit, emit the

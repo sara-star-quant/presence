@@ -103,8 +103,11 @@ def verify_manifest(root: Path | None = None) -> tuple[list[str], list[str], lis
 
 
 def integrity_ok(root: Path | None = None) -> bool:
-    missing, mismatched, _extra = verify_manifest(root)
-    return not missing and not mismatched
+    # Extra files count as failure: an undeclared file under the tracked globs
+    # (e.g. a dropped lib/*.py) would shadow a real import via PYTHONPATH, so a
+    # tampered plugin must not pass by addition any more than by modification.
+    missing, mismatched, extra = verify_manifest(root)
+    return not missing and not mismatched and not extra
 
 
 def _cli() -> int:

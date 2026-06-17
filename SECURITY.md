@@ -34,7 +34,7 @@ The full threat model lives in [`docs/security.md`](docs/security.md) (T1 throug
 
 - Hooks must never make Claude Code observe a presence-induced error (`safe_main` outermost guard).
 - Hooks must never leak private data to stdout (only structured `additionalContext` text; no raw env, no raw file contents, no auth headers).
-- State files must remain readable only by the owning user (`0o700` / `0o600`, set on write and re-tightened on demand via `/presence-doctor --fix`).
+- State files must remain readable only by the owning user (`0o700` / `0o600`, set on write and re-tightened every SessionStart).
 - Logged commands containing secrets must be redacted before write (`lib/redact.py`; aggressive redaction under the `zerotrust` preset).
 - Plugin file integrity must be verifiable on demand (`/presence-doctor` in v0.1; SessionStart fail-closed in v0.2 under `zerotrust`).
 - Under `zerotrust`: state at rest must be AES-GCM encrypted with the data key wrapped in the OS keychain; the audit log must be tamper-evident with a per-line SHA-256 hash chain; `presence-unlock` must gate any settings.json or preset write.
