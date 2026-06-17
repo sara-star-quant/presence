@@ -21,7 +21,7 @@ default = ["pyext"]
 pyext = ["pyo3"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
-security-framework = "2.9"
+security-framework = "3.7"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # secret-service 3.x has no default async-runtime feature; without one of
