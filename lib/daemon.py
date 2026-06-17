@@ -127,6 +127,9 @@ class PresenceDaemon:
                 _common._SETTINGS_CACHE = None
                 _common._WRITE_STATE_CACHE = None
                 _common._READ_KEY_CACHE = _common._UNSET
+                # Also reset the dir-perm cache so a warm daemon re-tightens
+                # state perms each request instead of trusting the first walk.
+                _common._ENSURED_DIRS = set()
 
                 self.hooks[hook_name]()
             except SystemExit:
@@ -189,10 +192,18 @@ class PresenceDaemon:
         except OSError:
             pass
 
-        server = await asyncio.start_unix_server(self.handle_client, path=str(SOCKET_PATH))
+        # Create the socket owner-only from the start: set umask before bind so
+        # there is no window where another local user could connect between bind
+        # and the chmod below. This is presence's primary cross-user isolation
+        # guarantee on the daemon path.
+        prev_umask = os.umask(0o077)
+        try:
+            server = await asyncio.start_unix_server(self.handle_client, path=str(SOCKET_PATH))
+        finally:
+            os.umask(prev_umask)
 
-        # Restrict socket permissions: only the owner can connect. This is
-        # presence's primary cross-user isolation guarantee on the daemon path.
+        # Belt and braces: tighten explicitly in case the platform ignored umask
+        # for the socket node.
         try:
             SOCKET_PATH.chmod(0o600)
         except OSError:

@@ -91,6 +91,33 @@ def state_dir() -> Path:
     return _ensure_dir(STATE_DIR)
 
 
+def reverify_state_perms() -> None:
+    """Re-tighten owner-only perms across the state tree (dirs 0o700, files 0o600).
+
+    Called on every SessionStart so loosened perms are corrected automatically, not
+    only on a manual ``/presence-doctor --fix``. The state tree is small (a handful
+    of files per project), so the walk is negligible next to the rest of SessionStart.
+    Best effort: skipped silently where the platform does not support chmod.
+    """
+    sd = STATE_DIR
+    if not sd.exists():
+        return
+
+    def _chmod_quiet(p: Path, mode: int) -> None:
+        try:
+            if stat.S_IMODE(p.stat().st_mode) != mode:
+                p.chmod(mode)
+        except (OSError, NotImplementedError):
+            pass
+
+    _chmod_quiet(sd, 0o700)
+    for root, dirs, files in os.walk(sd):
+        for d in dirs:
+            _chmod_quiet(Path(root) / d, 0o700)
+        for f in files:
+            _chmod_quiet(Path(root) / f, 0o600)
+
+
 def project_dir(cwd: str | os.PathLike[str] | None = None) -> Path:
     return _ensure_dir(state_dir() / "projects" / repo_id(cwd))
 

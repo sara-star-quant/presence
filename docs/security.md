@@ -11,7 +11,7 @@
 | T3 | Concurrent Claude sessions race on state files | Atomic writes (write-temp + rename); `fcntl.flock` on JSONL appends. Drain operations hold an exclusive lock. |
 | T4 | Logged shell commands contain secrets (e.g. `git commit -m "TOKEN=..."`) | Every command stored in events/telemetry passes through `redact.py` before being written. Standard preset catches well-known token shapes; Zero-Trust preset is aggressive. |
 | T5 | A malicious git repo's commit messages are stored verbatim | Same: messages pass through redaction before being written to telemetry. |
-| T6 | State directory readable by other users on the machine | `~/.claude/presence/` is created with `0o700`; files written `0o600`. Drift is re-tightened on demand via `/presence-doctor --fix`; automatic SessionStart reverification is tracked in the integrity-hardening issue. |
+| T6 | State directory readable by other users on the machine | `~/.claude/presence/` is created with `0o700`; files written `0o600`. Drift is re-tightened automatically at every SessionStart and on demand via `/presence-doctor --fix`. |
 | T7 | A tampered plugin executes hooks | `MANIFEST.lock` ships with each release. `/presence-doctor` verifies it on demand in v0.1. SessionStart fail-closed on mismatch shipped in v0.2 (active under any preset with `integrity.fail_closed=true`; default in `zerotrust`). |
 | T8 | Network exfiltration | `presence` makes no outbound network calls in v0.1. Optional `gh pr` check (in `team-oss`) is opt-in and goes directly to GitHub's API; disabled in Zero-Trust. |
 | T9 | Untrusted Python code from the workspace gets imported | We never `eval`, `exec`, or import from outside our own `lib/`. `sys.path` (via `PYTHONPATH` in the bash wrappers) is only ever extended with `lib/`. |
@@ -38,7 +38,7 @@
 - All written state files: `0o600` (owner read/write only)
 - Hook scripts in plugin: `0o755` (anyone can read+execute, only owner writes)
 
-Drift is corrected on demand via `/presence-doctor --fix`; automatic SessionStart reverification is tracked in the integrity-hardening issue.
+Re-tightened automatically at every SessionStart, and on demand via `/presence-doctor --fix`.
 
 ## Assurance case
 
@@ -50,7 +50,7 @@ This section is the project's assurance case: the argument that presence's secur
 
 - Claude Code <-> hooks (stdin/stdout): hook input (cwd, tool input/response, transcript path) is untrusted and validated; output is only structured `additionalContext` / decision JSON (T2); a hook failure is contained and exits 0 (T1).
 - Workspace/repo <-> presence: repo content (commit messages, command strings, paths) is untrusted - redacted before storage (T4, T5), path-resolved and scope-checked (T10), never evaluated or imported (T9).
-- presence state <-> other local users: state is owner-only `0o700`/`0o600`, set on write and re-tightened on demand via `/presence-doctor --fix` (T6); integrity is verifiable and fail-closed under Zero-Trust (T7).
+- presence state <-> other local users: state is owner-only `0o700`/`0o600`, set on write and re-tightened every SessionStart (T6); integrity is verifiable and fail-closed under Zero-Trust (T7).
 - presence <-> network: no outbound calls by default; the only calls (opt-in `gh pr` check, opt-in `--bootstrap`) are explicit, documented, HTTPS, and disabled under Zero-Trust (T8).
 - Out of scope (outside the boundary): a hostile Claude Code binary, a compromised local account, side-channel timing.
 
@@ -58,7 +58,7 @@ This section is the project's assurance case: the argument that presence's secur
 
 - Fail-safe defaults: hooks never break the session (`safe_main`, T1); under Zero-Trust, integrity mismatch fails closed (T7).
 - Least privilege / least exposure: owner-only permissions (T6), zero network by default (T8), no shell execution (T11), no untrusted import/eval (T9).
-- Complete mediation: the integrity gate runs every SessionStart under Zero-Trust, not once; every stored command passes through redaction (T4); permissions are re-tightened on demand via `/presence-doctor --fix`.
+- Complete mediation: permissions and (under Zero-Trust) integrity are re-checked every SessionStart, not once; every stored command passes through redaction (T4).
 - Economy of mechanism: stdlib-only runtime, local files, no service in the default path.
 - Defense in depth: redaction + permissions + integrity + (Zero-Trust) at-rest encryption and a SHA-256 audit chain.
 

@@ -34,7 +34,11 @@ def run_hook(hook_name: str) -> None:
         sys.stderr.write(f"unknown hook: {hook_name}\n")
         sys.exit(1)
     module = __import__(module_name)
-    module.main()
+    # Wrap in safe_main so this fallback path (daemon failed to start) has the
+    # same T1 guarantee as the __main__ path inside each hook module: an unhandled
+    # exception logs and exits 0 instead of leaking a traceback / partial stdout.
+    from _common import safe_main
+    safe_main(module.main)
 
 
 def run_mcp() -> None:
