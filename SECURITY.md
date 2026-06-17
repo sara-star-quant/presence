@@ -34,7 +34,7 @@ The full threat model lives in [`docs/security.md`](docs/security.md) (T1 throug
 
 - Hooks must never make Claude Code observe a presence-induced error (`safe_main` outermost guard).
 - Hooks must never leak private data to stdout (only structured `additionalContext` text; no raw env, no raw file contents, no auth headers).
-- State files must remain readable only by the owning user (`0o700` / `0o600`, verified at every SessionStart).
+- State files must remain readable only by the owning user (`0o700` / `0o600`, set on write and re-tightened on demand via `/presence-doctor --fix`).
 - Logged commands containing secrets must be redacted before write (`lib/redact.py`; aggressive redaction under the `zerotrust` preset).
 - Plugin file integrity must be verifiable on demand (`/presence-doctor` in v0.1; SessionStart fail-closed in v0.2 under `zerotrust`).
 - Under `zerotrust`: state at rest must be AES-GCM encrypted with the data key wrapped in the OS keychain; the audit log must be tamper-evident with a per-line SHA-256 hash chain; `presence-unlock` must gate any settings.json or preset write.
@@ -51,7 +51,7 @@ The following are **not** considered vulnerabilities for the purposes of this po
 
 ## Verifying a release
 
-Release tags are GPG-signed. To verify a tag you have checked out:
+Release tags are GPG-signed from v0.6.2 onward (earlier tags predate the signing setup). To verify a signed tag you have checked out:
 
 1. Import the maintainer's public signing key (GPG key `3D675B9061B2B930`), published on the maintainer's GitHub account at `https://github.com/pzverkov.gpg`.
 2. Run `git tag -v v<X.Y.Z>` and confirm a "Good signature" from that key.

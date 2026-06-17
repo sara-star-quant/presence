@@ -59,13 +59,11 @@ Commit the regenerated `MANIFEST.lock` alongside the source change. CI's `manife
 
 ### Statement coverage
 
-CI's `coverage` job gates statement coverage at 65% (the Silver-badge target is 80%). The hooks and daemon run as subprocesses, so measuring them needs a one-time setup; an in-process `pytest --cov` undercounts. To reproduce the CI number locally:
+CI's `coverage` job gates statement coverage at 67% (the Silver-badge target is 80%, tracked in #39). Measurement is in-process and deterministic; `daemon.py` is omitted (it runs only as a subprocess and is behavior-tested by `tests/test_daemon.py`). To reproduce the CI number locally:
 
 ```bash
-SP=$(.venv/bin/python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
-printf 'import coverage; coverage.process_startup()\n' > "$SP/subcov.pth"
-COVERAGE_PROCESS_START=$PWD/pyproject.toml PYTHONPATH=lib .venv/bin/coverage run -m pytest -q
-.venv/bin/coverage combine && .venv/bin/coverage report
+PYTHONPATH=lib .venv/bin/coverage run -m pytest -q
+.venv/bin/coverage report
 ```
 
 ## Adding a test
