@@ -4,7 +4,7 @@
 
 presence uses a single-maintainer ("benevolent dictator") model. The maintainer makes the final decisions on scope, design, releases, and dispute resolution. Anyone may propose changes via a pull request or open an issue to discuss direction; the maintainer reviews, requests changes, and decides what merges.
 
-Because the project is FLOSS under the MIT license, anyone may fork at any time if they disagree with the direction.
+Because the project is FLOSS under the Apache-2.0 license, anyone may fork at any time if they disagree with the direction.
 
 ## Roles and responsibilities
 
@@ -27,4 +27,4 @@ The project is currently single-maintainer (bus factor 1). To keep it recoverabl
 - The credentials required to continue the project (GitHub org/repo admin, the GPG release signing key plus its revocation certificate, the PyPI launcher account) are kept by the maintainer in a personal secret store so they can be recovered or transferred.
 - Adding a second maintainer - which raises the bus factor to 2 and enables two-person review - is an explicit near-term goal. Until then, this document records the recovery path.
 
-Because the code is MIT-licensed, the project can also continue via a fork even without an access transfer.
+Because the code is Apache-2.0-licensed, the project can also continue via a fork even without an access transfer.

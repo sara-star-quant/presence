@@ -1,13 +1,13 @@
 {
   "name": "presence",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Continuous-collaboration layer for Claude Code: living project model, outcome telemetry, event digest, and calibrated confidence. Fully local, install-once, applies to every project.",
   "author": {
     "name": "Sara Star Quant LLC"
   },
   "homepage": "https://github.com/sara-star-quant/presence",
   "repository": "https://github.com/sara-star-quant/presence",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "claude-code",
     "memory",

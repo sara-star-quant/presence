@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.7.0
+
+Relicense to Apache-2.0.
+
+The plugin moves from MIT to the Apache License 2.0. Apache-2.0 is permissive and OSI-approved, so existing usage rights are unchanged and the OpenSSF Best Practices badge stays valid; it adds an explicit patent grant that MIT lacks. This sets a clean open-source base for the installable plugin as the project introduces a separately-licensed commercial layer later.
+
+- `LICENSE` replaced with the Apache-2.0 text; added `NOTICE` and `THIRD-PARTY.md` (third-party `ext/` crates and the optional `cryptography` dependency keep their own upstream licenses).
+- License references updated in `plugin.json`, `.claude/SKILL.md`, `README.md`, `GOVERNANCE.md`, `SECURITY.md`, `CONTRIBUTING.md`, and `llms.txt`.
+- Contributions now use a DCO sign-off (`git commit -s`) instead of the MIT inbound clause.
+- No runtime behavior change.
+
 ## v0.6.2
 
 CI quality gates for Python: lint, security, coverage, ASCII.
