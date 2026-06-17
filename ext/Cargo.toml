@@ -21,16 +21,16 @@ default = ["pyext"]
 pyext = ["pyo3"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
-security-framework = "2.9"
+security-framework = "3.7"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# secret-service 3.x has no default async-runtime feature; without one of
+# secret-service 5.x has no default async-runtime feature; without one of
 # rt-async-io-crypto-{rust,openssl} or rt-tokio-crypto-{rust,openssl},
 # zbus compiles without its async backend and the build fails referencing
 # missing async_fs / blocking / async_io modules. Picking the rust-crypto
 # async-io variant keeps us on a single async runtime (we already use
 # async-io transitively elsewhere) and avoids dragging in OpenSSL.
-secret-service = { version = "3.0", features = ["rt-async-io-crypto-rust"] }
+secret-service = { version = "5.1", features = ["rt-async-io-crypto-rust"] }
 
 [dependencies.git2]
 # default-features disabled because git2's defaults pull in openssl-sys
@@ -42,5 +42,5 @@ secret-service = { version = "3.0", features = ["rt-async-io-crypto-rust"] }
 # the host's OpenSSL paths don't match the target architecture. Without
 # this, release.yml's x86_64-apple-darwin build fails on the macos-latest
 # (arm64) runner trying to find x86_64 OpenSSL.
-version = "0.20"
+version = "0.21"
 default-features = false
