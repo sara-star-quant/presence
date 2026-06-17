@@ -11,7 +11,7 @@
 | T3 | Concurrent Claude sessions race on state files | Atomic writes (write-temp + rename); `fcntl.flock` on JSONL appends. Drain operations hold an exclusive lock. |
 | T4 | Logged shell commands contain secrets (e.g. `git commit -m "TOKEN=..."`) | Every command stored in events/telemetry passes through `redact.py` before being written. Standard preset catches well-known token shapes; Zero-Trust preset is aggressive. |
 | T5 | A malicious git repo's commit messages are stored verbatim | Same: messages pass through redaction before being written to telemetry. |
-| T6 | State directory readable by other users on the machine | `~/.claude/presence/` is created with `0o700`; files written `0o600`. Verified at every SessionStart. |
+| T6 | State directory readable by other users on the machine | `~/.claude/presence/` is created with `0o700`; files written `0o600`. Drift is re-tightened on demand via `/presence-doctor --fix`; automatic SessionStart reverification is tracked in the integrity-hardening issue. |
 | T7 | A tampered plugin executes hooks | `MANIFEST.lock` ships with each release. `/presence-doctor` verifies it on demand in v0.1. SessionStart fail-closed on mismatch shipped in v0.2 (active under any preset with `integrity.fail_closed=true`; default in `zerotrust`). |
 | T8 | Network exfiltration | `presence` makes no outbound network calls in v0.1. Optional `gh pr` check (in `team-oss`) is opt-in and goes directly to GitHub's API; disabled in Zero-Trust. |
 | T9 | Untrusted Python code from the workspace gets imported | We never `eval`, `exec`, or import from outside our own `lib/`. `sys.path` (via `PYTHONPATH` in the bash wrappers) is only ever extended with `lib/`. |
@@ -38,11 +38,44 @@
 - All written state files: `0o600` (owner read/write only)
 - Hook scripts in plugin: `0o755` (anyone can read+execute, only owner writes)
 
-Verified at every SessionStart; corrected automatically if loosened.
+Drift is corrected on demand via `/presence-doctor --fix`; automatic SessionStart reverification is tracked in the integrity-hardening issue.
+
+## Assurance case
+
+This section is the project's assurance case: the argument that presence's security requirements are met. It ties the threat model above to the trust boundaries, the secure-design principles applied, and the common implementation weaknesses countered.
+
+**Claim.** presence does not weaken the security of a developer's machine or Claude Code session: it never crashes the host, never leaks private data into model context or to the network, keeps its state owner-only, and (under Zero-Trust) encrypts state at rest with a tamper-evident audit log.
+
+**Trust boundaries.**
+
+- Claude Code <-> hooks (stdin/stdout): hook input (cwd, tool input/response, transcript path) is untrusted and validated; output is only structured `additionalContext` / decision JSON (T2); a hook failure is contained and exits 0 (T1).
+- Workspace/repo <-> presence: repo content (commit messages, command strings, paths) is untrusted - redacted before storage (T4, T5), path-resolved and scope-checked (T10), never evaluated or imported (T9).
+- presence state <-> other local users: state is owner-only `0o700`/`0o600`, set on write and re-tightened on demand via `/presence-doctor --fix` (T6); integrity is verifiable and fail-closed under Zero-Trust (T7).
+- presence <-> network: no outbound calls by default; the only calls (opt-in `gh pr` check, opt-in `--bootstrap`) are explicit, documented, HTTPS, and disabled under Zero-Trust (T8).
+- Out of scope (outside the boundary): a hostile Claude Code binary, a compromised local account, side-channel timing.
+
+**Secure-design principles applied.**
+
+- Fail-safe defaults: hooks never break the session (`safe_main`, T1); under Zero-Trust, integrity mismatch fails closed (T7).
+- Least privilege / least exposure: owner-only permissions (T6), zero network by default (T8), no shell execution (T11), no untrusted import/eval (T9).
+- Complete mediation: the integrity gate runs every SessionStart under Zero-Trust, not once; every stored command passes through redaction (T4); permissions are re-tightened on demand via `/presence-doctor --fix`.
+- Economy of mechanism: stdlib-only runtime, local files, no service in the default path.
+- Defense in depth: redaction + permissions + integrity + (Zero-Trust) at-rest encryption and a SHA-256 audit chain.
+
+**Common implementation weaknesses countered.**
+
+- OS command injection (CWE-78): subprocess calls use list args, never `shell=True` (T11).
+- Path traversal / link following (CWE-22/59): `Path.resolve()` plus a Zero-Trust allowlist for transcript paths (T10).
+- Sensitive data exposure (CWE-200/532): no private data to stdout (T2); redaction before any log/telemetry write (T4, T5).
+- Unsafe deserialization / code execution (CWE-502/94): JSON only via the standard library; no `eval`/`exec`; `sys.path` extended only with `lib/` (T9).
+- Uncontrolled resource consumption (CWE-400): tail-read caps and event-queue truncation with a hard emergency cap (T12).
+- Incorrect permissions (CWE-276): owner-only perms enforced and re-verified (T6).
+
+Static analysis (ruff including its security `S` rules, plus bandit) runs on every push and gates merges, providing ongoing evidence that these classes stay countered.
 
 ## Reporting a vulnerability
 
-Use the GitHub security advisory flow at `https://github.com/sara-star-quant/presence/security/advisories/new` (available after the repo is published). Until then, file a private issue or contact the maintainer via the GitHub profile contact link rather than disclosing publicly.
+Use the GitHub security advisory flow at `https://github.com/sara-star-quant/presence/security/advisories/new`. See [`SECURITY.md`](../SECURITY.md) for the full reporting and response process.
 
 ## See also
 

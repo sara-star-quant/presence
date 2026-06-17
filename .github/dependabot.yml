@@ -1,0 +1,17 @@
+# Dependency monitoring for known vulnerabilities and updates (OpenSSF dependency_monitoring).
+# The Python runtime is stdlib-only (one optional dep, cryptography); the dev group and the
+# Rust ext (ext/Cargo.toml) carry the third-party dependencies worth watching.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "cargo"
+    directory: "/ext"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
