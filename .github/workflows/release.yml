@@ -108,6 +108,19 @@ jobs:
         with:
           fetch-depth: 0   # need full history so the tag commit is reachable
 
+      - name: Verify the release tag is GPG-signed by the maintainer
+        # Only the maintainer's public key is imported, so a good signature here
+        # necessarily comes from that key. Refuse to publish an unsigned tag.
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          curl -fsSL https://github.com/pzverkov.gpg | gpg --import 2>/dev/null
+          if ! git verify-tag "$TAG_NAME"; then
+            echo "::error::tag $TAG_NAME is not signed by the maintainer key; refusing to publish"
+            exit 1
+          fi
+          echo "tag $TAG_NAME carries a good signature from the maintainer key"
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
