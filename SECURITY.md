@@ -60,7 +60,7 @@ The private signing key is held only by the maintainer and is never stored on an
 
 ## See also
 
-- [`README.md`](README.md) Disclaimer section for the legal positioning (MIT, no warranty, not legal/security/engineering advice).
+- [`README.md`](README.md) Disclaimer section for the legal positioning (Apache-2.0, no warranty, not legal/security/engineering advice).
 - [`docs/security.md`](docs/security.md) for the full T1-T12 threat model.
 - [`docs/zerotrust.md`](docs/zerotrust.md) for the Zero-Trust profile.
 - [`CHANGELOG.md`](CHANGELOG.md) for security-relevant changes per release.

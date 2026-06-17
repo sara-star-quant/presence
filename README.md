@@ -3,7 +3,7 @@
 [![CI](https://github.com/sara-star-quant/presence/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sara-star-quant/presence/actions/workflows/ci.yml)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13085/badge)](https://www.bestpractices.dev/projects/13085)
 [![Latest release](https://img.shields.io/github/v/release/sara-star-quant/presence?sort=semver&cacheSeconds=60)](https://github.com/sara-star-quant/presence/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](.github/workflows/ci.yml)
 [![Stdlib only](https://img.shields.io/badge/runtime-stdlib--only-success)](pyproject.toml)
 [![Local only](https://img.shields.io/badge/state-local--only-success)](docs/security.md)
@@ -244,7 +244,7 @@ Open a GitHub issue using the bug template. For security findings, do **not** fi
 
 ## Disclaimer
 
-`presence` is provided **as is** under the [MIT License](LICENSE), without warranty of any kind, express or implied. The authors and copyright holders (Sara Star Quant LLC) and any contributors are **not responsible** for any damage, data loss, security incident, regression, lost productivity, or other adverse outcome arising from the installation or use of this plugin.
+`presence` is provided **as is** under the [Apache License 2.0](LICENSE), without warranty of any kind, express or implied. The authors and copyright holders (Sara Star Quant LLC) and any contributors are **not responsible** for any damage, data loss, security incident, regression, lost productivity, or other adverse outcome arising from the installation or use of this plugin.
 
 This project is **not advice** of any kind:
 
@@ -262,4 +262,4 @@ The full legal terms are in [LICENSE](LICENSE). This README's Disclaimer section
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+Apache-2.0, see [LICENSE](LICENSE).

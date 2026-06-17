@@ -1,0 +1,9 @@
+presence
+Copyright 2026 Sara Star Quant LLC
+
+This product includes software developed by Sara Star Quant LLC.
+Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+Third-party components bundled or built into the optional native
+extension (ext/) and the optional Zero-Trust dependency retain their
+own upstream licenses; see THIRD-PARTY.md.

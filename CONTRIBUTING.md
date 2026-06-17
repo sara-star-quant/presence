@@ -109,4 +109,4 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). In short: b
 
 ## License
 
-By contributing, you agree your contributions are licensed under the MIT License (see [`LICENSE`](LICENSE)).
+By contributing, you agree your contributions are licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)). Sign off each commit with `git commit -s` to certify the [Developer Certificate of Origin](https://developercertificate.org/); the `Signed-off-by` line asserts you wrote the change or have the right to submit it under that license.

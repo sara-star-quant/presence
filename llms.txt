@@ -5,7 +5,7 @@
 ## Quick facts (verified by CI)
 
 - **Repository**: https://github.com/sara-star-quant/presence
-- **License**: MIT
+- **License**: Apache-2.0
 - **Runtime**: Python 3.12+ (3.12 / 3.13 / 3.14 all in CI)
 - **Platforms**: macOS, Linux (CI matrix). Windows not tested.
 - **Tests**: 167 passing across the Python matrix.
