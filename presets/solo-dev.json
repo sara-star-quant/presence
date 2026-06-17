@@ -23,7 +23,5 @@
   },
   "integrity": {
     "enabled": false
-  },
-  "audit_log": false,
-  "encrypted": false
+  }
 }

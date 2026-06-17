@@ -1,0 +1,54 @@
+{
+  "_comment": "Recognized preset fields. Loaded by lib/_common.py to validate presets on read; unknown keys warn (never fail). Leaf values are a type name (bool/int/string/array/object) or a list of allowed string values (enum). This file is not itself a preset.",
+  "_description": "string",
+  "model": {
+    "enabled": "bool",
+    "max_tokens": "int",
+    "verbose": "bool",
+    "encrypted": "bool",
+    "audit_log": "bool",
+    "curate_threshold": "int"
+  },
+  "telemetry": {
+    "enabled": "bool",
+    "gh_pr_check": "bool",
+    "audit_log": "bool",
+    "encrypted": "bool"
+  },
+  "events": {
+    "enabled": "bool",
+    "encrypted": "bool"
+  },
+  "confidence": {
+    "enabled": "bool",
+    "commit_gate": ["off", "warn", "block"],
+    "stop_action": ["silent", "warn", "block"]
+  },
+  "redact": {
+    "enabled": "bool",
+    "level": ["standard", "aggressive"],
+    "profiles": "array",
+    "profile_statuses": "object"
+  },
+  "integrity": {
+    "enabled": "bool",
+    "verify_manifest": "bool",
+    "fail_closed": "bool"
+  },
+  "network": {
+    "egress_allowed": "bool"
+  },
+  "update_check": {
+    "enabled": "bool"
+  },
+  "transcript": {
+    "max_bytes": "int",
+    "restrict_to_claude_projects": "bool"
+  },
+  "settings": {
+    "immutable": "bool"
+  },
+  "git": {
+    "timeout_seconds": "int"
+  }
+}

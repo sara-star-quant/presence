@@ -761,11 +761,69 @@ def _load_preset(name: str) -> dict | None:
             data = _loads(c.read_bytes())
             if not isinstance(data, dict):
                 raise ValueError("preset must be a JSON object")
+            _validate_preset(name, data)
             return data
         except (json.JSONDecodeError, ValueError, OSError) as exc:
             warn("preset_corrupt", f"preset '{name}' at {c} is corrupt: {exc}")
             return None
     return None
+
+
+# Recognized-field validation (advisory). A typo'd key (e.g. telematry.enabled)
+# is never read, so it silently does nothing; surfacing it as a warning turns a
+# silent no-op into a visible one. Unknown keys warn, never fail.
+_PRESET_SCHEMA_CACHE: dict | None = None
+
+
+def _preset_schema() -> dict:
+    global _PRESET_SCHEMA_CACHE
+    if _PRESET_SCHEMA_CACHE is None:
+        try:
+            _PRESET_SCHEMA_CACHE = json.loads((PLUGIN_ROOT / "presets" / "_schema.json").read_text())
+        except (OSError, json.JSONDecodeError):
+            _PRESET_SCHEMA_CACHE = {}
+    return _PRESET_SCHEMA_CACHE
+
+
+def _type_ok(value, spec) -> bool:
+    if isinstance(spec, list):  # enum of allowed string values
+        return value in spec
+    checks = {
+        "bool": isinstance(value, bool),
+        "int": isinstance(value, int) and not isinstance(value, bool),
+        "string": isinstance(value, str),
+        "array": isinstance(value, list),
+        "object": isinstance(value, dict),
+    }
+    return checks.get(spec, True)  # unknown spec -> don't second-guess
+
+
+def _validate_preset(name: str, data: dict) -> None:
+    schema = _preset_schema()
+    if not schema:
+        return
+    from warnings_log import warn_once
+
+    def walk(node: dict, sch: dict, prefix: str) -> None:
+        for k, v in node.items():
+            path = f"{prefix}{k}"
+            if k not in sch:
+                warn_once(
+                    "preset_unknown_key",
+                    f"preset '{name}' has unrecognized key '{path}' (ignored)",
+                    fix="check spelling against presets/_schema.json",
+                )
+                continue
+            spec = sch[k]
+            if isinstance(spec, dict):
+                if isinstance(v, dict):
+                    walk(v, spec, path + ".")
+                else:
+                    warn_once("preset_bad_type", f"preset '{name}' key '{path}' should be an object")
+            elif not _type_ok(v, spec):
+                warn_once("preset_bad_type", f"preset '{name}' key '{path}' has an unexpected type or value")
+
+    walk(data, schema, "")
 
 
 def _apply_dotted(target: dict, key: str, value) -> None:

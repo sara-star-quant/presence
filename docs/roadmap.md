@@ -34,16 +34,6 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 **Why deferred**: encryption story needs a real design call. Key portability across platforms is its own subproblem (macOS Keychain != Linux secret-service != hypothetical other backend). Conflict resolution if both sides made writes between snapshots.
 
-## Preset JSON schema validation
-
-**Status**: schema needs to be locked before adding the validator.
-
-**Today**: presets are arbitrary JSON parsed by `lib/_common.py::_load_preset`. A user-authored custom preset with a typo (`telematry.enabled: false`) silently does nothing because the typo'd key is never read.
-
-**Proposal**: ship `presets/_schema.json` (JSON Schema draft 7) describing every recognized field. `_load_preset` validates against it on read; unknown keys -> warn (not fail). `/presence-doctor` surfaces validation warnings.
-
-**Why deferred**: small but adds a `jsonschema` dep (or a stdlib-only schema walker, more code). Want to see real custom-preset usage before locking the schema; otherwise we lock in the wrong shape and have to relax it later.
-
 ## Side-by-side install support via --name suffix
 
 **Status**: niche; deferred unless plugin authors ask for it.
