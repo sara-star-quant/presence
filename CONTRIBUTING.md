@@ -59,7 +59,7 @@ Commit the regenerated `MANIFEST.lock` alongside the source change. CI's `manife
 
 ### Statement coverage
 
-CI's `coverage` job gates statement coverage at 67% (the Silver-badge target is 80%, tracked in #39). Measurement is in-process and deterministic; `daemon.py` is omitted (it runs only as a subprocess and is behavior-tested by `tests/test_daemon.py`). To reproduce the CI number locally:
+CI's `coverage` job gates statement coverage at 74% (the Silver-badge target is 80%, tracked in #39). Measurement is in-process and deterministic; `daemon.py` is omitted (it runs only as a subprocess and is behavior-tested by `tests/test_daemon.py`). To reproduce the CI number locally:
 
 ```bash
 PYTHONPATH=lib .venv/bin/coverage run -m pytest -q

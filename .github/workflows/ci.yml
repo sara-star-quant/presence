@@ -94,8 +94,8 @@ jobs:
         # in-process; daemon.py is omitted (see pyproject [tool.coverage.run])
         # since it only runs as a subprocess. No COVERAGE_PROCESS_START / combine.
         run: PYTHONPATH=lib coverage run -m pytest -q
-      - name: Report (gate 67%, Silver target 80% tracked in #39)
-        run: coverage report --fail-under=67
+      - name: Report (gate 74%, Silver target 80% tracked in #39)
+        run: coverage report --fail-under=74
 
   manifest-integrity:
     name: regenerate MANIFEST.lock
