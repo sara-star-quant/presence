@@ -92,7 +92,7 @@ jobs:
         # v6 runs on Node 24; v4 was deprecated by GitHub Actions (Node 20
         # removal scheduled for September 2026, default flip June 2026).
         if: steps.check_ext.outputs.have_ext == 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: /tmp/release-assets/${{ matrix.artifact }}
