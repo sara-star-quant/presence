@@ -17,7 +17,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
@@ -31,7 +31,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Run shellcheck
         run: |
           shellcheck hooks/scripts/*.sh
@@ -41,7 +41,7 @@ jobs:
     name: ascii check (unicode)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Reject non-ASCII outside the intentional unicode test fixtures
         # Enforces CONTRIBUTING hard constraints #2 (ASCII-only) and #3 (no
         # em-dashes). git grep -P exits 0 when it finds a match, so a match
@@ -57,7 +57,7 @@ jobs:
     name: ruff (python lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -70,7 +70,7 @@ jobs:
     name: bandit (python security scan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -83,7 +83,7 @@ jobs:
     name: coverage (statement)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -101,7 +101,7 @@ jobs:
     name: regenerate MANIFEST.lock
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -123,7 +123,7 @@ jobs:
     # CI Linux is typically 1.5-2x slower. Bumping the thresholds is a
     # deliberate, reviewable change.
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -179,7 +179,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"

@@ -45,7 +45,7 @@ jobs:
             artifact: presence-client-macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Skip if ext/ missing
         id: check_ext
         run: |
@@ -104,7 +104,7 @@ jobs:
     if: always()   # publish even if some Rust builds fail; release notes are independent
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0   # need full history so the tag commit is reachable
 
