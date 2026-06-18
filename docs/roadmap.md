@@ -48,13 +48,25 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 **Tracking**: #39
 
-**Status**: deterministic gate at 67% (69% measured); climbing to 80 incrementally.
+**Status**: deterministic gate at 74% (74.7% measured); climbing to 80 incrementally.
 
-**Today**: the `coverage` job measures statement coverage in-process, so the number is stable (the earlier subprocess capture swung 60-67% run to run). `daemon.py` is omitted - it only runs as a spawned subprocess, so in-process coverage can't see it; it is behavior-tested by `tests/test_daemon.py`. The action hooks now have real branch tests (`hook_pre_tool_bash` 93%, `hook_post_tool_edit` 89%, `hook_stop` 79%, `hook_post_tool_bash` 73%). The remaining gap to 80% is spread across `_common`, `doctor`, `telemetry`, `redact`, `integrity`, and `hook_session_start`.
+**Today**: the `coverage` job measures statement coverage in-process, so the number is stable (the earlier subprocess capture swung 60-67% run to run). `daemon.py` is omitted - it only runs as a spawned subprocess, so in-process coverage can't see it; it is behavior-tested by `tests/test_daemon.py`. The v0.7.0 cycle added tests for the previously under-tested modules - `cli` (0 -> 96%), `hook_user_prompt_submit` (0 -> 83%), the integrity CLI (52 -> 78%), `telemetry` (29 -> 57%), `crypto` key management (48 -> 56%) - stepping the gate 67 -> 74. The remaining gap to 80% is in `crypto`'s keychain ops, `doctor`, `redact`, and the deeper `_common`/`hook_session_start` paths.
 
 **Proposal**: add branch tests for those next-largest gaps and step the CI `--fail-under` up toward 80.
 
 **Why incremental**: 80% is the Silver `test_statement_coverage80` criterion, and Silver already blocks on the single-maintainer rules (2+ contributors, bus factor >= 2, two-person review). Worth doing regardless, but no rush to the exact number while those block the badge.
+
+## Verify the audit hash-chain fail-closed at SessionStart
+
+**Tracking**: #59
+
+**Status**: half shipped in v0.7.0; hot-path verification deferred.
+
+**Today**: v0.7.0's Zero-Trust hardening made the fail-closed integrity gate also fail on extra (undeclared) plugin files, and an integrity failure now appends an `integrity_fail` line to the tamper-evident audit chain. But `audit.verify_chain()` still runs only on demand (`/presence-doctor`, `integrity.py --audit-verify`); a truncated or tampered audit log does not block a session.
+
+**Proposal**: run `verify_chain()` in the Zero-Trust SessionStart gate and fail closed when the chain is broken.
+
+**Why deferred**: it changes behavior (a corrupt audit log would make hooks inert), so it needs a deliberate call on what counts as broken (corrupt line vs broken link vs truncation), how a user recovers, and the cold-hook cost of walking an unbounded chain each session.
 
 ## Agent Client Protocol (ACP) for Zed and other ACP-aware tools
 
