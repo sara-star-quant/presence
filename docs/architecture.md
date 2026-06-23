@@ -1,5 +1,7 @@
 # presence: architecture
 
+![presence repo architecture](../diagrams/presence-repo.svg)
+
 ## Pillars and mechanisms
 
 | Pillar | Hook / component | Behavior |
