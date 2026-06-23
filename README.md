@@ -14,6 +14,8 @@
 
 A Claude Code plugin with read-only projections (MCP server, AGENTS.md adapter) so MCP-aware clients (Cursor, Claude Desktop, Continue) and AGENTS.md-aware tools (Codex, Gemini CLI, Windsurf, GitHub Copilot) can also read its accumulated context. Turns every session into part of a continuum.
 
+![presence repo architecture](diagrams/presence-repo.svg)
+
 `presence` adds four things to Claude Code, globally, with one install and zero per-project setup:
 
 1. **Living project model.** Claude builds and reuses notes about each repo it touches. No more re-deriving the same architecture every session.

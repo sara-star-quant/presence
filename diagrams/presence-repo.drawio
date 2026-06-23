@@ -1,0 +1,151 @@
+<mxfile host="app.diagrams.net" modified="2026-06-23T23:20:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="presence-repo-architecture" name="presence repo architecture">
+    <mxGraphModel dx="1800" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1050" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="presence repo architecture" style="text;html=1;strokeColor=none;fillColor=none;fontSize=30;fontStyle=1;align=left;verticalAlign=middle;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="50" y="28" width="620" height="46" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Claude Code plugin for local continuity: project model, outcome telemetry, event digest, and calibrated confidence" style="text;html=1;strokeColor=none;fillColor=none;fontSize=15;fontColor=#475569;align=left;verticalAlign=middle;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="50" y="70" width="960" height="32" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="surface" value="1. Plugin Surface" style="swimlane;html=1;startSize=36;rounded=0;whiteSpace=wrap;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="50" y="135" width="310" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="runtime" value="2. Hook Runtime" style="swimlane;html=1;startSize=36;rounded=0;whiteSpace=wrap;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="410" y="135" width="310" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="core" value="3. Python Core" style="swimlane;html=1;startSize=36;rounded=0;whiteSpace=wrap;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="770" y="135" width="430" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="outputs" value="4. Local State and Outputs" style="swimlane;html=1;startSize=36;rounded=0;whiteSpace=wrap;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="135" width="300" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="support" value="5. Repo Support" style="swimlane;html=1;startSize=36;rounded=0;whiteSpace=wrap;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontStyle=1;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="1575" y="135" width="185" height="660" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="claude" value="Claude Code&lt;br&gt;hook events" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="90" y="195" width="230" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="plugin-files" value="Plugin registration&lt;br&gt;.claude-plugin/plugin.json&lt;br&gt;hooks/hooks.json" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="90" y="315" width="230" height="86" as="geometry"/>
+        </mxCell>
+        <mxCell id="commands-skills" value="User-facing assets&lt;br&gt;commands/presence-*.md&lt;br&gt;skills/project-model&lt;br&gt;skills/outcome-check&lt;br&gt;skills/confidence-gate" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFDF5;strokeColor=#059669;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="90" y="455" width="230" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="external-clients" value="Other consumers&lt;br&gt;MCP-aware clients&lt;br&gt;AGENTS.md-aware tools" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F3E8FF;strokeColor=#9333EA;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="90" y="625" width="230" height="82" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="wrappers" value="Bash wrappers&lt;br&gt;hooks/scripts/*.sh&lt;br&gt;shared _common.sh bootstrap" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="450" y="189" width="230" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="fast-path" value="Optional fast path&lt;br&gt;lib/presence-client&lt;br&gt;ext/src/client.rs&lt;br&gt;warm lib/daemon.py" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="450" y="350" width="230" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="slow-path" value="Default slow path&lt;br&gt;python3 lib/hook_*.py&lt;br&gt;stdlib-only runtime" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFBEB;strokeColor=#D97706;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="450" y="525" width="230" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="native-ext" value="Optional native helpers&lt;br&gt;ext/src/lib.rs&lt;br&gt;crypto.rs + git.rs" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="450" y="650" width="230" height="82" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="hook-modules" value="Hook modules&lt;br&gt;hook_session_start.py&lt;br&gt;hook_user_prompt_submit.py&lt;br&gt;hook_pre_tool_bash.py&lt;br&gt;hook_post_tool_bash.py&lt;br&gt;hook_post_tool_edit.py&lt;br&gt;hook_stop.py" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#16A34A;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="810" y="167" width="350" height="132" as="geometry"/>
+        </mxCell>
+        <mxCell id="common" value="_common.py&lt;br&gt;settings, state paths, atomic IO&lt;br&gt;safe_main, emit, integrity helpers" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0E7FF;strokeColor=#4F46E5;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="810" y="365" width="350" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="domain-services" value="Domain services&lt;br&gt;snapshot.py, events.py, telemetry.py, model.py&lt;br&gt;verify.py, cmdparse.py, presets.py&lt;br&gt;integrity.py, crypto.py, redact.py&lt;br&gt;audit.py, doctor.py, bugreport.py, unlock.py" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFDF5;strokeColor=#059669;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="810" y="515" width="350" height="132" as="geometry"/>
+        </mxCell>
+        <mxCell id="adapters" value="Integration adapters&lt;br&gt;lib/adapters/: Claude, AGENTS.md, Generic&lt;br&gt;lib/mcp_server.py: JSON-RPC stdio resources&lt;br&gt;lib/cli.py: command and fallback dispatch" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F3E8FF;strokeColor=#9333EA;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="810" y="680" width="350" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="state" value="Local state&lt;br&gt;~/.claude/presence/&lt;br&gt;settings.json&lt;br&gt;projects/&lt;repo-id&gt;/model.md&lt;br&gt;events/&lt;repo-id&gt;/pending.jsonl&lt;br&gt;telemetry/*.jsonl&lt;br&gt;logs/*" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="190" width="220" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="context-output" value="Claude context output&lt;br&gt;&lt;presence_context&gt;&lt;br&gt;project_model&lt;br&gt;telemetry_digest&lt;br&gt;recent_events&lt;br&gt;presence_status" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="405" width="220" height="128" as="geometry"/>
+        </mxCell>
+        <mxCell id="projections" value="Cross-tool projections&lt;br&gt;AGENTS.md refreshed on SessionStart&lt;br&gt;presence://&lt;repo-id&gt;/model&lt;br&gt;presence://&lt;repo-id&gt;/telemetry" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F3E8FF;strokeColor=#9333EA;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="595" width="220" height="112" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="presets" value="Presets&lt;br&gt;solo-dev&lt;br&gt;team-oss&lt;br&gt;enterprise-strict&lt;br&gt;zerotrust&lt;br&gt;redaction profiles" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF9C3;strokeColor=#CA8A04;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1610" y="190" width="120" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="installer" value="Installer&lt;br&gt;install.sh&lt;br&gt;verify&lt;br&gt;update&lt;br&gt;build-ext" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#64748B;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1610" y="370" width="120" height="102" as="geometry"/>
+        </mxCell>
+        <mxCell id="quality" value="Quality&lt;br&gt;tests/test_*.py&lt;br&gt;bench/*.py&lt;br&gt;pyproject.toml" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#64748B;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1610" y="520" width="120" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="docs" value="Docs&lt;br&gt;README.md&lt;br&gt;docs/architecture.md&lt;br&gt;security, zerotrust, mcp&lt;br&gt;CHANGELOG.md" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#64748B;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1610" y="655" width="120" height="112" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow-style-main" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#2563EB;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="claude" target="wrappers">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-registration" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#2563EB;" edge="1" parent="1" source="plugin-files" target="claude">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="205" y="292"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow-wrap-fast" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#E11D48;" edge="1" parent="1" source="wrappers" target="fast-path">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-wrap-slow" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#D97706;" edge="1" parent="1" source="wrappers" target="slow-path">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-runtime-hooks" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#16A34A;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="wrappers" target="hook-modules">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-hooks-common" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#4F46E5;" edge="1" parent="1" source="hook-modules" target="common">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-common-domain" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#059669;" edge="1" parent="1" source="common" target="domain-services">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-domain-adapters" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#9333EA;" edge="1" parent="1" source="domain-services" target="adapters">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-core-state" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#475569;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="domain-services" target="state">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1225" y="581"/>
+              <mxPoint x="1225" y="270"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow-adapters-context" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#2563EB;" edge="1" parent="1" source="adapters" target="context-output">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1225" y="730"/>
+              <mxPoint x="1225" y="469"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow-adapters-projections" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=2;strokeColor=#9333EA;" edge="1" parent="1" source="adapters" target="projections">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1225" y="730"/>
+              <mxPoint x="1225" y="651"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend" value="Production view: arrows show only primary runtime and data movement. Implementation detail is grouped inside nodes to keep the repo architecture readable in SVG and social previews." style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#CBD5E1;fontColor=#334155;align=left;spacing=12;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="50" y="875" width="760" height="72" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
