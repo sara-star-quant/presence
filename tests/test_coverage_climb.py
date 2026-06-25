@@ -147,6 +147,43 @@ def test_scan_for_revert_finds_revert(isolated_state, fake_repo):
     assert any(f["tracked"] == sha for f in findings)
 
 
+def test_async_scan_for_revert_finds_revert(isolated_state, fake_repo):
+    """The async revert path must find the same revert the sync path does."""
+    import asyncio
+    import subprocess
+
+    t = _reload_telemetry()
+    (fake_repo / "f.txt").write_text("x")
+    subprocess.run(["git", "add", "f.txt"], cwd=fake_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "feature", "-q"], cwd=fake_repo, check=True)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=fake_repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    t.record_commit_claim(str(fake_repo), sha, "feature")
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", f"Revert {sha[:7]} bad", "-q"],
+        cwd=fake_repo, check=True,
+    )
+    findings = asyncio.run(t.async_scan_for_revert(str(fake_repo), 1))
+    assert any(f["tracked"] == sha for f in findings)
+
+
+def test_async_scan_for_revert_empty_without_since(isolated_state, fake_repo):
+    """since_ts=0 short-circuits to [] without touching git."""
+    import asyncio
+
+    t = _reload_telemetry()
+    assert asyncio.run(t.async_scan_for_revert(str(fake_repo), 0)) == []
+
+
+def test_async_scan_for_revert_empty_without_tracked_claims(isolated_state, fake_repo):
+    """No recorded commit claims -> nothing to match reverts against."""
+    import asyncio
+
+    t = _reload_telemetry()
+    assert asyncio.run(t.async_scan_for_revert(str(fake_repo), 1)) == []
+
+
 # --------------------------------------------------------------------------
 # crypto.py key management (backend mocked; no real keychain touched)
 # --------------------------------------------------------------------------
@@ -242,3 +279,62 @@ def test_integrity_cli_write_verify_audit(tmp_path, monkeypatch, capsys):
     # Audit-verify with no audit log present -> exits 0 (nothing to verify).
     monkeypatch.setattr(sys, "argv", ["integrity.py", "--audit-verify"])
     assert integrity._cli() == 0
+
+
+# --------------------------------------------------------------------------
+# Zero-Trust storage round-trip: append_jsonl encrypts on disk under a preset
+# that requests encryption, and read_jsonl transparently decrypts it back.
+# Keychain is mocked; no real `security`/`secret-tool` is touched.
+# --------------------------------------------------------------------------
+
+def test_encrypted_storage_round_trip(isolated_state, monkeypatch):
+    import _common
+    import crypto
+
+    importlib.reload(crypto)
+    importlib.reload(_common)
+
+    key = b"\x07" * crypto.KEY_BYTES
+    # Preset wants events encrypted; provide a deterministic key without a keychain.
+    monkeypatch.setattr(_common, "settings", lambda strict=False: {"events": {"encrypted": True}})
+    monkeypatch.setattr(crypto, "is_available", lambda: True)
+    monkeypatch.setattr(crypto, "get_or_create_key", lambda: key)
+    monkeypatch.setattr(crypto, "_backend_ops", lambda: (lambda: key, lambda k: True, lambda: True))
+    # Reset the per-process caches so the monkeypatched state takes effect.
+    _common._WRITE_STATE_CACHE = None
+    _common._READ_KEY_CACHE = _common._UNSET
+
+    path = isolated_state / "events.jsonl"
+    record = {"kind": "test", "secret": "AKIAIOSFODNN7EXAMPLE", "n": 1}
+    _common.append_jsonl(path, record)
+
+    # On-disk line must be ciphertext, not the plaintext record.
+    raw = path.read_text().strip()
+    assert crypto.is_encrypted_line(raw)
+    assert "AKIAIOSFODNN7EXAMPLE" not in raw
+
+    # read_jsonl transparently decrypts back to the original object.
+    rows = _common.read_jsonl(path)
+    assert rows == [record]
+
+
+def test_encrypted_read_skips_unrecoverable_line(isolated_state, monkeypatch):
+    """An encrypted-looking line with no available key is skipped, not crashed on."""
+    import _common
+    import crypto
+
+    importlib.reload(crypto)
+    importlib.reload(_common)
+
+    # Write one genuinely-encrypted line with a key, then make the key unavailable.
+    key = b"\x09" * crypto.KEY_BYTES
+    enc = crypto.encrypt_line(b'{"kind":"x"}', key)
+    path = isolated_state / "events.jsonl"
+    path.write_text(enc + "\n")
+
+    monkeypatch.setattr(_common, "settings", lambda strict=False: {})
+    monkeypatch.setattr(crypto, "_backend_ops", lambda: (lambda: None, lambda k: True, lambda: True))
+    _common._WRITE_STATE_CACHE = None
+    _common._READ_KEY_CACHE = _common._UNSET
+
+    assert _common.read_jsonl(path) == []
