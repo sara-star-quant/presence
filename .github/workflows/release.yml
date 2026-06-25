@@ -143,15 +143,17 @@ jobs:
 
           # Title clipping. GitHub's release-name field truncates around 100 chars;
           # blind [:80] cuts mid-word (v0.6.0 shipped with title ending "...and fresh").
-          # Prefer the first sentence boundary; fall back to a word-boundary clip near
-          # 80 chars and strip dangling punctuation. Empty CHANGELOG falls back to
-          # "vX.Y.Z" with no suffix.
+          # Prefer the first sentence boundary; only word-boundary-clip when the line
+          # actually exceeds 80 chars (a shorter line is used whole, minus dangling
+          # punctuation). Empty CHANGELOG falls back to "vX.Y.Z" with no suffix.
           if not first_line:
               title = f"v{tag}"
           else:
               sentence_end = first_line.find(". ")
               if 0 < sentence_end <= 80:
                   clipped = first_line[:sentence_end]
+              elif len(first_line) <= 80:
+                  clipped = first_line.rstrip(".,;:\"' ")
               else:
                   clipped = first_line[:80]
                   last_space = clipped.rfind(" ")
