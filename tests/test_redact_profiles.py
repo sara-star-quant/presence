@@ -355,3 +355,66 @@ def test_shipped_profiles_load_clean(name):
     for pp in r.patterns:
         assert pp.kind
         assert isinstance(pp.pattern, re.Pattern)
+
+
+# ---------- CLI surface (python lib/redact.py ...) ----------
+
+def test_cli_list_profiles_lists_builtins(capsys):
+    import redact
+
+    assert redact._cli(["--list-profiles"]) == 0
+    out = capsys.readouterr().out
+    for name in ("pci-dss", "pii-eu", "pii-us"):
+        assert name in out
+
+
+def test_cli_show_profile_ok(capsys):
+    import redact
+
+    assert redact._cli(["--show-profile", "pci-dss"]) == 0
+    out = capsys.readouterr().out
+    assert "patterns" in out and "schema_version" in out
+
+
+def test_cli_show_profile_not_found_returns_2(capsys):
+    import redact
+
+    assert redact._cli(["--show-profile", "does-not-exist"]) == 2
+    assert "not found" in capsys.readouterr().err
+
+
+def test_cli_test_profile_stdin_redacts(monkeypatch, capsys):
+    import io
+
+    import redact
+
+    # A Luhn-valid PAN must be redacted by the pci-dss profile.
+    monkeypatch.setattr("sys.stdin", io.StringIO("card 4111111111111111 here"))
+    assert redact._cli(["--test-profile", "pci-dss", "--stdin"]) == 0
+    out = capsys.readouterr().out
+    assert "4111111111111111" not in out
+    assert "[REDACTED:" in out
+
+
+def test_cli_test_profile_input_file(tmp_path, capsys):
+    import redact
+
+    f = tmp_path / "in.txt"
+    f.write_text("card 4111111111111111 here")
+    assert redact._cli(["--test-profile", "pci-dss", "--input", str(f)]) == 0
+    assert "4111111111111111" not in capsys.readouterr().out
+
+
+def test_cli_test_profile_requires_input_source(capsys):
+    import redact
+
+    assert redact._cli(["--test-profile", "pci-dss"]) == 2
+    assert "requires --input" in capsys.readouterr().err
+
+
+def test_redact_iter_redacts_each_item():
+    from redact import redact_iter
+
+    out = redact_iter(["AKIAIOSFODNN7EXAMPLE", "nothing secret"])
+    assert "AKIAIOSFODNN7EXAMPLE" not in out[0]
+    assert out[1] == "nothing secret"
