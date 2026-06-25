@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.1
+
+Scope the audit-log claim to in-place edits; add test coverage.
+
+A security review of the Zero-Trust surfaces found the audit log's "tamper-evident" description claimed more than a keyless, public-genesis SHA-256 hash chain delivers. The wording now matches the implementation, and three previously under-tested user-facing paths gain coverage. No runtime behavior change.
+
+- `docs/security.md`: the Zero-Trust audit log is now described as tamper-evident against in-place line edits, not end-truncation or a full rewrite. Added notes that macOS key creation exposes the key via process arguments (Linux uses stdin) and that the commit/push confidence gate is advisory, not an access control.
+- Tests cover `async_scan_for_revert`, the redact profile CLI (`--list-profiles` / `--show-profile` / `--test-profile`), and the Zero-Trust storage round-trip (`append_jsonl` encrypts on disk, `read_jsonl` decrypts back). Telemetry coverage 57->78%, redact 66->90%.
+
 ## v0.7.0
 
 Relicense to Apache-2.0.
