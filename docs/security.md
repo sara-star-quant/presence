@@ -22,8 +22,11 @@
 ## What `presence` is **not** trying to defend against
 
 - A compromised Claude Code binary itself. That is outside the trust boundary; if Claude Code is hostile, hooks are not your problem.
-- A compromised local user account. Once an attacker has shell as you, they have your `~/.claude/` regardless of presence.
+- A compromised local user account. Once an attacker has shell as you, they have your `~/.claude/` regardless of presence. In particular the Zero-Trust audit log is tamper-evident against in-place edits of individual lines (the SHA-256 hash chain detects a modified line or a broken link), but its genesis hash is a public constant and the chain carries no secret key, so deleting lines from the end or rewriting the whole file with a fresh valid chain is not detectable. Use it to catch accidental or process-level corruption, not to bind the account owner.
+- A local attacker observing process arguments. On macOS, creating or rotating the keychain data key shells out to `security add-generic-password -w <hex>`, so the key is briefly visible in `ps` for the lifetime of that one subprocess (`security` has no stdin path for the value). The Linux `secret-tool` path passes the key over stdin and does not.
 - Side-channel timing attacks on hook execution.
+
+The PreToolUse commit/push confidence gate is an advisory nudge, not an access control: it is trivially bypassable (rename the command, split it, run git directly) and is meant to prompt verification, not to enforce it.
 
 ## Privacy posture
 
@@ -44,7 +47,7 @@ Re-tightened automatically at every SessionStart, and on demand via `/presence-d
 
 This section is the project's assurance case: the argument that presence's security requirements are met. It ties the threat model above to the trust boundaries, the secure-design principles applied, and the common implementation weaknesses countered.
 
-**Claim.** presence does not weaken the security of a developer's machine or Claude Code session: it never crashes the host, never leaks private data into model context or to the network, keeps its state owner-only, and (under Zero-Trust) encrypts state at rest with a tamper-evident audit log.
+**Claim.** presence does not weaken the security of a developer's machine or Claude Code session: it never crashes the host, never leaks private data into model context or to the network, keeps its state owner-only, and (under Zero-Trust) encrypts state at rest with an audit log that is tamper-evident against in-place edits (see the scope note above for what the chain does and does not bind).
 
 **Trust boundaries.**
 
