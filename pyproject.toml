@@ -14,7 +14,7 @@ dev = [
   "cryptography",  # only needed to exercise the zerotrust at-rest encryption tests
   "ruff>=0.15.17",
   "bandit>=1.9.4",  # security scan; CI parity with the lint job
-  "coverage>=7.14.1",  # statement-coverage measurement (incl. subprocess hooks); CI parity
+  "coverage>=7.14.3",  # statement-coverage measurement (incl. subprocess hooks); CI parity
 ]
 
 [tool.ruff]
