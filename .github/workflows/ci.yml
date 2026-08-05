@@ -17,8 +17,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
@@ -31,7 +31,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
       - name: Run shellcheck
         run: |
           shellcheck hooks/scripts/*.sh
@@ -41,7 +41,7 @@ jobs:
     name: ascii check (unicode)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
       - name: Reject non-ASCII outside the intentional unicode test fixtures
         # Enforces CONTRIBUTING hard constraints #2 (ASCII-only) and #3 (no
         # em-dashes). git grep -P exits 0 when it finds a match, so a match
@@ -57,8 +57,8 @@ jobs:
     name: ruff (python lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.13"
       - name: Install ruff
@@ -70,8 +70,8 @@ jobs:
     name: bandit (python security scan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.13"
       - name: Install bandit
@@ -83,8 +83,8 @@ jobs:
     name: coverage (statement)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.13"
       - name: Install pytest + cryptography + coverage
@@ -101,8 +101,8 @@ jobs:
     name: regenerate MANIFEST.lock
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.13"
       - name: Regenerate MANIFEST.lock
@@ -123,8 +123,8 @@ jobs:
     # CI Linux is typically 1.5-2x slower. Bumping the thresholds is a
     # deliberate, reviewable change.
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.13"
       - name: Install pytest + cryptography
@@ -179,8 +179,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
@@ -193,7 +193,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             pkg-config libssh2-1-dev libssl-dev zlib1g-dev
       - name: Cache cargo registry + ext target
-        uses: actions/cache@v5
+        uses: actions/cache@v6.1.0
         with:
           path: |
             ~/.cargo/registry
