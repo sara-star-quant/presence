@@ -120,6 +120,9 @@ def record_confidence(claim: str, verified: bool, **details) -> None:
         "verified": bool(verified),
         **details,
     })
+    # Local import, matches the lazy-import style settings() uses for warnings_log.
+    from notify import notify_confidence
+    notify_confidence(claim, verified, **details)
 
 
 def scan_for_revert(cwd, since_ts: int) -> list[dict]:
