@@ -98,6 +98,74 @@ def _redact_summary() -> dict:
     }
 
 
+def _notify_summary() -> dict:
+    """Surface whether the optional webhook notifier (lib/notify.py) is
+    active, without leaking the configured URL itself."""
+    from _common import settings
+    cfg = (settings().get("notify") or {})
+    enabled = bool(cfg.get("enabled"))
+    has_url = bool(cfg.get("webhook_url"))
+    return {
+        "enabled": enabled,
+        "webhook_configured": has_url,
+        "active": enabled and has_url,
+    }
+
+
+def _confidence_stats() -> dict:
+    """Confidence-gate catch rate: how often an unhedged success claim was
+    stopped for lacking test/build evidence (verified=False) -- the closest
+    real signal presence has to "bad autopilot decisions prevented".
+
+    Reconstructs which preset was active for each confidence.jsonl row from
+    audit.jsonl's preset_switch events (ts + new_preset/previous), rather
+    than stamping every row -- confidence and preset state are both global,
+    so a single reconstructed timeline covers everything. A preset used
+    across multiple separate windows (switched away and back) is summed
+    into one total, not double-counted per window.
+    """
+    from _common import read_jsonl
+    from audit import audit_path
+    from presets import DEFAULT_PRESET, active_preset_name
+
+    rows = read_jsonl(confidence_path())
+    # audit.jsonl is tamper-evident and never rotates, but preset_switch rows
+    # are rare (only written by presets.use_preset()), so this full read stays
+    # cheap in practice even though it's unbounded.
+    switches = sorted(
+        (a for a in read_jsonl(audit_path()) if a.get("event") == "preset_switch"),
+        key=lambda a: a.get("ts", 0),
+    )
+
+    # windows: list of (preset_name, start_ts_inclusive, end_ts_exclusive_or_None)
+    windows: list[tuple[str, int, int | None]] = []
+    if switches:
+        first = switches[0]
+        windows.append((first.get("details", {}).get("previous") or DEFAULT_PRESET, 0, first["ts"]))
+        for cur, nxt in zip(switches, switches[1:] + [None]):
+            preset = cur.get("details", {}).get("new_preset") or DEFAULT_PRESET
+            end = nxt["ts"] if nxt else None
+            windows.append((preset, cur["ts"], end))
+    else:
+        windows.append((active_preset_name(), 0, None))
+
+    def _tally(subset: list[dict]) -> dict:
+        caught = sum(1 for r in subset if r.get("verified") is False)
+        passed = sum(1 for r in subset if r.get("verified") is True)
+        return {"total": len(subset), "caught": caught, "passed": passed}
+
+    by_preset: dict[str, dict] = {}
+    for preset, start, end in windows:
+        subset = [r for r in rows if r.get("ts", 0) >= start and (end is None or r.get("ts", 0) < end)]
+        acc = by_preset.setdefault(preset, {"total": 0, "caught": 0, "passed": 0})
+        t = _tally(subset)
+        acc["total"] += t["total"]
+        acc["caught"] += t["caught"]
+        acc["passed"] += t["passed"]
+
+    return {"all_time": _tally(rows), "by_preset": by_preset}
+
+
 def _version_observability() -> dict:
     """Plugin / ext crate / min-required ext version cross-check for the doctor.
 
@@ -197,6 +265,8 @@ def report(cwd: str | None = None) -> dict:
         "git_available": has_git(),
         "integrity": integrity_status(),
         "redact": _redact_summary(),
+        "notify": _notify_summary(),
+        "confidence_stats": _confidence_stats(),
         "version_observability": _version_observability(),
         "update_check": _update_check_block(),
     }
@@ -217,6 +287,19 @@ def render(rep: dict) -> str:
         profiles_block = "\n".join(prof_lines)
     else:
         profiles_block = "               (none beyond level)"
+
+    notify = rep.get("notify") or {}
+
+    conf_stats = rep.get("confidence_stats") or {}
+    confidence_all = conf_stats.get("all_time") or {"total": 0, "caught": 0, "passed": 0}
+    by_preset = conf_stats.get("by_preset") or {}
+    if by_preset:
+        confidence_preset_lines = [
+            f"  - {name:<16} {t['total']} claims, {t['caught']} caught, {t['passed']} passed"
+            for name, t in by_preset.items()
+        ]
+    else:
+        confidence_preset_lines = ["  (none)"]
 
     vo = rep.get("version_observability") or {}
     if vo.get("ext_version") is None:
@@ -249,8 +332,16 @@ def render(rep: dict) -> str:
         "redact profiles:",
         profiles_block,
         "",
+        f"notify       : {'active' if notify.get('active') else 'disabled'} "
+        f"(enabled={notify.get('enabled')}, webhook_configured={notify.get('webhook_configured')})",
+        "",
         f"errors since last session   : {rep['errors_since_last_session']}",
         f"warnings since last session : {rep['warnings_since_last_session']}",
+        "",
+        f"confidence gate (all-time): {confidence_all['total']} claims, "
+        f"{confidence_all['caught']} caught (no evidence), {confidence_all['passed']} passed",
+        "confidence gate by preset:",
+        *confidence_preset_lines,
         "",
         "state sizes",
         f"  model.md            : {rep['model_size_bytes']:>10} bytes",
