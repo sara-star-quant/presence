@@ -60,8 +60,8 @@ def test_notify_summary_blocked_by_zerotrust_even_if_enabled(isolated_state, mon
 
 def test_confidence_stats_no_switches_lands_under_active_preset(isolated_state, monkeypatch):
     d = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
-    from telemetry import confidence_path
     from _common import append_jsonl_rotating
+    from telemetry import confidence_path
 
     append_jsonl_rotating(confidence_path(), {"ts": 100, "claim": "unhedged_success", "verified": True})
     append_jsonl_rotating(confidence_path(), {"ts": 200, "claim": "unhedged_success", "verified": False})
@@ -76,9 +76,9 @@ def test_confidence_stats_bucketed_and_summed_across_repeated_preset(isolated_st
     """Switches solo-dev -> zerotrust (ts=100) -> solo-dev (ts=200); rows land
     in the right window and solo-dev's two separate windows are summed."""
     d = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
-    from telemetry import confidence_path
-    from audit import audit_path
     from _common import append_jsonl_rotating
+    from audit import audit_path
+    from telemetry import confidence_path
 
     append_jsonl_rotating(audit_path(), {
         "ts": 100, "event": "preset_switch",

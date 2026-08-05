@@ -134,6 +134,7 @@ def _confidence_stats() -> dict:
     """
     from _common import read_jsonl
     from audit import audit_path
+
     from presets import DEFAULT_PRESET, active_preset_name
 
     rows = read_jsonl(confidence_path())
@@ -150,7 +151,7 @@ def _confidence_stats() -> dict:
     if switches:
         first = switches[0]
         windows.append((first.get("details", {}).get("previous") or DEFAULT_PRESET, 0, first["ts"]))
-        for cur, nxt in zip(switches, switches[1:] + [None]):
+        for cur, nxt in zip(switches, switches[1:] + [None], strict=True):
             preset = cur.get("details", {}).get("new_preset") or DEFAULT_PRESET
             end = nxt["ts"] if nxt else None
             windows.append((preset, cur["ts"], end))

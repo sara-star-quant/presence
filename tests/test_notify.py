@@ -45,6 +45,15 @@ def test_enabled_without_url_never_dispatches(isolated_state, monkeypatch):
     assert calls == []
 
 
+def test_non_http_scheme_never_dispatches(isolated_state, monkeypatch):
+    n = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    _write_notify_settings(isolated_state, "file:///etc/passwd")
+    calls = []
+    monkeypatch.setattr(n, "_dispatch", lambda url, payload: calls.append((url, payload)))
+    n.notify_confidence("unhedged_success", True, final_excerpt="all good")
+    assert calls == []
+
+
 def test_zerotrust_egress_block_wins_even_if_notify_is_enabled(isolated_state, monkeypatch):
     """network.egress_allowed: false must hard-disable notify regardless of
     notify.enabled -- the same two-layer gate update_check.is_enabled() uses,
