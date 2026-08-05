@@ -45,6 +45,27 @@ def test_enabled_without_url_never_dispatches(isolated_state, monkeypatch):
     assert calls == []
 
 
+def test_zerotrust_egress_block_wins_even_if_notify_is_enabled(isolated_state, monkeypatch):
+    """network.egress_allowed: false must hard-disable notify regardless of
+    notify.enabled -- the same two-layer gate update_check.is_enabled() uses,
+    so a stray override under zerotrust can't reach the network."""
+    n = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    (isolated_state / "settings.json").write_text(
+        json.dumps({
+            "overrides": {
+                "network.egress_allowed": False,
+                "notify.enabled": True,
+                "notify.webhook_url": "https://example.invalid/hook",
+            }
+        }),
+        encoding="utf-8",
+    )
+    calls = []
+    monkeypatch.setattr(n, "_dispatch", lambda url, payload: calls.append((url, payload)))
+    n.notify_confidence("unhedged_success", False, final_excerpt="fine")
+    assert calls == []
+
+
 def test_final_excerpt_is_redacted_before_dispatch(isolated_state, monkeypatch):
     n = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
     _write_notify_settings(isolated_state, "https://example.invalid/hook")

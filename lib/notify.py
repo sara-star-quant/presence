@@ -53,15 +53,22 @@ from _common import now_ts, settings
 
 
 def notify_confidence(claim: str, verified: bool, **details) -> None:
-    cfg = settings().get("notify") or {}
-    if not cfg.get("enabled"):
+    cfg = settings()
+    # network.egress_allowed: false (the zerotrust posture) hard-disables every
+    # network feature, the same two-layer gate update_check.is_enabled() uses --
+    # this must be checked before notify.enabled, not instead of it, so a stray
+    # `notify.enabled: true` override under zerotrust still can't reach the network.
+    if (cfg.get("network") or {}).get("egress_allowed", True) is False:
         return
-    url = cfg.get("webhook_url")
+    notify_cfg = cfg.get("notify") or {}
+    if not notify_cfg.get("enabled"):
+        return
+    url = notify_cfg.get("webhook_url")
     if not url:
         return
 
     from redact import redact_text
-    redact_cfg = settings().get("redact") or {}
+    redact_cfg = cfg.get("redact") or {}
     level = redact_cfg.get("level") or "standard"
     profiles = redact_cfg.get("profiles") or []
 

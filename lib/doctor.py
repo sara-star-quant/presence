@@ -100,15 +100,23 @@ def _redact_summary() -> dict:
 
 def _notify_summary() -> dict:
     """Surface whether the optional webhook notifier (lib/notify.py) is
-    active, without leaking the configured URL itself."""
+    active, without leaking the configured URL itself.
+
+    Mirrors update_check's zerotrust handling: network.egress_allowed: false
+    hard-disables notify regardless of notify.enabled, same two-layer gate
+    notify.notify_confidence() itself enforces.
+    """
     from _common import settings
-    cfg = (settings().get("notify") or {})
+    full_cfg = settings()
+    egress_blocked = (full_cfg.get("network") or {}).get("egress_allowed", True) is False
+    cfg = (full_cfg.get("notify") or {})
     enabled = bool(cfg.get("enabled"))
     has_url = bool(cfg.get("webhook_url"))
     return {
         "enabled": enabled,
         "webhook_configured": has_url,
-        "active": enabled and has_url,
+        "blocked_by_zerotrust": egress_blocked,
+        "active": enabled and has_url and not egress_blocked,
     }
 
 
@@ -289,6 +297,11 @@ def render(rep: dict) -> str:
         profiles_block = "               (none beyond level)"
 
     notify = rep.get("notify") or {}
+    notify_status = "active" if notify.get("active") else "disabled"
+    notify_detail = f"enabled={notify.get('enabled')}, webhook_configured={notify.get('webhook_configured')}"
+    if notify.get("blocked_by_zerotrust"):
+        notify_detail += ", BLOCKED by zerotrust network.egress_allowed=false"
+    notify_line = f"notify       : {notify_status} ({notify_detail})"
 
     conf_stats = rep.get("confidence_stats") or {}
     confidence_all = conf_stats.get("all_time") or {"total": 0, "caught": 0, "passed": 0}
@@ -332,8 +345,7 @@ def render(rep: dict) -> str:
         "redact profiles:",
         profiles_block,
         "",
-        f"notify       : {'active' if notify.get('active') else 'disabled'} "
-        f"(enabled={notify.get('enabled')}, webhook_configured={notify.get('webhook_configured')})",
+        notify_line,
         "",
         f"errors since last session   : {rep['errors_since_last_session']}",
         f"warnings since last session : {rep['warnings_since_last_session']}",

@@ -13,7 +13,7 @@
 | T5 | A malicious git repo's commit messages are stored verbatim | Same: messages pass through redaction before being written to telemetry. |
 | T6 | State directory readable by other users on the machine | `~/.claude/presence/` is created with `0o700`; files written `0o600`. Drift is re-tightened automatically at every SessionStart and on demand via `/presence-doctor --fix`. |
 | T7 | A tampered plugin executes hooks | `MANIFEST.lock` ships with each release. `/presence-doctor` verifies it on demand in v0.1. SessionStart fail-closed on mismatch shipped in v0.2 (active under any preset with `integrity.fail_closed=true`; default in `zerotrust`). |
-| T8 | Network exfiltration | `presence` makes no outbound network calls in v0.1. Optional `gh pr` check (in `team-oss`) is opt-in and goes directly to GitHub's API; disabled in Zero-Trust. |
+| T8 | Network exfiltration | `presence` makes no outbound network calls by default. Every opt-in network feature (`gh pr` check in `team-oss`+, the release-freshness check, the webhook notifier) reads `network.egress_allowed` before doing anything; Zero-Trust sets that to `false`, which hard-disables all of them regardless of their own per-feature toggle. The webhook notifier additionally runs its payload through `redact.py` before the request leaves the machine, and never fires the network call from inside the hook itself (a detached subprocess does it, so a slow or dead endpoint can't stall a hook). |
 | T9 | Untrusted Python code from the workspace gets imported | We never `eval`, `exec`, or import from outside our own `lib/`. `sys.path` (via `PYTHONPATH` in the bash wrappers) is only ever extended with `lib/`. |
 | T10 | Symlink attack on read paths (transcript, plugin files) | Path resolution uses `Path.resolve()`. Zero-Trust mode refuses transcript paths outside `~/.claude/projects/`. |
 | T11 | Subprocess injection | All `git` calls use list args, never `shell=True`. No user-controlled strings reach a shell. |
@@ -33,6 +33,8 @@ The PreToolUse commit/push confidence gate is an advisory nudge, not an access c
 - **All state is local.** Nothing is uploaded by `presence`. Ever.
 - **No analytics, no error reporting, no remote telemetry.**
 - **The optional `gh pr` outcome check** (preset `team-oss` and above; off in Zero-Trust) calls GitHub's REST API directly via the user's own `gh` CLI auth. No third-party intermediary.
+- **The optional release-freshness check** (`update_check.enabled`; off in Zero-Trust) calls GitHub's public releases API on a 24h cache TTL.
+- **The optional webhook notifier** (`notify.enabled`; off by default, hard-disabled in Zero-Trust) POSTs confidence-gate verdicts to a URL the user configures themselves in their own `settings.json` -- presence ships no default endpoint. This is the one feature in presence that sends non-metadata content (a short excerpt of the assistant's final message) off the machine, and only when a user explicitly opts in and supplies their own destination. See `docs/recipes.md` for setup and `lib/notify.py`'s module docstring for the exact payload shape and redaction behavior.
 - **State retention.** Commits/claims/outcomes accumulate in `~/.claude/presence/telemetry/`. Run `/presence-reset --telemetry` to wipe; `--all` to wipe everything.
 
 ## Permissions
@@ -54,7 +56,7 @@ This section is the project's assurance case: the argument that presence's secur
 - Claude Code <-> hooks (stdin/stdout): hook input (cwd, tool input/response, transcript path) is untrusted and validated; output is only structured `additionalContext` / decision JSON (T2); a hook failure is contained and exits 0 (T1).
 - Workspace/repo <-> presence: repo content (commit messages, command strings, paths) is untrusted - redacted before storage (T4, T5), path-resolved and scope-checked (T10), never evaluated or imported (T9).
 - presence state <-> other local users: state is owner-only `0o700`/`0o600`, set on write and re-tightened every SessionStart (T6); integrity is verifiable and fail-closed under Zero-Trust (T7).
-- presence <-> network: no outbound calls by default; the only calls (opt-in `gh pr` check, opt-in `--bootstrap`) are explicit, documented, HTTPS, and disabled under Zero-Trust (T8).
+- presence <-> network: no outbound calls by default; every opt-in network feature (`gh pr` check, release-freshness check, webhook notifier, `--bootstrap`) is explicit, documented, HTTPS, and hard-disabled under Zero-Trust via `network.egress_allowed` (T8).
 - Out of scope (outside the boundary): a hostile Claude Code binary, a compromised local account, side-channel timing.
 
 **Secure-design principles applied.**

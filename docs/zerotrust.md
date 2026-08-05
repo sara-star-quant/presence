@@ -19,7 +19,7 @@ Each control below is shipped in v0.2.
 | Plugin file integrity | not checked | SHA-256 manifest verified at SessionStart; on mismatch, all hooks remain inert for the rest of the session |
 | State at rest | plain JSONL/MD | AES-GCM encrypted per line (12-byte nonce + tag), data key wrapped in OS keychain (macOS `security`, Linux `secret-tool`); mixed plain+encrypted files supported per-line |
 | Logged commands | standard redaction | aggressive redaction (32+ hex blob, 40+ b64 blob, any uppercase env-style assignment) |
-| Network egress | optional `gh` PR check available | disabled |
+| Network egress | optional `gh` PR check, release-freshness check, webhook notifier available | all disabled via `network.egress_allowed: false`, regardless of each feature's own toggle |
 | Commit/push gate | warn or off | hard block until verified test/build evidence exists |
 | Stop-hook gate | silent (logged to `confidence.jsonl`) | hard block (re-prompts the model on unhedged success without evidence) |
 | Audit log | not produced | tamper-evident append-only log with per-line SHA-256 hash chain at `~/.claude/presence/audit.jsonl` |
