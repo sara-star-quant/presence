@@ -41,6 +41,10 @@
   "update_check": {
     "enabled": "bool"
   },
+  "notify": {
+    "enabled": "bool",
+    "webhook_url": "string"
+  },
   "transcript": {
     "max_bytes": "int",
     "restrict_to_claude_projects": "bool"

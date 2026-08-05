@@ -27,7 +27,9 @@ def test_notify_summary_reflects_settings_without_leaking_url(isolated_state, mo
         encoding="utf-8",
     )
     rep = d.report(cwd=".")
-    assert rep["notify"] == {"enabled": True, "webhook_configured": True, "active": True}
+    assert rep["notify"] == {
+        "enabled": True, "webhook_configured": True, "blocked_by_zerotrust": False, "active": True,
+    }
     rendered = d.render(rep)
     assert "https://hooks.example/secret-path" not in rendered
     import json
@@ -37,7 +39,23 @@ def test_notify_summary_reflects_settings_without_leaking_url(isolated_state, mo
 def test_notify_summary_disabled_by_default(isolated_state, monkeypatch):
     d = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
     rep = d.report(cwd=".")
-    assert rep["notify"] == {"enabled": False, "webhook_configured": False, "active": False}
+    assert rep["notify"] == {
+        "enabled": False, "webhook_configured": False, "blocked_by_zerotrust": False, "active": False,
+    }
+
+
+def test_notify_summary_blocked_by_zerotrust_even_if_enabled(isolated_state, monkeypatch):
+    d = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    (isolated_state / "settings.json").write_text(
+        '{"overrides": {"network.egress_allowed": false, '
+        '"notify.enabled": true, "notify.webhook_url": "https://hooks.example/secret-path"}}',
+        encoding="utf-8",
+    )
+    rep = d.report(cwd=".")
+    assert rep["notify"]["blocked_by_zerotrust"] is True
+    assert rep["notify"]["active"] is False
+    rendered = d.render(rep)
+    assert "BLOCKED by zerotrust" in rendered
 
 
 def test_confidence_stats_no_switches_lands_under_active_preset(isolated_state, monkeypatch):

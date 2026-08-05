@@ -69,6 +69,22 @@ The Stop hook tail-reads the transcript looking for the final assistant message.
 }
 ```
 
+## I want a webhook ping when the confidence gate catches an unverified success claim
+
+Useful for a team channel or dashboard: get notified the moment presence catches Claude asserting success ("fixed", "done") with no test/build evidence since the last edit, without watching `/presence-doctor` yourself. Off by default; presence ships no webhook URL. Point it at any endpoint that accepts a JSON POST (Zapier catch hook, Slack incoming webhook adapter, your own collector):
+
+```json
+{
+  "preset": "solo-dev",
+  "overrides": {
+    "notify.enabled": true,
+    "notify.webhook_url": "https://hooks.zapier.com/hooks/catch/xxxx/xxxx/"
+  }
+}
+```
+
+What it sends: `{claim, verdict, verified, timestamp, final_excerpt}`, where `final_excerpt` (the first 200 chars of the assistant's final message) is run through the same redaction as everything else presence writes to disk before the request leaves the machine. The POST happens in a detached subprocess, so a slow or unreachable endpoint never blocks the Stop hook. Hard-disabled under `zerotrust` regardless of this setting, same as the other opt-in network features (`network.egress_allowed: false` wins). Check `/presence-doctor` for a `notify` status line and confidence-gate catch counts by preset. See `lib/notify.py`'s module docstring for the exact payload shape.
+
 ## I want to disable the model file entirely
 
 Useful for ephemeral or one-off sessions where you don't want presence to learn about the repo:

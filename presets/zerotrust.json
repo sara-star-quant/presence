@@ -37,6 +37,9 @@
   "update_check": {
     "enabled": false
   },
+  "notify": {
+    "enabled": false
+  },
   "transcript": {
     "max_bytes": 262144,
     "restrict_to_claude_projects": true
