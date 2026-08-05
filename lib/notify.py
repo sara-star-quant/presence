@@ -64,7 +64,7 @@ def notify_confidence(claim: str, verified: bool, **details) -> None:
     if not notify_cfg.get("enabled"):
         return
     url = notify_cfg.get("webhook_url")
-    if not url:
+    if not url or not url.startswith(("https://", "http://")):
         return
 
     from redact import redact_text
@@ -101,7 +101,8 @@ def _dispatch(url: str, payload: dict) -> None:
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        assert proc.stdin is not None
+        if proc.stdin is None:
+            return
         proc.stdin.write(json.dumps(payload).encode("utf-8"))
         proc.stdin.close()
         # Reap on a daemon thread instead of leaving it to Popen.__del__: a
@@ -122,14 +123,14 @@ def _send_from_stdin(url: str) -> None:
         payload = sys.stdin.buffer.read()
     except OSError:
         return
-    req = urllib.request.Request(
+    req = urllib.request.Request(  # noqa: S310 -- scheme validated http(s)-only in notify_confidence
         url,
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=5.0):
+        with urllib.request.urlopen(req, timeout=5.0):  # noqa: S310  # nosec B310 scheme validated above
             pass
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError):
         pass  # a notification failure must never affect the gate itself
