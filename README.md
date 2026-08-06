@@ -8,7 +8,7 @@
 [![Stdlib only](https://img.shields.io/badge/runtime-stdlib--only-success)](pyproject.toml)
 [![Local only](https://img.shields.io/badge/state-local--only-success)](docs/security.md)
 
-> **New in [v0.7.0](https://github.com/sara-star-quant/presence/releases/tag/v0.7.0):** relicensed from MIT to Apache-2.0 (still permissive, now with an explicit patent grant). No runtime change.
+> **New in [v0.8.0](https://github.com/sara-star-quant/presence/releases/tag/v0.8.0):** opt-in webhook notifier for confidence-gate verdicts, off by default and hard-disabled under `zerotrust`. See [`docs/recipes.md`](docs/recipes.md).
 
 **Every Claude Code session starts cold. presence makes the next one start where the last one left off.**
 
@@ -55,6 +55,7 @@ The `--build-ext` column reflects optional native acceleration via the Rust daem
 All measurements: macOS arm64, Python 3.14.4. Reproduce locally with `python3 bench/<name>.py --runs N`. See [`bench/README.md`](bench/README.md) for the full convention.
 
 > **Recent changes**: see [`CHANGELOG.md`](CHANGELOG.md) for the full per-version diff.
+> v0.8.0 ships an opt-in webhook notifier for confidence-gate verdicts, gated by the same `network.egress_allowed` zerotrust switch as the release-freshness check.
 > v0.5.0 ships composable redaction profiles for jurisdiction-aware sensitive data. Opt-in via `redact.profiles` in settings: `pii-eu`, `pii-us`, `pci-dss` (PAN matches gated by Luhn). New `docs/compliance.md` says exactly what presence does and does not do for regulated workloads. No certification framing: profile names describe data classes, not compliance frameworks.
 > v0.4.2 ships the cross-tool AGENTS.md adapter. Set `PRESENCE_HOST=agents-md` and presence refreshes `<repo>/AGENTS.md` on every Claude Code SessionStart, picked up automatically by Codex, Cursor, Gemini CLI, Windsurf, GitHub Copilot, and others reading the open AGENTS.md standard. See [`docs/multi-host.md`](docs/multi-host.md).
 > v0.4.1 shipped the MCP server: any MCP-aware client (Claude Desktop, Cursor, Continue, custom agents) can read presence's living model + outcome telemetry over JSON-RPC stdio. See [`docs/mcp.md`](docs/mcp.md).

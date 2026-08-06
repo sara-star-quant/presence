@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.0
+
+Add an opt-in webhook notifier for confidence-gate verdicts.
+
+`lib/notify.py` can POST confidence-gate verdicts (unhedged-success claims, verified or not) to a webhook URL a user configures locally. Off by default, hard-disabled under `zerotrust` via `network.egress_allowed` (the same gate `update_check` already used), payload redacted before it leaves the machine, and the POST runs in a detached subprocess so a slow or dead endpoint never blocks the Stop hook. `/presence-doctor` gained a notify status line and a confidence-gate catch-rate breakdown by preset.
+
+- `lib/notify.py`: new opt-in webhook notifier, gated on `notify.enabled` + `network.egress_allowed`, redacts string payload fields via `redact.py`, dispatches through a detached subprocess.
+- `lib/doctor.py`: `_notify_summary()` and `_confidence_stats()` (per-preset confidence-gate catch counts, reconstructed from `audit.jsonl`'s `preset_switch` history).
+- `presets/_schema.json`, `presets/zerotrust.json`: `notify` recognized as a schema key, defense-in-depth `notify.enabled: false` under zerotrust.
+- `docs/security.md`, `docs/zerotrust.md`, `docs/recipes.md`, `docs/architecture.md` updated for the new network-egress feature.
+- Dependency bumps: pytest, ruff, coverage, `ext/`'s `serde_json`, and CI's `actions/checkout` / `actions/setup-python` / `actions/cache` to current latest.
+
 ## v0.7.1
 
 Scope the audit-log claim to in-place edits; add test coverage.
