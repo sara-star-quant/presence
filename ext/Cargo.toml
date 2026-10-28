@@ -1,6 +1,6 @@
 [package]
 name = "presence_ext"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 [lib]
@@ -13,8 +13,8 @@ path = "src/client.rs"
 
 [dependencies]
 hex = "0.4.3"
-pyo3 = { version = "0.29", features = ["extension-module"], optional = true }
-serde_json = "1.0.149"
+pyo3 = { version = "0.30", features = ["extension-module"], optional = true }
+serde_json = "1.0.154"
 
 [features]
 default = ["pyext"]
@@ -30,7 +30,7 @@ security-framework = "3.7"
 # missing async_fs / blocking / async_io modules. Picking the rust-crypto
 # async-io variant keeps us on a single async runtime (we already use
 # async-io transitively elsewhere) and avoids dragging in OpenSSL.
-secret-service = { version = "5.1", features = ["rt-async-io-crypto-rust"] }
+secret-service = { version = "5.2", features = ["rt-async-io-crypto-rust"] }
 
 [dependencies.git2]
 # default-features disabled because git2's defaults pull in openssl-sys
