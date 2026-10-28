@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.1
+
+Refresh dependencies. No runtime change to the plugin.
+
+- Bump `ext/` to 0.2.2 (pyo3 0.30.1, serde_json 1.0.154, secret-service 5.2.0), dev tooling and `actions/setup-python`.
+
 ## v0.8.0
 
 Add an opt-in webhook notifier for confidence-gate verdicts.
