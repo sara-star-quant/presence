@@ -93,6 +93,26 @@ def test_reverify_state_perms_retightens(isolated_state):
     assert stat.S_IMODE(sub.stat().st_mode) == 0o700
 
 
+def test_reverify_state_perms_walks_only_active_project(isolated_state):
+    """Other projects' files are not walked at SessionStart; the active one is."""
+    import _common
+
+    importlib.reload(_common)
+    projects = _common.state_dir() / "projects"
+    active = _common.repo_id(None)
+    for name in (active, "other"):
+        d = projects / name
+        d.mkdir(parents=True)
+        f = d / "data.jsonl"
+        f.write_text("{}\n")
+        f.chmod(0o644)
+
+    _common.reverify_state_perms()
+
+    assert stat.S_IMODE((projects / active / "data.jsonl").stat().st_mode) == 0o600
+    assert stat.S_IMODE((projects / "other" / "data.jsonl").stat().st_mode) == 0o644
+
+
 def test_run_hook_fallback_is_guarded(isolated_state, monkeypatch):
     """A raising hook main on the daemon-fallback path exits 0, not a traceback."""
     import _common

@@ -119,12 +119,22 @@ def _cli() -> int:
         "--audit-verify", action="store_true",
         help="walk the audit log hash chain and report any tampered or broken-link lines",
     )
+    g.add_argument(
+        "--audit-rotate", action="store_true",
+        help="move a broken audit log aside and start a fresh chain that records the rotation",
+    )
     ap.add_argument("--root", type=Path, default=PLUGIN_ROOT)
     args = ap.parse_args()
 
     if args.write:
         target = write_manifest(args.root)
         print(f"wrote {target}")
+        return 0
+
+    if args.audit_rotate:
+        from audit import rotate
+        dest = rotate()
+        print(f"rotated audit log to {dest}" if dest else "no audit log present")
         return 0
 
     if args.audit_verify:
@@ -140,6 +150,8 @@ def _cli() -> int:
             print(f"  TAMPERED  : {len(report['tampered'])} line(s) at indices {report['tampered'][:10]}")
         if report["broken_link"]:
             print(f"  broken    : {len(report['broken_link'])} hash-chain link(s) at {report['broken_link'][:10]}")
+        if report["truncated"]:
+            print("  TRUNCATED : log is shorter than the recorded head (tail lines lost)")
         if report["ok"]:
             print("audit chain OK")
             return 0

@@ -22,7 +22,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from _common import _flock, append_jsonl, now_ts, state_dir
+from _common import _flock, append_jsonl, atomic_write, now_ts, state_dir
 
 from presets import active_preset_name
 
@@ -33,31 +33,57 @@ def audit_path() -> Path:
     return state_dir() / "audit.jsonl"
 
 
+def head_path() -> Path:
+    """Sidecar anchor: line count and last hash as of the most recent append.
+
+    A truncated log is still a valid chain, so the chain alone cannot see lost
+    tail lines; verify_chain compares against this anchor. It lives next to the
+    log, so it raises the bar for tail truncation rather than defeating a writer
+    who edits both files.
+    """
+    return state_dir() / "audit.head"
+
+
+def _read_head() -> dict | None:
+    try:
+        h = json.loads(head_path().read_text(encoding="utf-8"))
+        if isinstance(h.get("lines"), int) and h["lines"] >= 1 and isinstance(h.get("hash"), str):
+            return h
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None
+
+
+def _write_head(lines: int, line_hash: str) -> None:
+    atomic_write(head_path(), json.dumps({"lines": lines, "hash": line_hash}))
+
+
 def _canonical(obj: dict) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
-def _last_hash(path: Path) -> str:
-    """Return the hash field of the last line, or GENESIS_HASH if file is empty/missing."""
+def _tail(path: Path) -> tuple[str, int]:
+    """Return (hash of the last line, count of non-empty lines); GENESIS_HASH/0 if none."""
     if not path.exists():
-        return GENESIS_HASH
+        return GENESIS_HASH, 0
     last = None
+    count = 0
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
                 s = line.strip()
                 if s:
                     last = s
+                    count += 1
     except OSError:
-        return GENESIS_HASH
+        return GENESIS_HASH, 0
     if not last:
-        return GENESIS_HASH
+        return GENESIS_HASH, 0
     try:
-        obj = json.loads(last)
-        h = obj.get("hash")
-        return h if isinstance(h, str) and len(h) == 64 else GENESIS_HASH
+        h = json.loads(last).get("hash")
+        return (h if isinstance(h, str) and len(h) == 64 else GENESIS_HASH), count
     except json.JSONDecodeError:
-        return GENESIS_HASH
+        return GENESIS_HASH, count
 
 
 def append(event: str, details: dict | None = None) -> None:
@@ -76,12 +102,19 @@ def append(event: str, details: dict | None = None) -> None:
         with open(path, "a", encoding="utf-8") as f:
             unlock = _flock(f.fileno(), exclusive=True)
             try:
-                prev = _last_hash(path)
+                prev, count = _tail(path)
                 record["prev_hash"] = prev
                 # Hash everything except the hash field itself
                 line_hash = hashlib.sha256(prev.encode("ascii") + _canonical(record)).hexdigest()
                 record["hash"] = line_hash
                 f.write(json.dumps(record, separators=(",", ":"), ensure_ascii=False) + "\n")
+                f.flush()
+                head = _read_head()
+                # Advance the anchor only when the log sat exactly at it. A log
+                # already shorter than its anchor stays flagged: overwriting the
+                # anchor here would launder a truncation.
+                if head is None or (count == head["lines"] and prev == head["hash"]):
+                    _write_head(count + 1, line_hash)
             finally:
                 unlock()
     except OSError:
@@ -103,7 +136,8 @@ def verify_chain() -> dict:
       "tampered": [int],           # 0-based line indices whose hash didn't recompute
       "broken_link": [int],        # lines whose prev_hash didn't match the previous line's hash
       "corrupt": [int],            # lines that didn't parse as JSON or lacked required fields
-      "ok": bool,                  # True iff tampered + broken_link + corrupt all empty
+      "truncated": bool,           # fewer lines (or a different last hash) than the head anchor recorded
+      "ok": bool,                  # True iff tampered + broken_link + corrupt empty and not truncated
     }
     """
     path = audit_path()
@@ -113,6 +147,7 @@ def verify_chain() -> dict:
         "tampered": [],
         "broken_link": [],
         "corrupt": [],
+        "truncated": False,
         "ok": True,
     }
     if not path.exists():
@@ -124,11 +159,13 @@ def verify_chain() -> dict:
         return report
 
     expected_prev = GENESIS_HASH
+    hashes: list[str | None] = []
     for idx, raw in enumerate(raw_lines):
         s = raw.strip()
         if not s:
             continue
         report["lines"] += 1
+        hashes.append(None)
         try:
             obj = json.loads(s)
         except json.JSONDecodeError:
@@ -139,6 +176,7 @@ def verify_chain() -> dict:
         if not (isinstance(stored_hash, str) and isinstance(stored_prev, str)):
             report["corrupt"].append(idx)
             continue
+        hashes[-1] = stored_hash
         # Recompute the hash from the rest of the record
         without_hash = {k: v for k, v in obj.items() if k != "hash"}
         recomputed = hashlib.sha256(stored_prev.encode("ascii") + _canonical(without_hash)).hexdigest()
@@ -148,11 +186,46 @@ def verify_chain() -> dict:
             report["broken_link"].append(idx)
         expected_prev = stored_hash
 
-    report["ok"] = not (report["tampered"] or report["broken_link"] or report["corrupt"])
+    head = _read_head()
+    if head is None:
+        # Pre-anchor log, or first verify: adopt the current head (migration).
+        if report["lines"] and not (report["tampered"] or report["broken_link"] or report["corrupt"]):
+            try:
+                _write_head(report["lines"], expected_prev)
+            except OSError:
+                pass
+    elif report["lines"] < head["lines"] or hashes[head["lines"] - 1] != head["hash"]:
+        report["truncated"] = True
+
+    report["ok"] = not (
+        report["tampered"] or report["broken_link"] or report["corrupt"] or report["truncated"]
+    )
     return report
 
 
-__all__ = ["append", "verify_chain", "audit_path", "GENESIS_HASH"]
+def rotate(reason: str = "manual") -> Path | None:
+    """Move a bad audit log aside and start a fresh chain that cites the old head.
+
+    Returns the path of the preserved log, or None when there was nothing to rotate.
+    The new chain's first line (``audit_rotated``) records the old log's last hash
+    and line count, so the break stays visible in the log that replaces it.
+    """
+    path = audit_path()
+    if not path.exists():
+        return None
+    old_hash, old_lines = _tail(path)
+    dest = path.with_name(f"audit.jsonl.broken-{now_ts()}")
+    path.rename(dest)
+    try:
+        head_path().unlink()
+    except OSError:
+        pass
+    append("audit_rotated", {"reason": reason, "previous_hash": old_hash, "previous_lines": old_lines,
+                             "preserved_as": dest.name})
+    return dest
+
+
+__all__ = ["append", "verify_chain", "rotate", "audit_path", "head_path", "GENESIS_HASH"]
 
 
 # Suppress the unused import warning for append_jsonl, which we kept around in case

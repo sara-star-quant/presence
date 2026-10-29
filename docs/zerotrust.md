@@ -100,7 +100,15 @@ Verify the chain:
 PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/lib" python3 "${CLAUDE_PLUGIN_ROOT}/lib/integrity.py" --audit-verify
 ```
 
-Returns line counts plus indices of any tampered, broken-link, or corrupt entries.
+Returns line counts plus indices of any tampered, broken-link, or corrupt entries, and flags a log that is shorter than its recorded head (`audit.head` next to the log, updated on every append).
+
+Under the zerotrust preset, SessionStart also runs this check and fails closed: on a broken chain every hook is inert for the session (same `.integrity-blocked` marker as the manifest gate). To recover, inspect the log, then:
+
+```bash
+PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/lib" python3 "${CLAUDE_PLUGIN_ROOT}/lib/integrity.py" --audit-rotate
+```
+
+This moves the bad log to `audit.jsonl.broken-<ts>` and starts a fresh chain whose first line (`audit_rotated`) records the old log's last hash and line count. The check is local tamper-evidence, not attestation: anyone who can edit both `audit.jsonl` and `audit.head` can still rewrite history.
 
 ## Encryption-at-rest specifics
 

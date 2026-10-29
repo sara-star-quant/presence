@@ -537,7 +537,9 @@ def zerotrust_report() -> list[str]:
         else:
             lines.append(
                 f"audit chain         : FAIL ({len(chain['tampered'])} tampered, "
-                f"{len(chain['broken_link'])} broken-link, {len(chain['corrupt'])} corrupt)"
+                f"{len(chain['broken_link'])} broken-link, {len(chain['corrupt'])} corrupt"
+                f"{', truncated' if chain['truncated'] else ''}); "
+                "run `python3 lib/integrity.py --audit-rotate` to start a fresh chain"
             )
     except Exception as exc:  # noqa: BLE001
         lines.append(f"audit chain         : check error: {exc}")

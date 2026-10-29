@@ -116,3 +116,61 @@ def test_concurrent_appends_chain_safely(isolated_state):
     report = audit.verify_chain()
     assert report["lines"] == 20
     assert report["ok"], f"chain broke under sequential appends: {report}"
+
+
+def _lines():
+    return audit.audit_path().read_text().splitlines()
+
+
+def test_tail_truncation_detected(isolated_state):
+    for i in range(5):
+        audit.append("step", {"i": i})
+    audit.audit_path().write_text("\n".join(_lines()[:3]) + "\n")
+    report = audit.verify_chain()
+    assert report["truncated"] and not report["ok"]
+
+
+def test_append_does_not_launder_truncation(isolated_state):
+    for i in range(5):
+        audit.append("step", {"i": i})
+    audit.audit_path().write_text("\n".join(_lines()[:3]) + "\n")
+    for i in range(4):
+        audit.append("later", {"i": i})
+    assert audit.verify_chain()["truncated"]
+
+
+def test_legacy_log_without_head_adopts_one(isolated_state):
+    for i in range(3):
+        audit.append("step", {"i": i})
+    audit.head_path().unlink()
+    assert audit.verify_chain()["ok"]
+    assert audit.head_path().exists()
+
+
+def test_rotate_preserves_old_log_and_cites_it(isolated_state):
+    for i in range(3):
+        audit.append("step", {"i": i})
+    old_head = json.loads(_lines()[-1])["hash"]
+    dest = audit.rotate()
+    assert dest.exists() and len(dest.read_text().splitlines()) == 3
+    new = [json.loads(ln) for ln in _lines()]
+    assert len(new) == 1 and new[0]["event"] == "audit_rotated"
+    assert new[0]["details"]["previous_hash"] == old_head
+    assert new[0]["details"]["previous_lines"] == 3
+    assert audit.verify_chain()["ok"]
+
+
+def test_session_start_gate_blocks_on_broken_chain(isolated_state):
+    import asyncio
+
+    import hook_session_start
+
+    for i in range(3):
+        audit.append("step", {"i": i})
+    cfg = {"integrity": {"fail_closed": True}, "__active_preset__": "zerotrust"}
+    assert asyncio.run(hook_session_start.fail_closed_audit_check(cfg)) is None
+    audit.audit_path().write_text("\n".join(_lines()[:2]) + "\n")
+    msg = asyncio.run(hook_session_start.fail_closed_audit_check(cfg))
+    assert msg and "truncated: yes" in msg and "--audit-rotate" in msg
+    # Disabled outside fail_closed presets.
+    assert asyncio.run(hook_session_start.fail_closed_audit_check({})) is None
