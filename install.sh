@@ -433,7 +433,8 @@ snapshot_state() {
   py_bin="$(_resolve_python)"
   [ -z "$py_bin" ] && die "no usable python3 (need >= 3.12); see ./install.sh --verify"
   PYTHONPATH="$SCRIPT_DIR/lib" PRESENCE_STATE="$STATE_DIR" \
-    "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" snapshot "$out_path"
+    "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" snapshot "$out_path" \
+    ${PASSPHRASE_ARGS[@]+"${PASSPHRASE_ARGS[@]}"}
 }
 
 restore_state() {
@@ -445,10 +446,12 @@ restore_state() {
   [ -z "$py_bin" ] && die "no usable python3 (need >= 3.12); see ./install.sh --verify"
   if [ "$overwrite_flag" = "--overwrite" ]; then
     PYTHONPATH="$SCRIPT_DIR/lib" PRESENCE_STATE="$STATE_DIR" \
-      "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" restore "$in_path" --overwrite
+      "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" restore "$in_path" --overwrite \
+      ${PASSPHRASE_ARGS[@]+"${PASSPHRASE_ARGS[@]}"}
   else
     PYTHONPATH="$SCRIPT_DIR/lib" PRESENCE_STATE="$STATE_DIR" \
-      "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" restore "$in_path"
+      "$py_bin" "$SCRIPT_DIR/lib/snapshot.py" restore "$in_path" \
+      ${PASSPHRASE_ARGS[@]+"${PASSPHRASE_ARGS[@]}"}
   fi
 }
 
@@ -674,12 +677,14 @@ SUBCOMMAND=""
 SNAPSHOT_PATH=""
 RESTORE_PATH=""
 RESTORE_OVERWRITE=""
+PASSPHRASE_ARGS=()
 expect_path_for=""
 for arg in "$@"; do
   if [ -n "$expect_path_for" ]; then
     case "$expect_path_for" in
       snapshot) SNAPSHOT_PATH="$arg" ;;
       restore)  RESTORE_PATH="$arg" ;;
+      passenv)  PASSPHRASE_ARGS+=(--passphrase-env "$arg") ;;
     esac
     expect_path_for=""
     continue
@@ -688,6 +693,8 @@ for arg in "$@"; do
     --bootstrap)    BOOTSTRAP=1 ;;
     --json)         VERIFY_JSON=1 ;;
     --overwrite)    RESTORE_OVERWRITE="--overwrite" ;;
+    --passphrase-env)    expect_path_for="passenv" ;;
+    --passphrase-prompt) PASSPHRASE_ARGS+=(--passphrase-prompt) ;;
     --build-ext)    SUBCOMMAND="build_ext" ;;
     --download-ext) SUBCOMMAND="download_ext" ;;
     --snapshot)
@@ -741,10 +748,12 @@ Usage:
   ./install.sh --download-ext           download a pre-built Rust client binary from
                                         the latest GitHub Release (faster path; no Rust
                                         toolchain needed; macOS arm64/x86_64 + Linux x86_64)
-  ./install.sh --snapshot <out.tar.gz>  back up state for cross-machine portability
-                                        (refused under zerotrust; see issue #11)
-  ./install.sh --restore <in.tar.gz>    restore state from a snapshot (refuses if state
-                                        already exists; pass --overwrite to clobber)
+  ./install.sh --snapshot <out>         back up state for cross-machine portability
+                                        (zerotrust state needs --passphrase-env VAR or
+                                        --passphrase-prompt, which seals the archive)
+  ./install.sh --restore <in>           restore state from a snapshot (refuses if state
+                                        already exists; pass --overwrite to clobber;
+                                        sealed snapshots take the same passphrase flags)
   ./install.sh --uninstall              remove plugin symlink (state preserved)
   ./install.sh --uninstall --purge      remove plugin and wipe state
   ./install.sh --help                   this help

@@ -71,7 +71,7 @@ See: `hooks/hooks.json`, `hooks/scripts/`.
 
 ## Snapshot
 
-A tar.gz of the state directory written by `install.sh --snapshot`. Excludes per-machine markers (`.python_bin`, cache markers, transient session state) and refuses under `zerotrust` (key portability is its own design problem; tracked in [roadmap.md](roadmap.md)). Restore with `install.sh --restore`. Schema-versioned via `_snapshot_meta.json`.
+A tar.gz of the state directory written by `install.sh --snapshot`. Excludes per-machine markers (`.python_bin`, cache markers, transient session state) and refuses a plain archive under `zerotrust`; there it is sealed with a passphrase (scrypt + AES-GCM) and re-encrypted under the destination machine's key on restore. Restore with `install.sh --restore`. Schema-versioned via `_snapshot_meta.json`.
 
 See: `lib/snapshot.py`, [recipes.md](recipes.md).
 

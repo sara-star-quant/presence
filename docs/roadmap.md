@@ -36,16 +36,6 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 **Recommended decision**: stay on option 1 until a real Windows user files an issue requesting native. Then revisit, prefer option 2 (pure-Python) over option 3 (split codebase).
 
-## Cross-machine state snapshot and migration tooling
-
-**Status**: partially shipped in v0.3.4 (non-zerotrust path); zerotrust case still open.
-
-**Today**: `install.sh --snapshot` and `--restore` work for non-zerotrust presets (v0.3.4+). The remaining gap is zerotrust, where state is encrypted with a per-machine OS-keychain-stored key. Snapshotting that state across machines requires either re-wrapping the data key for the destination's keychain or stripping encryption.
-
-**Proposal for the open case**: extend `lib/snapshot.py` with a `--rewrap-for <machine-pubkey>` flag that derives a transport-encryption key from a destination keypair the user provides. Or simpler: `--decrypt-on-snapshot` that strips encryption (with a loud warning) so the snapshot tarball is plain and the destination machine re-encrypts on restore.
-
-**Why deferred**: encryption story needs a real design call. Key portability across platforms is its own subproblem (macOS Keychain != Linux secret-service != hypothetical other backend). Conflict resolution if both sides made writes between snapshots.
-
 ## Agent Client Protocol (ACP) for Zed and other ACP-aware tools
 
 **Status**: distinct from MCP; tracked separately for a future minor once a real Zed-side use case shows up.

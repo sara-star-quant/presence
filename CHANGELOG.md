@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.10.0
+
+Seal zerotrust snapshots with a passphrase.
+
+`install.sh --snapshot --passphrase-env VAR` (or `--passphrase-prompt`) now works under zerotrust: the state is decrypted in memory, sealed with scrypt and AES-GCM, and re-encrypted under the destination machine's own key on restore. Plain snapshots are unchanged.
+
+- `lib/snapshot.py`: sealed format, validate-then-swap restore with rollback, refusal of non-regular tar members.
+- `docs/zerotrust.md`: "Moving zerotrust state between machines".
+- `docs/recipes.md`: the `CLAUDE_HOME` side-by-side recipe.
+
 ## v0.9.2
 
 Fix restore audit anchor; freeze the 1.x contract.
