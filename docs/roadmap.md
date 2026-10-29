@@ -6,15 +6,9 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 ## Road to v1.0
 
-**Status**: 0.9.x is the stabilization series. Minor bumps continue (0.10.0 follows 0.9.x) until the criteria below hold; 1.0 is a stability promise, not a milestone counter.
+**Status**: far from it. 0.x continues (0.11, 0.12, 0.13, then a release candidate) until the gaps in [v1-readiness.md](v1-readiness.md) are closed or explicitly accepted. 1.0 is a stability promise, not a milestone counter.
 
-**Criteria**:
-- The preset schema (`presets/_schema.json`) and the hook contract are frozen by [contract.md](contract.md) and enforced by `tests/test_contract.py` (shipped in v0.9.2).
-- Zero-Trust integrity is complete: manifest gate and audit-chain gate both fail closed (shipped in v0.9.0).
-- Statement coverage stays at or above 80% (the CI gate, reached in v0.9.1).
-- The documented limits in `docs/security.md` are the final threat-model statement, with a pinning test per claim (shipped in v0.9.2).
-
-**Not a criterion**: the OpenSSF Silver badge. It also needs a second maintainer, which is outside the code.
+The code-level pieces are in place: the contract is frozen and enforced by `tests/test_contract.py` ([contract.md](contract.md)), the Zero-Trust gates fail closed, coverage gates at 80%, and each threat names a pinning test. What is missing is mostly outside the code: real-world validation, a host compatibility matrix, platform and artifact coverage, upgrade-path tests, an external security look, and a second maintainer. See [v1-readiness.md](v1-readiness.md) for the evidence and exit criteria per gap.
 
 ## Native Windows support without WSL2
 

@@ -1,5 +1,7 @@
 # The 1.x contract
 
+**Status**: enforced by tests since v0.9.2, but not yet a public promise. It becomes one at 1.0, and until then it can still change if real use shows it is wrong. See [v1-readiness.md](v1-readiness.md) for what has to happen first.
+
 What presence promises not to break within a major version, and what it does not. `tests/test_contract.py` enforces the first list against `tests/contract_snapshot.json`: additions pass, removing or narrowing anything on it fails.
 
 ## Covered (additive-only within 1.x)
