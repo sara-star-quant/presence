@@ -252,3 +252,50 @@ def test_verify_covers_all_six_hooks(tmp_path):
         f"hook_synthetic_fire should pass on a healthy install: {hook_check['detail']}"
     )
     assert "all 6 hooks" in hook_check["detail"]
+
+
+def _install(install_sh: Path, claude_home: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    import os
+
+    env = {k: v for k, v in os.environ.items() if k != "PRESENCE_STATE"}
+    env["CLAUDE_HOME"] = str(claude_home)
+    return subprocess.run(
+        ["bash", str(install_sh), *args],
+        capture_output=True, text=True, check=False, env=env,
+    )
+
+
+def test_two_claude_homes_install_side_by_side(tmp_path):
+    """The documented side-by-side recipe: a second CLAUDE_HOME is a fully separate
+    install (plugin link, enabledPlugins, state dir) pointing at its own checkout."""
+    import json
+
+    clone = _setup_fake_clone(tmp_path)
+    (clone / "hooks" / "scripts" / "stub.sh").write_text("#!/bin/sh\n")
+    main_home, dev_home = tmp_path / "main", tmp_path / "dev"
+    assert _install(INSTALL_SH, main_home).returncode == 0
+    assert _install(clone / "install.sh", dev_home).returncode == 0
+
+    assert (main_home / "plugins" / "presence").resolve() == REPO_ROOT
+    assert (dev_home / "plugins" / "presence").resolve() == clone.resolve()
+    for home in (main_home, dev_home):
+        assert json.loads((home / "settings.json").read_text())["enabledPlugins"]["presence"] is True
+
+    (main_home / "presence" / "model-marker").write_text("main")
+    assert not (dev_home / "presence" / "model-marker").exists()
+
+
+def test_uninstalling_one_home_leaves_the_other(tmp_path):
+    clone = _setup_fake_clone(tmp_path)
+    (clone / "hooks" / "scripts" / "stub.sh").write_text("#!/bin/sh\n")
+    main_home, dev_home = tmp_path / "main", tmp_path / "dev"
+    _install(INSTALL_SH, main_home)
+    _install(clone / "install.sh", dev_home)
+    (main_home / "presence" / "keep").write_text("x")
+
+    assert _install(clone / "install.sh", dev_home, "--uninstall", "--purge").returncode == 0
+
+    assert not (dev_home / "plugins" / "presence").exists()
+    assert not (dev_home / "presence").exists()
+    assert (main_home / "plugins" / "presence").is_symlink()
+    assert (main_home / "presence" / "keep").exists()

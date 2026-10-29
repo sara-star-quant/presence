@@ -111,6 +111,21 @@ Default is 12000 chars; below that the SessionStart hook surfaces a `/presence-c
 }
 ```
 
+## I want main and a branch installed side by side
+
+Give the second install its own Claude home. Everything presence touches (plugin link, `enabledPlugins` entry, state) lives under `CLAUDE_HOME`, so a separate home is a separate install:
+
+```bash
+git clone https://github.com/sara-star-quant/presence ~/src/presence-dev
+cd ~/src/presence-dev && git switch my-branch
+CLAUDE_HOME=~/.claude-dev ./install.sh
+CLAUDE_CONFIG_DIR=~/.claude-dev claude   # run Claude Code against the dev home
+```
+
+The two installs share nothing: state, settings, and audit log stay separate, and `CLAUDE_HOME=~/.claude-dev ./install.sh --uninstall --purge` removes only the dev one.
+
+We do not ship an `install.sh --name` flag. Claude Code identifies a plugin by the `name` in its manifest, so two links to the same plugin name inside one home would collide, and we cannot prove a second one loads. A separate home sidesteps that.
+
 ## I want to back up my state
 
 ```bash

@@ -46,16 +46,6 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 **Why deferred**: encryption story needs a real design call. Key portability across platforms is its own subproblem (macOS Keychain != Linux secret-service != hypothetical other backend). Conflict resolution if both sides made writes between snapshots.
 
-## Side-by-side install support via --name suffix
-
-**Status**: niche; deferred unless plugin authors ask for it.
-
-**Today**: `install.sh` symlinks at `~/.claude/plugins/presence/`. Only one version installable at a time. Maintainers testing `main` vs a branch must swap symlinks manually.
-
-**Proposal**: `install.sh --name presence-dev` symlinks at `~/.claude/plugins/presence-dev/` and uses `~/.claude/presence-dev/` for state.
-
-**Why deferred**: niche use case (only repo maintainers + plugin authors). Not worth the install.sh complexity until someone other than the maintainer asks for it.
-
 ## Agent Client Protocol (ACP) for Zed and other ACP-aware tools
 
 **Status**: distinct from MCP; tracked separately for a future minor once a real Zed-side use case shows up.
