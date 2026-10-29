@@ -36,6 +36,19 @@ def test_unknown_key_warns(isolated_state):
     assert "preset_unknown_key" in cats
 
 
+def test_unknown_keys_all_reported(isolated_state):
+    _common, warnings_log = _reload()
+    warnings_log.clear_warnings_state()
+    (isolated_state / "presets").mkdir()
+    (isolated_state / "presets" / "bad.json").write_text(
+        json.dumps({"telematry": {"enabled": True}, "notfy": {}})
+    )
+    assert _common._load_preset("bad") is not None
+    msgs = [w["message"] for w in warnings_log.read_warnings(limit=100) if w["category"] == "preset_unknown_key"]
+    assert len(msgs) == 1
+    assert "'telematry'" in msgs[0] and "'notfy'" in msgs[0]
+
+
 def test_bad_type_warns(isolated_state):
     _common, warnings_log = _reload()
     warnings_log.clear_warnings_state()

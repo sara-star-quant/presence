@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.9.0
+
+Fail closed on a broken audit log under zerotrust.
+
+Zerotrust SessionStart now verifies the audit hash chain and keeps hooks inert when it is corrupt, tampered, or truncated. Recovery is `integrity.py --audit-rotate`, which preserves the bad log and starts a fresh chain that cites it.
+
+- `lib/audit.py`: `audit.head` anchor detects tail truncation; `rotate()` and `--audit-rotate`.
+- `lib/hook_session_start.py`: `fail_closed_audit_check`; `reverify_state_perms` walks only the active project.
+- `lib/_common.py`: unknown preset keys are reported together in one warning.
+- `/presence-doctor` reports truncation and the rotate command.
+
 ## v0.8.1
 
 Refresh dependencies. No runtime change to the plugin.

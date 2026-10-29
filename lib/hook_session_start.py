@@ -238,6 +238,39 @@ async def fail_closed_integrity_check(cfg: dict) -> str | None:
     return msg
 
 
+async def fail_closed_audit_check(cfg: dict) -> str | None:
+    """If the active preset has integrity.fail_closed=true, verify the audit hash chain.
+
+    Same contract as ``fail_closed_integrity_check``: None when disabled or intact,
+    otherwise a message that keeps hooks inert. A missing log is fine (nothing to
+    break yet). The walk is linear in log size; the audit log only grows on
+    security-relevant events, so it stays small in practice.
+    """
+    if not (cfg.get("integrity") or {}).get("fail_closed"):
+        return None
+    try:
+        from audit import verify_chain
+        report = await asyncio.to_thread(verify_chain)
+    except Exception as exc:  # noqa: BLE001  never let the audit check itself break SessionStart
+        return (
+            "<presence_integrity_fail>\n"
+            f"  audit chain check itself errored: {exc}. "
+            "Hooks remain inert this session.\n"
+            "</presence_integrity_fail>"
+        )
+    if report["ok"]:
+        return None
+    return (
+        "<presence_integrity_fail>\n"
+        f"  Audit log integrity check FAILED under {cfg.get('__active_preset__', '(unknown)')} preset.\n"
+        f"    Tampered: {len(report['tampered'])}, broken links: {len(report['broken_link'])}, "
+        f"corrupt: {len(report['corrupt'])}, truncated: {'yes' if report['truncated'] else 'no'}\n"
+        "  Hooks will remain INERT for the rest of this session. Inspect the log, then run\n"
+        "  `python3 lib/integrity.py --audit-rotate` to preserve it and start a fresh chain.\n"
+        "</presence_integrity_fail>"
+    )
+
+
 async def async_main():
     inp = hook_input()
     cfg = settings()
@@ -245,13 +278,13 @@ async def async_main():
 
     # Re-tighten state perms first (T6): correct any drift to owner-only before
     # reading or writing anything, independent of the integrity outcome below.
-    reverify_state_perms()
+    reverify_state_perms(cwd)
 
     # Fail-closed integrity gate (zerotrust + any preset with integrity.fail_closed=true).
     # Runs FIRST. If it fails, set the inert-marker so other hooks short-circuit, emit the
     # fail message as the only context, and skip every other gather. If it passes, clear
     # any stale marker from a previous session.
-    fail_msg = await fail_closed_integrity_check(cfg)
+    fail_msg = await fail_closed_integrity_check(cfg) or await fail_closed_audit_check(cfg)
     if fail_msg is not None:
         set_integrity_block(fail_msg)
         emit_context("SessionStart", "<presence_context>\n" + fail_msg + "\n</presence_context>")

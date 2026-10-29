@@ -91,12 +91,14 @@ def state_dir() -> Path:
     return _ensure_dir(STATE_DIR)
 
 
-def reverify_state_perms() -> None:
+def reverify_state_perms(cwd: str | os.PathLike[str] | None = None) -> None:
     """Re-tighten owner-only perms across the state tree (dirs 0o700, files 0o600).
 
     Called on every SessionStart so loosened perms are corrected automatically, not
-    only on a manual ``/presence-doctor --fix``. The state tree is small (a handful
-    of files per project), so the walk is negligible next to the rest of SessionStart.
+    only on a manual ``/presence-doctor --fix``. The walk descends only into the
+    active project's directory under ``projects/``; other projects' directories are
+    tightened as entries but not walked, so the cost does not grow with the number
+    of tracked projects. ``/presence-doctor --fix`` still sweeps everything.
     Best effort: skipped silently where the platform does not support chmod.
     """
     sd = STATE_DIR
@@ -110,12 +112,16 @@ def reverify_state_perms() -> None:
         except (OSError, NotImplementedError):
             pass
 
+    projects = sd / "projects"
+    active = repo_id(cwd)
     _chmod_quiet(sd, 0o700)
     for root, dirs, files in os.walk(sd):
         for d in dirs:
             _chmod_quiet(Path(root) / d, 0o700)
         for f in files:
             _chmod_quiet(Path(root) / f, 0o600)
+        if Path(root) == projects:
+            dirs[:] = [d for d in dirs if d == active]
 
 
 def project_dir(cwd: str | os.PathLike[str] | None = None) -> Path:
@@ -804,15 +810,13 @@ def _validate_preset(name: str, data: dict) -> None:
         return
     from warnings_log import warn_once
 
+    unknown: list[str] = []
+
     def walk(node: dict, sch: dict, prefix: str) -> None:
         for k, v in node.items():
             path = f"{prefix}{k}"
             if k not in sch:
-                warn_once(
-                    "preset_unknown_key",
-                    f"preset '{name}' has unrecognized key '{path}' (ignored)",
-                    fix="check spelling against presets/_schema.json",
-                )
+                unknown.append(path)
                 continue
             spec = sch[k]
             if isinstance(spec, dict):
@@ -824,6 +828,13 @@ def _validate_preset(name: str, data: dict) -> None:
                 warn_once("preset_bad_type", f"preset '{name}' key '{path}' has an unexpected type or value")
 
     walk(data, schema, "")
+    if unknown:
+        keys = ", ".join(f"'{k}'" for k in unknown)
+        warn_once(
+            "preset_unknown_key",
+            f"preset '{name}' has unrecognized key(s) {keys} (ignored)",
+            fix="check spelling against presets/_schema.json",
+        )
 
 
 def _apply_dotted(target: dict, key: str, value) -> None:

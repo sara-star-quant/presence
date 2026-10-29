@@ -56,18 +56,6 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 **Why incremental**: 80% is the Silver `test_statement_coverage80` criterion, and Silver already blocks on the single-maintainer rules (2+ contributors, bus factor >= 2, two-person review). Worth doing regardless, but no rush to the exact number while those block the badge.
 
-## Verify the audit hash-chain fail-closed at SessionStart
-
-**Tracking**: #59
-
-**Status**: half shipped in v0.7.0; hot-path verification deferred.
-
-**Today**: v0.7.0's Zero-Trust hardening made the fail-closed integrity gate also fail on extra (undeclared) plugin files, and an integrity failure now appends an `integrity_fail` line to the tamper-evident audit chain. But `audit.verify_chain()` still runs only on demand (`/presence-doctor`, `integrity.py --audit-verify`); a truncated or tampered audit log does not block a session.
-
-**Proposal**: run `verify_chain()` in the Zero-Trust SessionStart gate and fail closed when the chain is broken.
-
-**Why deferred**: it changes behavior (a corrupt audit log would make hooks inert), so it needs a deliberate call on what counts as broken (corrupt line vs broken link vs truncation), how a user recovers, and the cold-hook cost of walking an unbounded chain each session.
-
 ## Agent Client Protocol (ACP) for Zed and other ACP-aware tools
 
 **Status**: distinct from MCP; tracked separately for a future minor once a real Zed-side use case shows up.
