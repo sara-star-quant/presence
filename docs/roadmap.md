@@ -11,7 +11,7 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 **Criteria**:
 - The preset schema (`presets/_schema.json`) and the hook contract stop changing between releases.
 - Zero-Trust integrity is complete: manifest gate and audit-chain gate both fail closed (shipped in v0.9.0).
-- Statement coverage reaches 80% (see below).
+- Statement coverage stays at or above 80% (the CI gate, reached in v0.9.1).
 - The documented limits in `docs/security.md` are the final threat-model statement, not a work in progress.
 
 **Not a criterion**: the OpenSSF Silver badge. It also needs a second maintainer, which is outside the code.
@@ -55,18 +55,6 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 **Proposal**: `install.sh --name presence-dev` symlinks at `~/.claude/plugins/presence-dev/` and uses `~/.claude/presence-dev/` for state.
 
 **Why deferred**: niche use case (only repo maintainers + plugin authors). Not worth the install.sh complexity until someone other than the maintainer asks for it.
-
-## Raise statement coverage to 80% (OpenSSF Silver target)
-
-**Tracking**: #39
-
-**Status**: deterministic gate at 74% (74.7% measured); climbing to 80 incrementally.
-
-**Today**: the `coverage` job measures statement coverage in-process, so the number is stable (the earlier subprocess capture swung 60-67% run to run). `daemon.py` is omitted - it only runs as a spawned subprocess, so in-process coverage can't see it; it is behavior-tested by `tests/test_daemon.py`. The v0.7.0 cycle added tests for the previously under-tested modules - `cli` (0 -> 96%), `hook_user_prompt_submit` (0 -> 83%), the integrity CLI (52 -> 78%), `telemetry` (29 -> 57%), `crypto` key management (48 -> 56%) - stepping the gate 67 -> 74. The remaining gap to 80% is in `crypto`'s keychain ops, `doctor`, `redact`, and the deeper `_common`/`hook_session_start` paths.
-
-**Proposal**: add branch tests for those next-largest gaps and step the CI `--fail-under` up toward 80.
-
-**Why incremental**: 80% is the Silver `test_statement_coverage80` criterion, and Silver already blocks on the single-maintainer rules (2+ contributors, bus factor >= 2, two-person review). Worth doing regardless, but no rush to the exact number while those block the badge.
 
 ## Agent Client Protocol (ACP) for Zed and other ACP-aware tools
 

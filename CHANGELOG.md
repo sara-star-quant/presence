@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.1
+
+Raise the statement coverage gate to 80%. No runtime change.
+
+- Tests for the `doctor`, `snapshot` and `bugreport` CLIs and the `notify` detached sender (measured coverage 82%); CI gate 74% -> 80%.
+
 ## v0.9.0
 
 Fail closed on a broken audit log under zerotrust.
