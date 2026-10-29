@@ -4,6 +4,18 @@ Things `presence` is **not** doing today, but where we have a written decision a
 
 The bar to add an item here is: someone asked, the maintainer thought about it, decided "not now," and wrote down both the reason and the realistic shape of the eventual work. Items disappear from this list when they ship or when we conclude they will not ship.
 
+## Road to v1.0
+
+**Status**: 0.9.x is the stabilization series. Minor bumps continue (0.10.0 follows 0.9.x) until the criteria below hold; 1.0 is a stability promise, not a milestone counter.
+
+**Criteria**:
+- The preset schema (`presets/_schema.json`) and the hook contract stop changing between releases.
+- Zero-Trust integrity is complete: manifest gate and audit-chain gate both fail closed (shipped in v0.9.0).
+- Statement coverage reaches 80% (see below).
+- The documented limits in `docs/security.md` are the final threat-model statement, not a work in progress.
+
+**Not a criterion**: the OpenSSF Silver badge. It also needs a second maintainer, which is outside the code.
+
 ## Native Windows support without WSL2
 
 **Status**: WSL2 is the supported Windows path; native deferred until demand.
