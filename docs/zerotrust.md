@@ -81,6 +81,35 @@ Under the zerotrust preset, SessionStart auto-runs this check. A missing, modifi
 
 Because the plugin directory is integrity-checked, do not drop custom presets into the plugin's `presets/` directory under zerotrust; that would fail the gate. Custom presets belong in `~/.claude/presence/presets/<name>.json`, which `_load_preset` reads first and which sits outside the manifest scope.
 
+## Moving zerotrust state between machines
+
+Zerotrust state is encrypted with a data key that lives in one machine's OS keychain, so a plain snapshot would be unreadable anywhere else. A sealed snapshot solves that:
+
+```bash
+# on the old machine
+export SNAP_PW='a passphrase of at least 8 characters'
+~/.claude/plugins/presence/install.sh --snapshot ~/presence.snap --passphrase-env SNAP_PW
+
+# on the new machine (same flag opens it)
+~/.claude/plugins/presence/install.sh --restore ~/presence.snap --overwrite --passphrase-env SNAP_PW
+```
+
+`--passphrase-prompt` asks for the passphrase instead (and asks twice when sealing). The passphrase is never accepted on the command line, so it stays out of `ps` and shell history.
+
+How it works: the old machine decrypts the encrypted `*.jsonl` records in memory, seals the whole archive with a key derived from your passphrase (scrypt, then AES-256-GCM), and writes it. The new machine opens it, then re-encrypts the same files under its own keychain key before putting anything on disk. Nothing is written to the state directory until the whole archive has been read and checked, and the final swap rolls back if it fails halfway.
+
+What can go wrong, and what happens:
+
+| Situation | Result |
+|---|---|
+| Wrong passphrase, or any flipped byte in the archive | Restore refuses; state untouched |
+| The old machine's key is gone, so some lines cannot be decrypted | The snapshot aborts and names the file; no archive is written |
+| The new machine has no usable keychain key | Restore refuses before touching state |
+| An archive asks for an unreasonable scrypt cost | Refused before any key is derived |
+| Passphrase shorter than 8 characters | Refused when sealing |
+
+Limits: a lost passphrase is unrecoverable, and the archive is only as strong as the passphrase. A sealed snapshot also decrypts your state on the source machine for the moment it is being sealed, so run it on a machine you trust.
+
 ## Audit log
 
 Path: `~/.claude/presence/audit.jsonl`

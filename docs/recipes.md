@@ -139,7 +139,7 @@ To restore on another machine (or after `--uninstall --purge`):
 # add --overwrite to clobber existing state
 ```
 
-Snapshots refuse under `zerotrust` (key portability is unsolved; tracked in [roadmap.md](roadmap.md)). Switch to a non-zerotrust preset first if you need to migrate.
+Under `zerotrust` the state is encrypted with a per-machine key, so a plain archive would be useless elsewhere. Seal it with a passphrase instead; see [Moving zerotrust state between machines](zerotrust.md#moving-zerotrust-state-between-machines).
 
 ## I want to verify presence is healthy without opening Claude Code
 
