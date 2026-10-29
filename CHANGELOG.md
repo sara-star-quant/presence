@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.2
+
+Fix restore audit anchor; freeze the 1.x contract.
+
+- `lib/snapshot.py`: restore drops this machine's `audit.head` when the archive has none, so an older snapshot is not read as a truncated audit log.
+- `docs/contract.md` and `tests/test_contract.py`: additive-only guard on preset keys, hook events, and CLI; optional `schema_version` preset key.
+- `presets/_schema.json`: `confidence.commit_gate` accepts `ask`, which the hook already handled.
+- `docs/security.md`: each threat now names the test that pins it.
+
 ## v0.9.1
 
 Raise the statement coverage gate to 80%. No runtime change.

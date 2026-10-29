@@ -804,6 +804,10 @@ def _type_ok(value, spec) -> bool:
     return checks.get(spec, True)  # unknown spec -> don't second-guess
 
 
+# Bumped only for a breaking preset change (never within 1.x; see docs/contract.md).
+CURRENT_PRESET_SCHEMA_VERSION = 1
+
+
 def _validate_preset(name: str, data: dict) -> None:
     schema = _preset_schema()
     if not schema:
@@ -828,6 +832,14 @@ def _validate_preset(name: str, data: dict) -> None:
                 warn_once("preset_bad_type", f"preset '{name}' key '{path}' has an unexpected type or value")
 
     walk(data, schema, "")
+    version = data.get("schema_version")
+    if isinstance(version, int) and not isinstance(version, bool) and version > CURRENT_PRESET_SCHEMA_VERSION:
+        warn_once(
+            "preset_schema_newer",
+            f"preset '{name}' has schema_version {version}, newer than supported "
+            f"{CURRENT_PRESET_SCHEMA_VERSION}; loading anyway",
+            fix="update presence or lower schema_version",
+        )
     if unknown:
         keys = ", ".join(f"'{k}'" for k in unknown)
         warn_once(

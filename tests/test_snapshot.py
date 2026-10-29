@@ -165,3 +165,45 @@ def test_restore_rejects_path_traversal(isolated_state, tmp_path):
         tf.addfile(info, io.BytesIO(body))
     with pytest.raises(snapshot.SnapshotError, match="unsafe"):
         snapshot.restore(bad, overwrite=True)
+
+
+def _audit_lines(n):
+    import audit
+
+    importlib.reload(audit)
+    for i in range(n):
+        audit.append("step", {"i": i})
+    return audit
+
+
+def test_restore_overwrite_removes_stale_audit_head(isolated_state, tmp_path):
+    """A pre-anchor snapshot must not leave the destination's old audit.head behind."""
+    _seed(isolated_state)
+    audit = _audit_lines(3)
+    audit.head_path().unlink()  # what a pre-0.9 snapshot looks like
+    out = snapshot.snapshot(tmp_path / "old.tar.gz")
+    _audit_lines(2)  # destination moved on: 5 lines, head says 5
+    snapshot.restore(out, overwrite=True)
+    report = audit.verify_chain()
+    assert report["lines"] == 3 and report["ok"] and not report["truncated"]
+
+
+def test_restore_keeps_archive_audit_head(isolated_state, tmp_path):
+    _seed(isolated_state)
+    audit = _audit_lines(3)
+    head = audit.head_path().read_text()
+    out = snapshot.snapshot(tmp_path / "new.tar.gz")
+    _audit_lines(2)
+    snapshot.restore(out, overwrite=True)
+    assert audit.head_path().read_text() == head
+    assert audit.verify_chain()["ok"]
+
+
+def test_restore_does_not_launder_an_inconsistent_audit_head(isolated_state, tmp_path):
+    """An archive whose head claims more lines than its log has stays flagged."""
+    _seed(isolated_state)
+    audit = _audit_lines(3)
+    audit.head_path().write_text(json.dumps({"lines": 9, "hash": "0" * 64}))
+    out = snapshot.snapshot(tmp_path / "bad.tar.gz")
+    snapshot.restore(out, overwrite=True)
+    assert audit.verify_chain()["truncated"]

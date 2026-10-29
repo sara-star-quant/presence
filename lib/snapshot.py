@@ -11,7 +11,7 @@ Excluded from snapshots (per-machine cache only):
 Included:
   projects/<repo_id>/{model.md,last_seen}, events/<repo_id>/pending.jsonl,
   telemetry/{claims,outcomes,confidence}.jsonl, logs/{errors,warnings}.log,
-  settings.json, presets/<custom>.json, audit.jsonl
+  settings.json, presets/<custom>.json, audit.jsonl, audit.head
 
 Schema versioned via _snapshot_meta.json at the tarball root.
 """
@@ -82,12 +82,12 @@ def snapshot(out_path: str | Path) -> Path:
     """Write a tar.gz of the (non-zerotrust) state dir.
 
     Raises SnapshotError if the active preset wants encryption (the user must
-    snapshot before switching to zerotrust, or wait for v0.3.5 for ZT support).
+    snapshot before switching to zerotrust).
     """
     if _zerotrust_active():
         raise SnapshotError(
             "snapshot of zerotrust state is not yet supported (issue #11); "
-            "switch to a non-zerotrust preset first or wait for v0.3.5"
+            "switch to a non-zerotrust preset first"
         )
 
     sd = state_dir()
@@ -168,6 +168,12 @@ def restore(in_path: str | Path, overwrite: bool = False) -> None:
                 continue
             if member.name.startswith("/") or ".." in Path(member.name).parts:
                 raise SnapshotError(f"refusing unsafe tar member: {member.name!r}")
+
+        # An archive without an audit anchor (pre-0.9) must not leave this
+        # machine's old anchor behind: it would disagree with the restored log
+        # and read as truncation.
+        if "audit.head" not in tf.getnames():
+            (sd / "audit.head").unlink(missing_ok=True)
 
         # Extract everything except the meta file (already consumed).
         for member in tf.getmembers():

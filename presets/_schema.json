@@ -1,6 +1,7 @@
 {
   "_comment": "Recognized preset fields. Loaded by lib/_common.py to validate presets on read; unknown keys warn (never fail). Leaf values are a type name (bool/int/string/array/object) or a list of allowed string values (enum). This file is not itself a preset.",
   "_description": "string",
+  "schema_version": "int",
   "model": {
     "enabled": "bool",
     "max_tokens": "int",
@@ -21,7 +22,7 @@
   },
   "confidence": {
     "enabled": "bool",
-    "commit_gate": ["off", "warn", "block"],
+    "commit_gate": ["off", "warn", "ask", "block"],
     "stop_action": ["silent", "warn", "block"]
   },
   "redact": {
