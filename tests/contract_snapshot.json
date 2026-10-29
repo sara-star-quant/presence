@@ -1,0 +1,85 @@
+{
+  "preset_keys": {
+    "confidence.commit_gate": [
+      "off",
+      "warn",
+      "ask",
+      "block"
+    ],
+    "confidence.enabled": "bool",
+    "confidence.stop_action": [
+      "silent",
+      "warn",
+      "block"
+    ],
+    "events.enabled": "bool",
+    "events.encrypted": "bool",
+    "git.timeout_seconds": "int",
+    "integrity.enabled": "bool",
+    "integrity.fail_closed": "bool",
+    "integrity.verify_manifest": "bool",
+    "model.audit_log": "bool",
+    "model.curate_threshold": "int",
+    "model.enabled": "bool",
+    "model.encrypted": "bool",
+    "model.max_tokens": "int",
+    "model.verbose": "bool",
+    "network.egress_allowed": "bool",
+    "notify.enabled": "bool",
+    "notify.webhook_url": "string",
+    "redact.enabled": "bool",
+    "redact.level": [
+      "standard",
+      "aggressive"
+    ],
+    "redact.profile_statuses": "object",
+    "redact.profiles": "array",
+    "schema_version": "int",
+    "settings.immutable": "bool",
+    "telemetry.audit_log": "bool",
+    "telemetry.enabled": "bool",
+    "telemetry.encrypted": "bool",
+    "telemetry.gh_pr_check": "bool",
+    "transcript.max_bytes": "int",
+    "transcript.restrict_to_claude_projects": "bool",
+    "update_check.enabled": "bool"
+  },
+  "hook_events": [
+    [
+      "PostToolUse",
+      "Bash"
+    ],
+    [
+      "PostToolUse",
+      "Edit|Write|MultiEdit"
+    ],
+    [
+      "PreToolUse",
+      "Bash"
+    ],
+    [
+      "SessionStart",
+      ""
+    ],
+    [
+      "Stop",
+      ""
+    ],
+    [
+      "UserPromptSubmit",
+      ""
+    ]
+  ],
+  "hook_names": [
+    "post-tool-bash",
+    "post-tool-edit",
+    "pre-tool-bash",
+    "session-start",
+    "stop",
+    "user-prompt-submit"
+  ],
+  "cli_commands": [
+    "hook",
+    "mcp"
+  ]
+}

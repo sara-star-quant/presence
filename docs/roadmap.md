@@ -9,10 +9,10 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 **Status**: 0.9.x is the stabilization series. Minor bumps continue (0.10.0 follows 0.9.x) until the criteria below hold; 1.0 is a stability promise, not a milestone counter.
 
 **Criteria**:
-- The preset schema (`presets/_schema.json`) and the hook contract stop changing between releases.
+- The preset schema (`presets/_schema.json`) and the hook contract are frozen by [contract.md](contract.md) and enforced by `tests/test_contract.py` (shipped in v0.9.2).
 - Zero-Trust integrity is complete: manifest gate and audit-chain gate both fail closed (shipped in v0.9.0).
 - Statement coverage stays at or above 80% (the CI gate, reached in v0.9.1).
-- The documented limits in `docs/security.md` are the final threat-model statement, not a work in progress.
+- The documented limits in `docs/security.md` are the final threat-model statement, with a pinning test per claim (shipped in v0.9.2).
 
 **Not a criterion**: the OpenSSF Silver badge. It also needs a second maintainer, which is outside the code.
 

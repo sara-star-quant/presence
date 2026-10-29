@@ -1,5 +1,5 @@
 """presence: continuous-collaboration layer for Claude Code."""
-__version__ = "0.9.1"
+__version__ = "0.9.2"
 
 # Lower bound on the compiled presence_ext crate version that this Python
 # plugin expects. Bumped manually whenever a Python-side change requires a

@@ -19,6 +19,26 @@
 | T11 | Subprocess injection | All `git` calls use list args, never `shell=True`. No user-controlled strings reach a shell. |
 | T12 | State file size attack (transcript or event queue, leading to memory DoS) | Transcripts are tail-read with a max-bytes cap (262 KiB by default; same under Zero-Trust). The event queue is drained on every consumer call (truncates), with a hard 2 MB emergency cap. |
 
+## Which tests pin each claim
+
+A claim is only as good as the test that fails when it breaks. This table lists the pinning test per threat; `tests/test_contract.py` fails if a listed test no longer exists. Rows marked "design property" have no dedicated test: they hold because the code path does not exist (no `shell=True`, no `eval`), which a test cannot meaningfully pin.
+
+| Claim | Pinned by |
+|---|---|
+| T1 hooks never crash the host | `tests/test_hardening.py::test_run_hook_fallback_is_guarded` |
+| T2, T5, T9, T11 | design property |
+| T3 concurrent writers do not corrupt state | `tests/test_audit.py::test_concurrent_appends_chain_safely`, `tests/test_common.py::test_atomic_write_overwrites` |
+| T4 secrets redacted before storage | `tests/test_redact.py::test_standard_known_token_shapes` |
+| T6 perms re-tightened at SessionStart | `tests/test_hardening.py::test_reverify_state_perms_retightens` |
+| T7 plugin tamper and extra files fail closed | `tests/test_hardening.py::test_extra_file_fails_integrity`, `tests/test_hardening.py::test_integrity_gate_blocks_on_extra` |
+| T8 egress blocked under zerotrust, payload redacted | `tests/test_notify.py::test_zerotrust_egress_block_wins_even_if_notify_is_enabled`, `tests/test_notify.py::test_final_excerpt_is_redacted_before_dispatch` |
+| T12 transcript size cap | `tests/test_hook_stop.py::test_transcript_max_bytes_override_and_invalid` |
+| audit line edit detected | `tests/test_audit.py::test_tampered_line_detected` |
+| audit broken link detected | `tests/test_audit.py::test_broken_link_detected` |
+| audit tail truncation detected, not laundered by later appends | `tests/test_audit.py::test_tail_truncation_detected`, `tests/test_audit.py::test_append_does_not_launder_truncation` |
+| broken audit chain keeps hooks inert under zerotrust | `tests/test_audit.py::test_session_start_gate_blocks_on_broken_chain` |
+| full audit rewrite by the account owner | not defended (see below) |
+
 ## What `presence` is **not** trying to defend against
 
 - A compromised Claude Code binary itself. That is outside the trust boundary; if Claude Code is hostile, hooks are not your problem.
