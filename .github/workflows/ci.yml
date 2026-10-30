@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.12", "3.13", "3.14"]
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -176,7 +176,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-24.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -186,7 +186,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; dependabot cannot bump a branch pin, refresh by hand
       - name: Install Linux system libraries
         # Mirrors release.yml; libgit2-sys + secret-service need these on bare
-        # ubuntu-latest. macOS uses Apple frameworks via the SDK so no apt step.
+        # ubuntu-24.04. macOS uses Apple frameworks via the SDK so no apt step.
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update

@@ -4,7 +4,7 @@ An honest gap analysis. 1.0 is a promise to people who depend on presence that t
 
 ## Where we are
 
-Facts as of v0.10.0 (2026-10-29):
+Facts as of v0.11.0 (2026-10-30):
 
 | Signal | Value |
 |---|---|
@@ -12,8 +12,8 @@ Facts as of v0.10.0 (2026-10-29):
 | Releases | 28 tags; v0.9.0, v0.9.1, v0.9.2 and v0.10.0 all shipped on the same day |
 | Contributors | one author (85 commits), one contributor on GitHub, bus factor 1 |
 | Outside signal | 8 stars, 0 forks, one open issue (#9, the Windows roadmap item), no user-filed bugs |
-| Tests | 475 passing, 83% statement coverage (gate: 80%) |
-| Platforms in CI | Linux and macOS, Python 3.12 to 3.14; no Windows |
+| Tests | 488 passing, 83% statement coverage (gate: 80%) |
+| Platforms in CI | Linux (x86_64 and arm64) and macOS, Python 3.12 to 3.14; no Windows |
 
 What the numbers say: the code is well tested against itself, and almost nothing has tested it against anyone else. A frozen contract is only worth freezing once real use has shown where it is wrong. Today every design decision has been validated by the one person who made it.
 
@@ -42,17 +42,15 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 - **Why it blocks**: the hook contract belongs to Claude Code, not to us. A 1.0 that cannot say "works with Claude Code X through Y" promises something it cannot check.
 - **Exit criterion**: a compatibility table in the README (tested versions), recorded real hook payloads from those versions as fixtures in the tests, and a documented policy for what happens when the host changes (warn, degrade, stay inert). A CI job against the real host is the stronger form but may need credentials; capture fixtures first.
 
-### 3. Platform coverage
+### 3. Platform coverage (mostly addressed in 0.11.0)
 
-- **Evidence**: native Windows is unsupported (WSL2 only, issue #9). Release assets are Linux x86_64, macOS x86_64, macOS arm64: no Linux arm64 binary, though arm64 Linux (including common dev containers and cloud VMs) is widespread. The Rust client is optional, so the Python fallback covers the gap, but nobody measures how much slower.
-- **Why it blocks**: 1.0 should state supported platforms and mean it. Silent "works on my machine" gaps are exactly what a stability promise should not have.
-- **Exit criterion**: a support matrix in the README with each platform marked supported, best-effort, or unsupported. Add a Linux arm64 build, or document why not. Native Windows stays a post-1.0 item unless a real user asks (issue #9's own decision criterion).
+- **Done**: the README carries a support matrix, and releases now ship a Linux arm64 binary alongside Linux x86_64 and macOS x86_64 and arm64. CI tests Linux arm64.
+- **Still open**: native Windows is unsupported (WSL2 only, issue #9) and stays post-1.0 unless a real user asks. Nobody measures how much slower the Python fallback is than the Rust client.
 
-### 4. Supply chain of the release artifacts
+### 4. Supply chain of the release artifacts (addressed in 0.11.0)
 
-- **Evidence**: tags are GPG-signed, but the three binary assets have no checksums file, no build attestation, and no SBOM. Third-party Actions are pinned by version tag (`@v7.1.0`), not by commit SHA.
-- **Why it blocks**: presence runs on every session of every project and ships a binary the install script can download. People who audit what runs on their machine cannot verify the binary came from this repo's workflow.
-- **Exit criterion**: `SHA256SUMS` published with each release, GitHub build provenance attestation for the binaries, an SBOM, and Actions pinned by SHA with Dependabot keeping the pins current.
+- **Done**: each release publishes `SHA256SUMS`, a CycloneDX SBOM, and a GitHub build provenance attestation for the binaries. Third-party Actions are pinned by commit SHA, and the runner image is pinned to `ubuntu-24.04` so the Linux binary's glibc floor does not move silently. `install.sh --download-ext` verifies the checksum and, when `gh` is present, the attestation. See [SECURITY.md](../SECURITY.md).
+- **Still open**: nothing blocking. Revisit if the attestation or SBOM format changes.
 
 ### 5. Upgrade and migration paths are barely tested
 
@@ -92,7 +90,7 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 
 ## Suggested order
 
-1. **0.11: trust the artifacts.** Checksums, attestations, SBOM, SHA-pinned Actions, Linux arm64 build, support matrix. All mechanical, and none changes behavior.
+1. **0.11: trust the artifacts (shipped).** Checksums, attestations, SBOM, SHA-pinned Actions, Linux arm64 build, support matrix.
 2. **0.12: prove the boundaries.** Host compatibility table and recorded payload fixtures, old-state fixtures with the state-format-marker decision, Python/Rust crypto parity test.
 3. **0.13: harden.** Fuzz and property tests, operational-limit tests, self-audit document, external review request.
 4. **Soak, then a release candidate.** Run 1.0-rc for several weeks with the feedback channel open; fix what comes in as rc.N.
