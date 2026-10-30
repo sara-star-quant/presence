@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.11.0
+
+Trust the release artifacts. Checksums, provenance, SBOM, pinned Actions.
+
+Every release now ships `SHA256SUMS`, a CycloneDX SBOM, and a build provenance attestation for the binaries, and `install.sh --download-ext` verifies the checksum before installing anything. It also fetches the release that matches your checkout instead of whatever is latest, and there is a Linux arm64 client. Every GitHub Action is pinned by commit SHA.
+
+- `install.sh --download-ext`: checksum verification (refuses a mismatch or a missing entry), version-matched download, Linux arm64.
+- `.github/workflows/release.yml`: arm64 Linux build, SBOM, `SHA256SUMS`, attestation.
+- CI: Linux arm64 test runner; all Actions pinned by SHA, enforced by `tests/test_release_supply_chain.py`.
+- README support matrix and `SECURITY.md` section on verifying release binaries.
+
 ## v0.10.0
 
 Seal zerotrust snapshots with a passphrase.

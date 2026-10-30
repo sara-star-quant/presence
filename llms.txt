@@ -7,12 +7,12 @@
 - **Repository**: https://github.com/sara-star-quant/presence
 - **License**: Apache-2.0
 - **Runtime**: Python 3.12+ (3.12 / 3.13 / 3.14 all in CI)
-- **Platforms**: macOS, Linux (CI matrix). Windows not tested.
-- **Tests**: 167 passing across the Python matrix.
+- **Platforms**: macOS arm64, Linux x86_64 and arm64 (CI matrix); Windows via WSL2, native Windows unsupported.
+- **Tests**: 488 passing across the Python matrix.
 - **Cold hook startup**: 80 ms median, 87 ms p95 (macOS arm64, Python 3.14.4, n=50).
 - **SessionStart populated**: 108 ms median (10 KB model + 100 events + 50 claims, n=50).
 - **Aggregate session overhead**: 6.4 s for a synthetic 77-fire session (median, n=10).
-- **Platforms**: macOS arm64 + Linux x86_64 (CI matrix); Windows via WSL2.
+- **Platforms**: macOS arm64, Linux x86_64 and arm64 (CI matrix); Windows via WSL2.
 
 ## What presence does
 
