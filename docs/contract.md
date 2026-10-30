@@ -32,6 +32,7 @@ A preset key, hook name, or CLI subcommand slated for removal is first deprecate
 - Key, type, and enum stability: `tests/test_contract.py::test_schema_keys_are_superset_of_frozen`, `::test_schema_leaf_types_not_narrowed`.
 - Hook and CLI surface: `::test_hooks_json_matches_frozen_events`, `::test_cli_hook_names_superset`, `::test_cli_subcommands_superset`.
 - Every shipped preset validates without a warning: `::test_bundled_presets_validate_clean`.
+- State written by earlier releases still opens: `tests/test_state_upgrade.py` runs the current hooks and doctor against fixtures from v0.7.1 through v0.11.0. After each release, run `python tests/fixtures/make_state_fixture.py vX.Y.Z` and commit the result.
 - Threat-model claims each point at a pinning test: `::test_security_table_references_existing_tests`.
 
 To add to the contract deliberately, regenerate the new entries into `tests/contract_snapshot.json` in the same change; never delete entries to make a test pass.
