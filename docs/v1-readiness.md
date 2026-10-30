@@ -64,11 +64,11 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 - **Why it blocks**: the Zero-Trust preset sells a security posture. Claims of "tamper-evident" and "fail closed" deserve a second pair of eyes, and parsers of untrusted input deserve fuzzing.
 - **Exit criterion**: property or fuzz tests for the sealed-snapshot parser, the tar restore path, the redaction engine, and the audit verifier; a written self-audit against the threat table; and ideally one external review (even a paid single-engineer review of `lib/crypto.py`, `lib/audit.py`, `lib/snapshot.py`).
 
-### 7. Python and Rust cryptography are not shown to agree
+### 7. Python and Rust key storage must agree (guarded since 0.11.x)
 
-- **Evidence**: `ext/src/crypto.rs` and `lib/crypto.py` both implement the per-line AES-GCM format. I found no test that encrypts with one and decrypts with the other.
-- **Why it blocks**: if they ever diverge, state written under one path becomes unreadable under the other, silently, depending on whether the optional extension is installed.
-- **Exit criterion**: a cross-implementation test (encrypt in Rust, decrypt in Python, and the reverse) running in CI wherever the extension builds.
+- **Evidence**: the Rust extension (`ext/src/crypto.rs`) only reads and writes the data key in the OS keychain. The AES-GCM line format lives in Python alone, so there is no second cipher to diverge. What can diverge is the keychain entry: service, account, attribute names and hex encoding.
+- **Why it matters**: if the two backends disagree, a key written with the extension installed becomes invisible without it, and Zero-Trust state turns unreadable.
+- **Guard**: `tests/test_crypto_backend_parity.py` reads the Rust source and fails on any drift in those four values, and fails if line encryption ever appears in Rust. A live keychain round trip across both backends stays manual, because CI runners have no keychain.
 
 ### 8. Governance and bus factor
 
@@ -91,7 +91,7 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 ## Suggested order
 
 1. **0.11: trust the artifacts (shipped).** Checksums, attestations, SBOM, SHA-pinned Actions, Linux arm64 build, support matrix.
-2. **0.12: prove the boundaries.** Host compatibility table and recorded payload fixtures, old-state fixtures with the state-format-marker decision, Python/Rust crypto parity test.
+2. **0.12: prove the boundaries.** Host compatibility table and recorded payload fixtures, old-state fixtures with the state-format-marker decision. The Python/Rust key-storage guard is already in.
 3. **0.13: harden.** Fuzz and property tests, operational-limit tests, self-audit document, external review request.
 4. **Soak, then a release candidate.** Run 1.0-rc for several weeks with the feedback channel open; fix what comes in as rc.N.
 5. **1.0** when the gaps above are closed or explicitly accepted in the release notes.
