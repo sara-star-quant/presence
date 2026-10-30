@@ -49,7 +49,7 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 
 ### 4. Supply chain of the release artifacts (addressed in 0.11.0)
 
-- **Done**: each release publishes `SHA256SUMS`, a CycloneDX SBOM, and a GitHub build provenance attestation for the binaries. Third-party Actions are pinned by commit SHA, and the runner image is pinned to `ubuntu-24.04` so the Linux binary's glibc floor does not move silently. `install.sh --download-ext` verifies the checksum and, when `gh` is present, the attestation. See [SECURITY.md](../SECURITY.md).
+- **Done**: each release publishes `SHA256SUMS`, a CycloneDX SBOM, and a GitHub build provenance attestation for the binaries. Third-party Actions are pinned by commit SHA. The runner image stays `ubuntu-latest` because the repo ruleset requires check names that end in it. `install.sh --download-ext` verifies the checksum and, when `gh` is present, the attestation. See [SECURITY.md](../SECURITY.md).
 - **Still open**: nothing blocking. Revisit if the attestation or SBOM format changes.
 
 ### 5. Upgrade and migration paths are barely tested
