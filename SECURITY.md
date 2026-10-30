@@ -58,6 +58,14 @@ Release tags are GPG-signed from v0.6.2 onward (earlier tags predate the signing
 
 The private signing key is held only by the maintainer and is never stored on any distribution server.
 
+### Release binaries
+
+From v0.11.0 each release also carries `SHA256SUMS`, a CycloneDX SBOM (`presence-sbom.cdx.json`) for the Rust extension's dependencies, and a build provenance attestation for every binary and the SBOM.
+
+- `./install.sh --download-ext` checks the downloaded binary against `SHA256SUMS` and refuses a mismatch or a missing entry. Releases before v0.11.0 have no `SHA256SUMS`; the installer warns that the binary is unverified.
+- To verify provenance yourself (needs the GitHub CLI): `gh attestation verify presence-client-<platform> --repo sara-star-quant/presence`. This proves the binary came out of this repository's release workflow for that tag. The checksum alone only proves the download matches what the release published.
+- Every GitHub Action in the workflows is pinned by commit SHA, so a moved tag upstream cannot change what the release job runs.
+
 ## See also
 
 - [`README.md`](README.md) Disclaimer section for the legal positioning (Apache-2.0, no warranty, not legal/security/engineering advice).

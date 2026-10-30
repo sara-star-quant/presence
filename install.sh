@@ -543,9 +543,21 @@ build_ext() {
   rm -rf "$venv_dir"
 }
 
+_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print tolower($1)}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print tolower($1)}'
+  else
+    return 1
+  fi
+}
+
 download_ext() {
-  # Pull pre-built presence-client from the latest GitHub Release matching
-  # this host's platform. Skips if curl is missing or no asset matches.
+  # Pull the pre-built presence-client for this host from the GitHub Release
+  # that matches this checkout's version (falling back to the latest release),
+  # verify it against the release's SHA256SUMS, and only then install it.
+  # PRESENCE_RELEASE_BASE overrides the download location (mirrors, tests).
   if ! command -v curl >/dev/null 2>&1; then
     die "curl not found; rerun with --build-ext (requires Rust toolchain) or install curl"
   fi
@@ -558,17 +570,59 @@ download_ext() {
     Darwin/arm64)        asset="presence-client-macos-arm64" ;;
     Darwin/x86_64)       asset="presence-client-macos-x86_64" ;;
     Linux/x86_64)        asset="presence-client-linux-x86_64" ;;
+    Linux/aarch64|Linux/arm64) asset="presence-client-linux-arm64" ;;
     *) die "no pre-built presence-client for $uname_s/$uname_m; use --build-ext instead" ;;
   esac
 
-  info "fetching $asset from latest release of $repo..."
-  local url
-  url="https://github.com/${repo}/releases/latest/download/${asset}"
-  local target="$SCRIPT_DIR/lib/presence-client"
-  if ! curl -fsSL --output "$target" "$url"; then
-    die "could not download $asset from $url; verify a release exists with that asset, or use --build-ext"
+  local base="${PRESENCE_RELEASE_BASE:-}"
+  if [ -z "$base" ]; then
+    local ver
+    ver=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/.claude-plugin/plugin.json" | head -n 1)
+    base="https://github.com/${repo}/releases/download/v${ver}"
+    if ! curl -fsSIL "$base/$asset" >/dev/null 2>&1; then
+      warn "no v${ver} release asset for $asset; falling back to the latest release"
+      base="https://github.com/${repo}/releases/latest/download"
+    fi
   fi
-  chmod 755 "$target"
+
+  info "fetching $asset from $base ..."
+  local tmp target
+  tmp=$(mktemp -d)
+  target="$SCRIPT_DIR/lib/presence-client"
+  if ! curl -fsSL --output "$tmp/$asset" "$base/$asset"; then
+    rm -rf "$tmp"
+    die "could not download $asset from $base; verify a release exists with that asset, or use --build-ext"
+  fi
+
+  if curl -fsSL --output "$tmp/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null; then
+    local expected actual
+    expected=$(awk -v a="$asset" '$2 == a || $2 == "*" a {print tolower($1)}' "$tmp/SHA256SUMS" | head -n 1)
+    if [ -z "$expected" ]; then
+      rm -rf "$tmp"
+      die "SHA256SUMS has no entry for $asset; refusing to install an unverifiable binary"
+    fi
+    actual=$(_sha256 "$tmp/$asset") || { rm -rf "$tmp"; die "no sha256sum or shasum available to verify the download"; }
+    if [ "$expected" != "$actual" ]; then
+      rm -rf "$tmp"
+      die "checksum mismatch for $asset (expected $expected, got $actual); refusing to install"
+    fi
+    ok "checksum verified"
+  else
+    warn "release has no SHA256SUMS (releases before v0.11.0); the binary is not verified"
+  fi
+
+  # Build provenance: only when gh is available and we are talking to GitHub itself.
+  if [ -z "${PRESENCE_RELEASE_BASE:-}" ] && command -v gh >/dev/null 2>&1; then
+    if gh attestation verify "$tmp/$asset" --repo "$repo" >/dev/null 2>&1; then
+      ok "build provenance attestation verified"
+    else
+      warn "could not verify a build attestation (older release, or gh is not signed in)"
+    fi
+  fi
+
+  chmod 755 "$tmp/$asset"
+  mv "$tmp/$asset" "$target"
+  rm -rf "$tmp"
   ok "presence-client downloaded: $target"
 }
 

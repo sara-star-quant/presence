@@ -31,6 +31,9 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: presence-client-linux-x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            artifact: presence-client-linux-arm64
           - target: x86_64-apple-darwin
             # Cross-compile from arm64. macos-13 (Intel) runner pool is
             # chronically congested; v0.4.0 / v0.4.1 / v0.4.2 / v0.5.0 attempts
@@ -45,7 +48,7 @@ jobs:
             artifact: presence-client-macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Skip if ext/ missing
         id: check_ext
         run: |
@@ -55,7 +58,7 @@ jobs:
             echo "have_ext=false" >> "$GITHUB_OUTPUT"
             echo "::notice::ext/ not present in this tag; skipping Rust build"
           fi
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch; dependabot cannot bump a branch pin, refresh by hand
         if: steps.check_ext.outputs.have_ext == 'true'
         with:
           targets: ${{ matrix.target }}
@@ -90,7 +93,7 @@ jobs:
           ls -la /tmp/release-assets/
       - name: Upload artifact
         if: steps.check_ext.outputs.have_ext == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.artifact }}
           path: /tmp/release-assets/${{ matrix.artifact }}
@@ -101,8 +104,12 @@ jobs:
     needs: build-rust
     if: always()   # publish even if some Rust builds fail; release notes are independent
     runs-on: ubuntu-latest
+    permissions:
+      contents: write       # gh release create + asset upload
+      id-token: write       # keyless signing identity for the build attestation
+      attestations: write   # store the attestation
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # need full history so the tag commit is reachable
 
@@ -119,7 +126,7 @@ jobs:
           fi
           echo "tag $TAG_NAME carries a good signature from the maintainer key"
 
-      - uses: actions/setup-python@v7.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
 
@@ -200,7 +207,7 @@ jobs:
         # download-artifact v8 reads artifacts uploaded by upload-artifact v7
         # (shared v4+ backend). No name filter, so it pulls every matrix
         # artifact into its own subdir under path.
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: /tmp/release-assets
         continue-on-error: true   # release notes still publish even if Rust builds failed
@@ -211,6 +218,43 @@ jobs:
             find /tmp/release-assets -type f -name 'presence-client-*' | sort
           fi
 
+      - name: Collect assets, write SBOM and SHA256SUMS
+        id: assets
+        run: |
+          mkdir -p /tmp/release-files
+          if [ -d /tmp/release-assets ]; then
+            find /tmp/release-assets -type f -name 'presence-client-*' -exec cp {} /tmp/release-files/ \;
+          fi
+          if ls /tmp/release-files/presence-client-* >/dev/null 2>&1; then
+            echo "have_assets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_assets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::no Rust assets built; skipping SBOM, checksums, attestation"
+          fi
+
+      - name: Generate SBOM (CycloneDX)
+        if: steps.assets.outputs.have_assets == 'true'
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: ext
+          format: cyclonedx-json
+          output-file: /tmp/release-files/presence-sbom.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Write SHA256SUMS
+        if: steps.assets.outputs.have_assets == 'true'
+        run: |
+          cd /tmp/release-files
+          sha256sum presence-client-* presence-sbom.cdx.json > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attest build provenance
+        if: steps.assets.outputs.have_assets == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: /tmp/release-files/SHA256SUMS
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -218,13 +262,11 @@ jobs:
           TITLE: ${{ steps.changelog.outputs.title }}
           LATEST_FLAG: ${{ steps.latest.outputs.flag }}
         run: |
-          # Collect any presence-client-* artifacts that were uploaded.
+          # Attach the staged binaries, SBOM, and checksums (empty when no Rust build succeeded).
           asset_args=()
-          if [ -d /tmp/release-assets ]; then
-            while IFS= read -r f; do
-              [ -f "$f" ] && asset_args+=("$f")
-            done < <(find /tmp/release-assets -type f -name 'presence-client-*' | sort)
-          fi
+          while IFS= read -r f; do
+            [ -f "$f" ] && asset_args+=("$f")
+          done < <(find /tmp/release-files -type f 2>/dev/null | sort)
           # shellcheck disable=SC2086  # LATEST_FLAG is intentionally split when set
           gh release create "$TAG_NAME" \
             --target main \
