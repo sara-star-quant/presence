@@ -185,6 +185,24 @@ def test_verify_passes_on_healthy_install(tmp_path):
     assert "healthy" in combined.lower() or "ready" in combined.lower()
 
 
+def test_verify_accepts_marketplace_registration(tmp_path):
+    """The marketplace flow enables the plugin as presence@<marketplace>, not the
+    bare name the installer writes. --verify must treat both as registered."""
+    import json
+    import os
+
+    _run_install_then_verify(tmp_path)
+    fake_home = tmp_path / "fake-home"
+    (fake_home / "settings.json").write_text(json.dumps({"enabledPlugins": {"presence@presence": True}}))
+    env = {**os.environ, "CLAUDE_HOME": str(fake_home), "PRESENCE_STATE": str(fake_home / "presence")}
+    r = subprocess.run(
+        ["bash", str(INSTALL_SH), "--verify", "--json"],
+        capture_output=True, text=True, check=False, env=env,
+    )
+    check = next(c for c in json.loads(r.stdout)["checks"] if c["name"] == "settings_registered")
+    assert check["ok"] is True, check["detail"]
+
+
 def test_verify_fails_when_symlink_missing(tmp_path):
     """If the symlink is removed after install, --verify must exit 1 and
     surface the missing-symlink failure."""

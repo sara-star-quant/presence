@@ -228,7 +228,9 @@ verify() {
     is_registered=$("$py_bin" -c '
 import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
-print("yes" if data.get("enabledPlugins", {}).get(sys.argv[2]) is True else "no")
+key = sys.argv[2]
+ep = data.get("enabledPlugins", {})
+print("yes" if any(v is True and (k == key or k.startswith(key + "@")) for k, v in ep.items()) else "no")
 ' "$SETTINGS_FILE" "$PLUGIN_KEY" 2>/dev/null || echo "error")
     case "$is_registered" in
       yes) _record "settings_registered" "true" "$PLUGIN_KEY enabled in $SETTINGS_FILE" ;;
