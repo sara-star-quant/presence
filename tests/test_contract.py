@@ -61,7 +61,7 @@ def test_schema_leaf_types_not_narrowed():
 
 
 def test_hooks_json_matches_frozen_events():
-    hooks = json.loads((ROOT / "hooks" / "hooks.json").read_text())
+    hooks = json.loads((ROOT / "hooks" / "hooks.json").read_text())["hooks"]
     events = sorted([ev, g.get("matcher", "")] for ev, groups in hooks.items() for g in groups)
     assert events == FROZEN["hook_events"]
     for groups in hooks.values():

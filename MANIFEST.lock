@@ -11,7 +11,7 @@
     "commands/presence-reset.md": "0c7f6404d197ced0f0bc53733514773ee2fd4e917e419398cdd72c334352ce01",
     "commands/presence-status.md": "639ee3567b8ce59320dfaf6fbe27fff9de6089f74928c79feb3b8fb84380c352",
     "commands/presence-unlock.md": "d2359d143b019143a96d87d18c676ad5b28a9d940997ccfedb8f671f27462594",
-    "hooks/hooks.json": "40effcbf1648f374a4f2f5766fb50090b5f7825887beaa4412f7fb67704f7c93",
+    "hooks/hooks.json": "90c9e7501d0c6461c794b4f27133fe9558a590bcbe5ba80861529e98d8cf485b",
     "hooks/scripts/_common.sh": "2a4af756b2303128ec22ad27356b3af81c90bed454ec81d91964d76bdc498ca9",
     "hooks/scripts/post-tool-bash.sh": "6d27b03b211e0abe02eb3fad68f9ab2135907b5ee93ea62fad1aa01fa72cc445",
     "hooks/scripts/post-tool-edit.sh": "1dfb1213924a51a0e92bd0da5e19d660cb423e023543402544b7068b784bfa6e",
