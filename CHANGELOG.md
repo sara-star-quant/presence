@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.11.2
+
+Fix telemetry and the confidence gates on the real Claude Code.
+
+On Claude Code 2.1.325, presence recorded no commit claims, push claims or test results, and the commit and Stop gates misjudged verification. Update and restart Claude Code.
+
+- Bash hook: success from `PostToolUse`, exit code from `PostToolUseFailure`.
+- Gates decide verification by event order, not clock seconds.
+- Stop gate reads the final message from the payload and never re-blocks.
+- Real host payloads and an opt-in live harness in the tests.
+
 ## v0.11.1
 
 Fix hooks not loading from the marketplace, and harden the parsers.
