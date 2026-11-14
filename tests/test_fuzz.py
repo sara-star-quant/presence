@@ -105,3 +105,14 @@ def test_verify_chain_reports_instead_of_raising(isolated_state, blob):
     report = audit.verify_chain()
     assert isinstance(report["ok"], bool)
     _clear(isolated_state)
+
+
+@FUZZ
+@example(text="a\u2028b")  # used to split a record in two and read the log as corrupt
+@example(text="a\u2029b\x85c")
+@given(st.text())
+def test_audit_round_trip_verifies(isolated_state, text):
+    audit.append(text or "event", {"k": text})
+    audit.append("second", {})
+    assert audit.verify_chain()["ok"]
+    _clear(isolated_state)

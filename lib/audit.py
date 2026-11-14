@@ -153,7 +153,9 @@ def verify_chain() -> dict:
     if not path.exists():
         return report
     try:
-        raw_lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        # split on \n only: str.splitlines() also breaks on U+2028, U+2029 and U+0085,
+        # which json.dumps(ensure_ascii=False) writes through inside a record.
+        raw_lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
     except OSError:
         report["ok"] = False
         return report
