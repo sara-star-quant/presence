@@ -258,7 +258,7 @@ Start at [`docs/index.md`](docs/index.md) for a map. Highlights:
 
 ## Reporting bugs
 
-Open a GitHub issue using the bug template. For security findings, do **not** file a public issue - follow the private disclosure process in [`SECURITY.md`](SECURITY.md).
+Open a GitHub issue using the bug template. If presence is installed but silent (no hooks firing, or an unexpected integrity or audit block), use the [it went inert](https://github.com/sara-star-quant/presence/issues/new?template=inert.yml) template and paste the output of `/presence-bugreport`. For security findings, do **not** file a public issue - follow the private disclosure process in [`SECURITY.md`](SECURITY.md).
 
 ## Disclaimer
 
