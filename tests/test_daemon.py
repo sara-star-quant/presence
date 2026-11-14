@@ -133,7 +133,13 @@ def test_daemon_socket_perms_are_0600(short_state_dir):
     try:
         sock = state / "presence.sock"
         assert _wait_for_socket(sock), "daemon did not create socket within 5s"
+        # bind() under umask 077 leaves the node at 0o700 (owner-only) until the
+        # daemon's chmod to 0o600 lands, so the file appearing is not the signal.
+        deadline = time.time() + 5.0
         mode = stat.S_IMODE(sock.stat().st_mode)
+        while mode != 0o600 and time.time() < deadline:
+            time.sleep(0.05)
+            mode = stat.S_IMODE(sock.stat().st_mode)
         assert mode == 0o600, f"socket perms should be 0o600, got 0o{mode:03o}"
     finally:
         _stop_daemon(proc)
