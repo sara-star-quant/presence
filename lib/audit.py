@@ -171,6 +171,9 @@ def verify_chain() -> dict:
         except json.JSONDecodeError:
             report["corrupt"].append(idx)
             continue
+        if not isinstance(obj, dict):
+            report["corrupt"].append(idx)
+            continue
         stored_hash = obj.get("hash")
         stored_prev = obj.get("prev_hash")
         if not (isinstance(stored_hash, str) and isinstance(stored_prev, str)):

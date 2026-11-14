@@ -399,7 +399,8 @@ def restore(in_path: str | Path, overwrite: bool = False, passphrase: str | None
         for member in tf.getmembers():
             if member.name == META_FILENAME:
                 continue
-            if member.name.startswith("/") or ".." in Path(member.name).parts or not member.isreg():
+            parts = Path(member.name).parts
+            if member.name.startswith("/") or not parts or ".." in parts or not member.isreg():
                 raise SnapshotError(f"refusing unsafe tar member: {member.name!r}")
             f = tf.extractfile(member)
             entries[member.name] = f.read() if f is not None else b""
