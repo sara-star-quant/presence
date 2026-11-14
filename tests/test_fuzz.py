@@ -138,3 +138,34 @@ def test_restore_reports_a_truncated_archive_as_snapshot_error(isolated_state):
         snap.write_bytes(blob[:cut])
         with pytest.raises(snapshot.SnapshotError):
             snapshot.restore(snap)
+
+
+def _with_meta(meta: bytes, members: dict[str, bytes] | None = None) -> bytes:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        for name, data in {snapshot.META_FILENAME: meta, **(members or {})}.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("meta", "members"),
+    [
+        (b"[]", None),
+        (b"1", None),
+        (json.dumps({"format": 1, "encrypted_files": [[1]]}).encode(), None),
+        (json.dumps({"format": 1, "encrypted_files": [1]}).encode(), None),
+        (json.dumps({"format": 1, "encrypted_files": "abc"}).encode(), None),
+        (json.dumps({"format": 1, "encrypted_files": ["a.jsonl"]}).encode(), {"a.jsonl": b"\xff\xfe"}),
+    ],
+)
+def test_restore_rejects_malformed_meta_cleanly(isolated_state, monkeypatch, meta, members):
+    import crypto
+
+    monkeypatch.setattr(crypto, "get_or_create_key", lambda: bytes(32))
+    snap = isolated_state.parent / "in.snap"
+    snap.write_bytes(_with_meta(meta, members))
+    with pytest.raises(snapshot.SnapshotError):
+        snapshot.restore(snap)

@@ -365,6 +365,11 @@ def _read_archive(tf: tarfile.TarFile) -> tuple[dict, dict[str, bytes]]:
                 meta = json.loads(meta_file.read().decode("utf-8"))
             except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 raise SnapshotError(f"snapshot meta is not valid JSON: {exc}") from exc
+            if not isinstance(meta, dict):
+                raise SnapshotError("snapshot meta is not a JSON object")
+            enc = meta.get("encrypted_files") or []
+            if not isinstance(enc, list) or not all(isinstance(r, str) for r in enc):
+                raise SnapshotError("snapshot meta lists encrypted_files that are not strings")
             if meta.get("format") != SCHEMA_FORMAT:
                 raise SnapshotError(
                     f"snapshot format {meta.get('format')!r} != supported {SCHEMA_FORMAT!r}; "
@@ -433,7 +438,10 @@ def restore(in_path: str | Path, overwrite: bool = False, passphrase: str | None
                 "(keychain unavailable or refused to store one); nothing was restored"
             )
         for rel in reencrypt:
-            entries[rel] = _encrypt_log(entries[rel], key)
+            try:
+                entries[rel] = _encrypt_log(entries[rel], key)
+            except UnicodeDecodeError as exc:
+                raise SnapshotError(f"{rel} is listed as encrypted state but is not valid text") from exc
 
     # An archive without an audit anchor (pre-0.9) must not leave this machine's
     # old anchor behind: it would disagree with the restored log and read as truncation.
