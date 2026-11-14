@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.11.1
+
+Fix hooks not loading from the marketplace, and harden the parsers.
+
+Claude Code rejects a plugin `hooks.json` with events at the top level, so a marketplace install of 0.11.0 enabled cleanly and ran no hooks. Events now sit under a `hooks` key. Update the plugin and restart Claude Code to get the hooks back.
+
+Coverage-guided fuzzing of the snapshot and audit parsers also landed, and it found real bugs, all fixed here.
+
+- `hooks/hooks.json`: events wrapped in a `hooks` object; the contract test and `MANIFEST.lock` follow.
+- `install.sh --verify`: accepts `presence@presence` as well as the bare plugin name.
+- `lib/audit.py`: an event holding U+2028, U+2029 or U+0085 no longer makes the log read as corrupt, which would have stopped the hooks under the fail-closed gate; a log line that is valid JSON but not an object is reported as corrupt instead of raising.
+- `lib/snapshot.py`: restore refuses a tar member with an empty path (`.`) or a NUL in its name, and reports a truncated or corrupt archive, a symlink meta member, and malformed meta as `SnapshotError` instead of a traceback. A member named `.` used to replace the state directory with a file.
+- Fuzzing: Hypothesis property tests on every PR (`tests/test_fuzz.py`), and Atheris harnesses in `fuzz/` under ClusterFuzzLite on code-change PRs and a daily batch.
+- `.github/ISSUE_TEMPLATE/inert.yml`: issue template for installs that go inert.
+
 ## v0.11.0
 
 Trust the release artifacts. Checksums, provenance, SBOM, pinned Actions.
