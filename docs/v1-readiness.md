@@ -62,6 +62,7 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 
 - **Evidence**: the threat model, the implementation, and the tests were all written by the same author. The new parsers (sealed snapshot, tar restore) have example-based tests only. No fuzzing, no external review.
 - **Why it blocks**: the Zero-Trust preset sells a security posture. Claims of "tamper-evident" and "fail closed" deserve a second pair of eyes, and parsers of untrusted input deserve fuzzing.
+- **Done**: Hypothesis property tests (`tests/test_fuzz.py`) run on every PR, and Atheris harnesses in `fuzz/` run under ClusterFuzzLite on code-change PRs and a daily batch. They found two real bugs on first contact. Still open: the written self-audit, external review, and a persisted corpus.
 - **Exit criterion**: property or fuzz tests for the sealed-snapshot parser, the tar restore path, the redaction engine, and the audit verifier; a written self-audit against the threat table; and ideally one external review (even a paid single-engineer review of `lib/crypto.py`, `lib/audit.py`, `lib/snapshot.py`).
 
 ### 7. Python and Rust key storage must agree (guarded since 0.11.x)
