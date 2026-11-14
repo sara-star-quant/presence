@@ -75,13 +75,14 @@ def _archive(names: list[str]) -> bytes:
 
 
 _NAME = st.one_of(
-    st.text(alphabet="ab./\\", min_size=1, max_size=12),
+    st.text(alphabet="ab./\\\x00", min_size=1, max_size=12),
     st.sampled_from(["../x", "/etc/x", "a/../../x", "a//b", "./a", "..", "."]),
 )
 
 
 @FUZZ
 @example(names=["."])  # used to replace the state dir with a file
+@example(names=["a\x00b"])  # used to raise ValueError from the staging write
 @given(st.lists(_NAME, max_size=4))
 def test_restore_never_writes_outside_state_dir(isolated_state, names):
     parent = isolated_state.parent
