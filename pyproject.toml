@@ -49,6 +49,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S108"]
+# Fuzz harnesses assert their invariants and must extend sys.path before importing lib/.
+"fuzz/*" = ["S101", "S108", "E402"]
 "lib/_common.py" = ["S110", "BLE001"]
 "lib/warnings_log.py" = ["E731"]
 # v0.4.0 daemon: try/except/pass is the right pattern in the outermost guards
