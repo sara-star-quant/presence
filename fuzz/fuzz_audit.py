@@ -30,7 +30,8 @@ def _build(fdp) -> list[str]:
     for _ in range(fdp.ConsumeIntInRange(1, 6)):
         details = {fdp.ConsumeUnicodeNoSurrogates(8): fdp.ConsumeUnicodeNoSurrogates(24)}
         audit.append(fdp.ConsumeUnicodeNoSurrogates(16) or "event", details)
-    return audit.audit_path().read_text(encoding="utf-8").splitlines(keepends=True)
+    text = audit.audit_path().read_text(encoding="utf-8")
+    return [line + "\n" for line in text.split("\n") if line]
 
 
 def TestOneInput(data: bytes) -> None:
