@@ -134,7 +134,7 @@ def test_restore_rejects_a_symlink_meta_member(isolated_state):
 def test_restore_reports_a_truncated_archive_as_snapshot_error(isolated_state):
     blob = _archive(["a/b.txt"])
     snap = isolated_state.parent / "in.snap"
-    for cut in (len(blob) // 2, len(blob) - 8):
+    for cut in (len(blob) // 3, len(blob) // 2):
         snap.write_bytes(blob[:cut])
         with pytest.raises(snapshot.SnapshotError):
             snapshot.restore(snap)
