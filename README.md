@@ -7,6 +7,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](.github/workflows/ci.yml)
 [![Stdlib only](https://img.shields.io/badge/runtime-stdlib--only-success)](pyproject.toml)
 [![Local only](https://img.shields.io/badge/state-local--only-success)](docs/security.md)
+[![Fuzzing](https://img.shields.io/badge/fuzzing-property--based-success)](tests/test_fuzz.py)
 
 > **New in [v0.8.0](https://github.com/sara-star-quant/presence/releases/tag/v0.8.0):** opt-in webhook notifier for confidence-gate verdicts, off by default and hard-disabled under `zerotrust`. See [`docs/recipes.md`](docs/recipes.md).
 

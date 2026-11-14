@@ -7,13 +7,14 @@
 #   python3 -m venv .venv
 #   .venv/bin/pip install --group dev
 # (Requires pip >= 25.1; older pip can fall back to:
-#   .venv/bin/pip install pytest cryptography ruff bandit)
+#   .venv/bin/pip install pytest cryptography ruff bandit hypothesis)
 [dependency-groups]
 dev = [
   "pytest>=9.2.0",
   "cryptography",  # only needed to exercise the zerotrust at-rest encryption tests
   "ruff>=0.17.3",
   "bandit>=1.9.4",  # security scan; CI parity with the lint job
+  "hypothesis>=6.170.0",  # property-based fuzz tests (tests/test_fuzz.py); CI parity
   "coverage>=7.17.2",  # statement-coverage measurement (incl. subprocess hooks); CI parity
 ]
 

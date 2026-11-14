@@ -22,8 +22,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
-      - name: Install pytest + cryptography (zerotrust optional dep, used by tests)
-        run: pip install --upgrade pip && pip install pytest cryptography
+      - name: Install pytest + cryptography + hypothesis (zerotrust optional dep, fuzz tests)
+        run: pip install --upgrade pip && pip install pytest cryptography hypothesis
       - name: Run tests
         run: PYTHONPATH=lib pytest -q
 
@@ -88,7 +88,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install pytest + cryptography + coverage
-        run: pip install --upgrade pip && pip install pytest cryptography coverage
+        run: pip install --upgrade pip && pip install pytest cryptography coverage hypothesis
       - name: Run tests under coverage
         # In-process measurement (deterministic). The hooks are unit-tested
         # in-process; daemon.py is omitted (see pyproject [tool.coverage.run])

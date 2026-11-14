@@ -45,3 +45,6 @@ lib/presence_ext-*.dist-info/
 # DO NOT ignore MANIFEST.lock; it ships with the plugin and CI verifies it
 # DO NOT ignore presets/*.json; those are part of the plugin
 # DO NOT ignore ext/Cargo.toml or ext/Cargo.lock; Rust source is part of the plugin
+
+# Hypothesis example database
+.hypothesis/
