@@ -40,7 +40,8 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 
 - **Done**: `tests/fixtures/host/<claude-code-version>/` holds payloads captured from the real host with `tests/fixtures/capture_host_payloads.py`, and `tests/test_host_payloads.py` runs the real hooks against them. The README carries a tested-versions table. The first capture found that a successful Bash command carries no `exit_code` and that failures arrive as `PostToolUseFailure`, so commit claims and test verification had never been recorded on the real host. Fixed in the same change.
 - **Policy**: a payload missing what a hook needs leaves the hook quiet and logs a warning (`bash_exit_unknown` for the Bash case) that `/presence-doctor` surfaces. It never guesses.
-- **Still open**: no CI job runs the live host (it needs credentials), so a new Claude Code version is untested until someone re-captures. Re-capture on each Claude Code release that touches hooks.
+- **Live harness**: `tests/live/` runs a real Claude Code session against the checkout (opt-in, `PRESENCE_LIVE_HOST=1`) and checks the output side: context delivery, the commit-gate deny, the Stop-gate block. It found that the Stop gate ignored the message the host sends and could re-block without end.
+- **Still open**: no CI job runs the live host (it needs credentials), so a new Claude Code version is untested until someone re-captures and re-runs the live suite. Do both on each Claude Code release that touches hooks.
 
 ### 3. Platform coverage (mostly addressed in 0.11.0)
 
