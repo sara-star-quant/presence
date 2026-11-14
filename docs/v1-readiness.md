@@ -36,11 +36,11 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 - **Why it blocks**: fail-closed behavior makes hooks go inert on a false positive. Only real machines (odd filesystems, restored backups, clock skew, crashed sessions mid-append) find those. We found one such bug ourselves (stale `audit.head` after restore) only because we were reading the code.
 - **Exit criterion (proposed)**: at least 8 weeks since the last change to the contract surface, at least a handful of installs the maintainer does not control, and every issue they file triaged. Without a feedback channel there is nothing to wait for, so add one: an issue template for "it went inert" reports and a documented way to ask for help.
 
-### 2. Host compatibility is unstated and untested against the real host
+### 2. Host compatibility (fixtures in place; live host not in CI)
 
-- **Evidence**: presence runs inside Claude Code, but no document names a minimum or tested Claude Code version, and no test runs the real host. Hook payloads are simulated by our own fixtures.
-- **Why it blocks**: the hook contract belongs to Claude Code, not to us. A 1.0 that cannot say "works with Claude Code X through Y" promises something it cannot check.
-- **Exit criterion**: a compatibility table in the README (tested versions), recorded real hook payloads from those versions as fixtures in the tests, and a documented policy for what happens when the host changes (warn, degrade, stay inert). A CI job against the real host is the stronger form but may need credentials; capture fixtures first.
+- **Done**: `tests/fixtures/host/<claude-code-version>/` holds payloads captured from the real host with `tests/fixtures/capture_host_payloads.py`, and `tests/test_host_payloads.py` runs the real hooks against them. The README carries a tested-versions table. The first capture found that a successful Bash command carries no `exit_code` and that failures arrive as `PostToolUseFailure`, so commit claims and test verification had never been recorded on the real host. Fixed in the same change.
+- **Policy**: a payload missing what a hook needs leaves the hook quiet and logs a warning (`bash_exit_unknown` for the Bash case) that `/presence-doctor` surfaces. It never guesses.
+- **Still open**: no CI job runs the live host (it needs credentials), so a new Claude Code version is untested until someone re-captures. Re-capture on each Claude Code release that touches hooks.
 
 ### 3. Platform coverage (mostly addressed in 0.11.0)
 

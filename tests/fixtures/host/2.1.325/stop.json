@@ -1,0 +1,15 @@
+{
+ "background_tasks": [],
+ "cwd": "/work/repo",
+ "effort": {
+  "level": "medium"
+ },
+ "hook_event_name": "Stop",
+ "last_assistant_message": "done",
+ "permission_mode": "acceptEdits",
+ "prompt_id": "fixture-prompt_id",
+ "session_crons": [],
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "stop_hook_active": false,
+ "transcript_path": "/home/user/.claude/projects/fixture/00000000.jsonl"
+}

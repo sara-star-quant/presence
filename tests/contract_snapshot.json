@@ -54,6 +54,10 @@
       "Edit|Write|MultiEdit"
     ],
     [
+      "PostToolUseFailure",
+      "Bash"
+    ],
+    [
       "PreToolUse",
       "Bash"
     ],

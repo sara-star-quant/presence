@@ -1,0 +1,26 @@
+{
+ "cwd": "/work/repo",
+ "duration_ms": 10,
+ "effort": {
+  "level": "medium"
+ },
+ "hook_event_name": "PostToolUse",
+ "permission_mode": "acceptEdits",
+ "prompt_id": "fixture-prompt_id",
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "tool_input": {
+  "content": "hi\n",
+  "file_path": "/work/repo"
+ },
+ "tool_name": "Write",
+ "tool_response": {
+  "content": "hi\n",
+  "filePath": "/work/repo",
+  "originalFile": null,
+  "structuredPatch": [],
+  "type": "create",
+  "userModified": false
+ },
+ "tool_use_id": "fixture-tool_use_id",
+ "transcript_path": "/home/user/.claude/projects/fixture/00000000.jsonl"
+}
