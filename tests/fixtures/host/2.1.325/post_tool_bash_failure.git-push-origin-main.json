@@ -1,0 +1,20 @@
+{
+ "cwd": "/work/repo",
+ "duration_ms": 71,
+ "effort": {
+  "level": "medium"
+ },
+ "error": "Exit code 128\nfatal: unable to access 'https://example.invalid/presence-fixture.git/': Could not resolve host: example.invalid",
+ "hook_event_name": "PostToolUseFailure",
+ "is_interrupt": false,
+ "permission_mode": "acceptEdits",
+ "prompt_id": "fixture-prompt_id",
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "tool_input": {
+  "command": "git push origin main",
+  "description": "Push main branch to origin"
+ },
+ "tool_name": "Bash",
+ "tool_use_id": "fixture-tool_use_id",
+ "transcript_path": "/home/user/.claude/projects/fixture/00000000.jsonl"
+}

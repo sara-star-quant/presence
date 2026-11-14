@@ -1,0 +1,32 @@
+{
+ "cwd": "/work/repo",
+ "duration_ms": 617,
+ "effort": {
+  "level": "medium"
+ },
+ "hook_event_name": "PostToolUse",
+ "permission_mode": "acceptEdits",
+ "prompt_id": "fixture-prompt_id",
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "tool_input": {
+  "command": "git commit --allow-empty -m probe",
+  "description": "Create empty probe commit"
+ },
+ "tool_name": "Bash",
+ "tool_response": {
+  "gitOperation": {
+   "commit": {
+    "branch": "main",
+    "kind": "committed",
+    "sha": "42f6b41"
+   }
+  },
+  "interrupted": false,
+  "isImage": false,
+  "noOutputExpected": false,
+  "stderr": "",
+  "stdout": "[main 42f6b41] probe"
+ },
+ "tool_use_id": "fixture-tool_use_id",
+ "transcript_path": "/home/user/.claude/projects/fixture/00000000.jsonl"
+}

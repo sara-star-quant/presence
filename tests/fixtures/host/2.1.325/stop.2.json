@@ -1,0 +1,15 @@
+{
+ "background_tasks": [],
+ "cwd": "/work/repo",
+ "effort": {
+  "level": "medium"
+ },
+ "hook_event_name": "Stop",
+ "last_assistant_message": "done\n\nAll four commands ran in order, with no retries. Two did not succeed:\n\n- **Step 3** (`pytest no_such_test.py -q`) exited with code 4: \"file or directory not found: no_such_test.py\". This is the expected failure for a missing file.\n- **Step 4** (`git push origin main`) exited with code 128: it could not resolve host `example.invalid`. The push did not happen.\n\nStep 1 created an empty commit `42f6b41` (\"probe\") on `main`. It is local only. Step 2 printed `pytest 9.2.0`.",
+ "permission_mode": "acceptEdits",
+ "prompt_id": "fixture-prompt_id",
+ "session_crons": [],
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "stop_hook_active": false,
+ "transcript_path": "/home/user/.claude/projects/fixture/00000000.jsonl"
+}

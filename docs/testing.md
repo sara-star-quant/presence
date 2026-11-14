@@ -1,6 +1,6 @@
 # How presence is tested
 
-What runs, what each layer is meant to catch, and what is not covered. Numbers are from the repo at v0.11.1: 534 tests in `tests/`.
+What runs, what each layer is meant to catch, and what is not covered. Numbers are from main after v0.11.1: 548 tests in `tests/`.
 
 ## Layers
 
@@ -8,6 +8,7 @@ What runs, what each layer is meant to catch, and what is not covered. Numbers a
 |---|---|---|
 | Unit and integration tests | `tests/`, run by `pytest` | Behavior of hooks, presets, state, redaction, audit, snapshots, the MCP server |
 | Contract test | `tests/test_contract.py`, `tests/contract_snapshot.json` | Any removal or rename of a preset key, hook event, or CLI command ([contract.md](contract.md)); a threat in [security.md](security.md) whose pinning test no longer exists |
+| Host payloads | `tests/test_host_payloads.py`, `tests/fixtures/host/<version>/` | The real hooks disagreeing with what Claude Code actually sends |
 | Upgrade fixtures | `tests/test_state_upgrade.py`, `tests/fixtures/state/<tag>/` | State written by an earlier release that the current code can no longer open |
 | Property tests | `tests/test_fuzz.py` (Hypothesis) | Parsers raising or misbehaving on arbitrary input |
 | Coverage-guided fuzzing | `fuzz/` (Atheris under ClusterFuzzLite) | The same, reaching branches that random input does not |
@@ -45,7 +46,7 @@ Every PR and every push to main runs:
 
 ## Not covered
 
-- **The real Claude Code host.** Hook payloads in the tests are our own fixtures. Nothing runs the real host, so a change in Claude Code's hook contract is found by users, not CI. This is a named gap in [v1-readiness.md](v1-readiness.md), and the marketplace `hooks.json` bug fixed in v0.11.1 is an instance of it.
+- **The live Claude Code host in CI.** The host-payload tests replay payloads captured from a real Claude Code, but capturing needs a logged-in session, so a new Claude Code version stays unverified until someone re-runs `tests/fixtures/capture_host_payloads.py`. The README lists the tested versions. The first capture showed that every other hook test had been agreeing with our own assumptions: a successful Bash command carries no exit code, and failures arrive as a separate event.
 - **A live keychain.** CI runners have none, so a round trip across the Python and Rust backends is manual.
 - **macOS x86_64 and native Windows.** No runner for the first; unsupported on the second ([#9](https://github.com/sara-star-quant/presence/issues/9)).
 - **Independent review.** The threat model, the code, and the tests have one author. No external security review has been done.

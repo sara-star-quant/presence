@@ -188,3 +188,22 @@ def test_resolve_commit_cwd():
     assert _resolve_commit_cwd("/repo", "git -C sub commit -m x") == os.path.join("/repo", "sub")
     assert _resolve_commit_cwd("/repo", "cd sub && git commit -m x") == os.path.join("/repo", "sub")
     assert _resolve_commit_cwd("/repo", "git commit -m x") == "/repo"
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ({"hook_event_name": "PostToolUse", "tool_response": {"stdout": "ok"}}, 0),
+        ({"hook_event_name": "PostToolUse", "tool_response": {"exit_code": 2}}, 2),
+        ({"hook_event_name": "PostToolUse", "tool_response": {"interrupted": True}}, None),
+        ({"hook_event_name": "PostToolUseFailure", "error": "Exit code 3\nboom"}, 3),
+        ({"hook_event_name": "PostToolUseFailure", "error": "Command timed out"}, None),
+        ({"hook_event_name": "PostToolUseFailure"}, None),
+        ({"tool_response": {"stdout": "ok"}}, None),
+    ],
+)
+def test_exit_code_from_the_real_host_contract(payload, expected):
+    sys.path.insert(0, str(PLUGIN_ROOT / "lib"))
+    from hook_post_tool_bash import _exit_code
+
+    assert _exit_code(payload, payload.get("tool_response") or {}) == expected

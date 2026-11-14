@@ -1,7 +1,8 @@
-"""PostToolUse(Bash) hook: log commands, capture commit SHAs from stdout, classify test/build runs."""
+"""PostToolUse and PostToolUseFailure (Bash) hook: log commands, capture commit SHAs, classify test/build runs."""
 from __future__ import annotations
 
 import os
+import re
 
 from _common import hook_input, integrity_blocked, safe_main, settings
 from cmdparse import (
@@ -20,6 +21,28 @@ from telemetry import (
     record_push_claim,
 )
 from verify import classify_command
+
+
+def _exit_code(inp: dict, tool_response: dict) -> int | None:
+    """The command's exit code, or None when the host did not tell us.
+
+    Claude Code sends no exit_code in tool_response. It fires PostToolUse only for a
+    command that succeeded, and PostToolUseFailure, whose error reads "Exit code N", for
+    the rest. An explicit exit_code still wins. An interrupted command stays unknown.
+    """
+    raw = tool_response.get("exit_code")
+    if raw is not None:
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+    event = inp.get("hook_event_name")
+    if event == "PostToolUse" and not tool_response.get("interrupted"):
+        return 0
+    if event == "PostToolUseFailure":
+        m = re.match(r"Exit code (-?\d+)", str(inp.get("error") or ""))
+        return int(m.group(1)) if m else None
+    return None
 
 
 def _redact_level(cfg: dict) -> str:
@@ -54,11 +77,7 @@ def main() -> None:
     tool_response = inp.get("tool_response") or {}
     cmd = tool_input.get("command") or ""
 
-    raw_exit = tool_response.get("exit_code")
-    try:
-        exit_code: int | None = int(raw_exit) if raw_exit is not None else None
-    except (TypeError, ValueError):
-        exit_code = None
+    exit_code = _exit_code(inp, tool_response)
 
     level = _redact_level(cfg)
     profiles = _redact_profiles(cfg)
@@ -78,13 +97,13 @@ def main() -> None:
     if not (cfg.get("telemetry") or {}).get("enabled", True):
         return
     if exit_code is None:
-        # Bash hook input lacked an exit_code we could parse. Could be schema drift
-        # in Claude Code or a malformed tool_response. Don't record (we can't tell
+        # The host gave us no exit code we could parse. Could be schema drift
+        # in Claude Code or a malformed payload. Don't record (we can't tell
         # if the command succeeded), but surface the gap so /presence-doctor shows it.
         from warnings_log import warn
         warn(
             "bash_exit_unknown",
-            "tool_response missing parseable exit_code; commit/push claim not recorded",
+            "no parseable exit code in the Bash hook payload; commit/push claim not recorded",
             cmd=cmd[:100],
         )
         return

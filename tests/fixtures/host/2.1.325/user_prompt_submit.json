@@ -1,0 +1,9 @@
+{
+ "cwd": "/work/repo",
+ "hook_event_name": "UserPromptSubmit",
+ "permission_mode": "acceptEdits",
+ "prompt": "Use the Write tool to create a.txt containing the word hi, then use the Bash tool to run: echo ok. Reply with the single word done.",
+ "prompt_id": "fixture-prompt_id",
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "transcript_path": "/home/user/.claude/projects/fixture/00000000.jsonl"
+}
