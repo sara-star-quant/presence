@@ -1,0 +1,87 @@
+name: It went inert
+description: presence stopped doing anything, or its hooks never fired
+title: "[inert]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when presence is installed but silent: no session context, no telemetry, no gate, or an integrity or audit block you did not expect. Fail-closed gates make hooks go inert on purpose, so a false positive looks like nothing happening. These reports are the ones we most want.
+
+        Run `/presence-bugreport` in Claude Code and paste the output below. It is read-only.
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: What you saw
+      options:
+        - No hooks fire (no SessionStart context, no events recorded)
+        - Hooks fired once, then stopped
+        - Integrity or audit block I did not expect
+        - Zero-Trust state will not open
+        - Slow session start
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: claude-code
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed presence
+      options:
+        - Plugin marketplace
+        - install.sh
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Active preset
+      options:
+        - solo-dev
+        - team-oss
+        - enterprise-strict
+        - zerotrust
+        - custom
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS arm64
+        - macOS x86_64
+        - Linux (Ubuntu)
+        - Linux (other)
+        - Windows via WSL2
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: bugreport
+    attributes:
+      label: Output of `/presence-bugreport`
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: changed
+    attributes:
+      label: What changed before it stopped
+      description: Restored a backup, switched network home, upgraded Claude Code or presence, crashed session, clock change.
+    validations:
+      required: false
