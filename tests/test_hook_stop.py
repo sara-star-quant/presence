@@ -113,6 +113,24 @@ def test_unverified_claim_block_emits_decision(hook_runner, capsys, tmp_path):
     assert '"decision":"block"' in out
 
 
+def test_message_in_the_payload_is_used_without_a_transcript(hook_runner, capsys):
+    run, state, repo = hook_runner
+    _seed(repo, edit_age=10)
+    run("hook_stop", {"cwd": str(repo), "last_assistant_message": "Done, it works now."},
+        settings={"preset": "solo-dev", "overrides": {"confidence.stop_action": "block"}})
+    assert '"decision":"block"' in capsys.readouterr().out
+    assert len(_confidence(state)) == 1
+
+
+def test_second_stop_after_a_block_does_not_block_again(hook_runner, capsys):
+    run, state, repo = hook_runner
+    _seed(repo, edit_age=10)
+    run("hook_stop", {"cwd": str(repo), "last_assistant_message": "Done, it works now.", "stop_hook_active": True},
+        settings={"preset": "solo-dev", "overrides": {"confidence.stop_action": "block"}})
+    assert capsys.readouterr().out.strip() == ""
+    assert len(_confidence(state)) == 1  # still recorded, just not blocked
+
+
 # --- pure helpers ------------------------------------------------------------
 
 def test_transcript_max_bytes_override_and_invalid():

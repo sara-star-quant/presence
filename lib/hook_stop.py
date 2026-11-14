@@ -96,11 +96,14 @@ def main() -> None:
     if not (cfg.get("confidence") or {}).get("enabled", True):
         return
 
-    transcript = _safe_transcript_path(inp.get("transcript_path"), cfg)
-    if transcript is None:
-        return
-
-    final = _last_assistant_text(transcript, max_bytes=_transcript_max_bytes(cfg))
+    # The host hands us the final message; the transcript file is only the fallback, since
+    # it may not exist (no session persistence) and its format is not ours to rely on.
+    final = inp.get("last_assistant_message")
+    if not (isinstance(final, str) and final.strip()):
+        transcript = _safe_transcript_path(inp.get("transcript_path"), cfg)
+        if transcript is None:
+            return
+        final = _last_assistant_text(transcript, max_bytes=_transcript_max_bytes(cfg))
     if not final:
         # Could be schema drift, or just an empty session. Track it so /presence-doctor
         # can flag persistent emptiness.
@@ -116,7 +119,7 @@ def main() -> None:
     if not recent["has_recent_edit"]:
         return
 
-    verified = recent["has_recent_test_evidence"]
+    verified = recent["verified_since_edit"]
     record_confidence("unhedged_success", verified, final_excerpt=final[:200])
 
     if verified:
@@ -125,7 +128,9 @@ def main() -> None:
     # Strict presets force a re-prompt; default presets log silently so the next
     # SessionStart can surface the count via the warnings counter pathway.
     stop_action = (cfg.get("confidence") or {}).get("stop_action") or "silent"
-    if stop_action != "block":
+    # stop_hook_active: the host already continued once because of a Stop hook. Blocking
+    # again could loop forever, so the second pass only logs.
+    if stop_action != "block" or inp.get("stop_hook_active"):
         # Logged to confidence.jsonl above; SessionStart's counter surfacer will mention it.
         warn("unverified_success_claim", "asserted success without test/build evidence", excerpt=final[:120])
         return

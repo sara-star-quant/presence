@@ -41,6 +41,7 @@ def scan_recent(cwd=None, since_ts: int | None = None, window_seconds: int = 180
         since_ts = now_ts() - window_seconds
     last_edit = 0
     last_pass = 0
+    passed_since_edit = False
     for ev in peek_events(cwd):
         ts = ev.get("ts", 0)
         if ts < since_ts:
@@ -48,13 +49,18 @@ def scan_recent(cwd=None, since_ts: int | None = None, window_seconds: int = 180
         kind = ev.get("kind")
         if kind == "edit":
             last_edit = max(last_edit, ts)
+            passed_since_edit = False
         elif kind in ("test_pass", "build_pass"):
             last_pass = max(last_pass, ts)
+            passed_since_edit = True
     return {
         "last_edit_ts": last_edit,
         "last_pass_ts": last_pass,
         "has_recent_edit": last_edit > 0,
         "has_recent_test_evidence": last_pass > 0,
+        # Event order, not clock seconds: events are appended as they happen, and an edit
+        # and the test that follows it routinely land in the same second.
+        "verified_since_edit": last_edit == 0 or passed_since_edit,
     }
 
 
