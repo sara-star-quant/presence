@@ -19,16 +19,13 @@ def _evidence_after_edit(cwd) -> tuple[bool, int]:
     """Return (evidence_present, last_edit_ts).
 
     evidence_present is True iff a passing test/build was logged AFTER the most
-    recent edit, or there are no recorded edits in the window. Single
+    recent edit (by event order), or there are no recorded edits in the window. Single
     peek_events scan via scan_recent (was two scans: last_edit, last_pass).
     """
     # Wide window: PreToolUse fires opportunistically, so include the longer
     # 1800 s scan_recent default rather than the 600 s test-evidence default.
     recent = scan_recent(cwd, window_seconds=1800)
-    edit_ts = recent["last_edit_ts"]
-    if edit_ts == 0:
-        return True, 0
-    return recent["last_pass_ts"] > edit_ts, edit_ts
+    return recent["verified_since_edit"], recent["last_edit_ts"]
 
 
 def main() -> None:

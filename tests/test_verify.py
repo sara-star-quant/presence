@@ -47,3 +47,25 @@ def test_classify_command(cmd, exit_code, expected):
 def test_classify_empty_command():
     assert classify_command("", 0) is None
     assert classify_command(None, 0) is None
+
+
+@pytest.mark.parametrize(
+    ("kinds", "verified"),
+    [
+        ([], True),  # no edits: nothing to verify
+        (["test_pass"], True),
+        (["edit"], False),
+        (["edit", "test_pass"], True),  # same clock second is fine: order decides
+        (["test_pass", "edit"], False),  # a pass before the edit is not verification
+        (["edit", "test_pass", "edit"], False),
+        (["edit", "test_fail"], False),
+        (["edit", "build_pass"], True),
+    ],
+)
+def test_verified_since_edit_follows_event_order(isolated_state, fake_repo, kinds, verified):
+    from events import append_event
+    from verify import scan_recent
+
+    for kind in kinds:
+        append_event({"kind": kind}, cwd=str(fake_repo))
+    assert scan_recent(str(fake_repo))["verified_since_edit"] is verified
