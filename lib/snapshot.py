@@ -33,6 +33,7 @@ import secrets
 import shutil
 import tarfile
 import tempfile
+import zlib
 from pathlib import Path
 
 from _common import PLUGIN_ROOT, _try_existing_key_only, settings, state_dir
@@ -341,6 +342,49 @@ def _apply(sd: Path, entries: dict[str, bytes], drop: tuple[str, ...] = ()) -> N
     shutil.rmtree(stage, ignore_errors=True)
 
 
+def _read_archive(tf: tarfile.TarFile) -> tuple[dict, dict[str, bytes]]:
+    """Validate a snapshot tar in memory and return (meta, entries).
+
+    Raises SnapshotError for anything wrong with it, including a truncated or
+    bit-rotted archive: the gzip layer fails lazily, mid-iteration.
+    """
+    entries: dict[str, bytes] = {}
+    try:
+        with tf:
+            # Validate meta first.
+            try:
+                meta_member = tf.getmember(META_FILENAME)
+            except KeyError as exc:
+                raise SnapshotError(f"snapshot missing {META_FILENAME}; not a presence snapshot") from exc
+            if not meta_member.isreg():
+                raise SnapshotError("snapshot meta is not a regular file")
+            meta_file = tf.extractfile(meta_member)
+            if meta_file is None:
+                raise SnapshotError("snapshot meta unreadable")
+            try:
+                meta = json.loads(meta_file.read().decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                raise SnapshotError(f"snapshot meta is not valid JSON: {exc}") from exc
+            if meta.get("format") != SCHEMA_FORMAT:
+                raise SnapshotError(
+                    f"snapshot format {meta.get('format')!r} != supported {SCHEMA_FORMAT!r}; "
+                    "this snapshot was made by a different version of presence"
+                )
+
+            for member in tf.getmembers():
+                if member.name == META_FILENAME:
+                    continue
+                parts = Path(member.name).parts
+                if member.name.startswith("/") or "\0" in member.name or not parts or ".." in parts or not member.isreg():
+                    raise SnapshotError(f"refusing unsafe tar member: {member.name!r}")
+                f = tf.extractfile(member)
+                entries[member.name] = f.read() if f is not None else b""
+    except (tarfile.TarError, EOFError, zlib.error, OSError) as exc:
+        # truncated or bit-rotted archive: the gzip layer fails lazily, mid-iteration
+        raise SnapshotError(f"snapshot archive is truncated or corrupt: {exc}") from exc
+    return meta, entries
+
+
 def restore(in_path: str | Path, overwrite: bool = False, passphrase: str | None = None) -> None:
     """Restore a snapshot (plain or sealed) over the state dir.
 
@@ -376,34 +420,7 @@ def restore(in_path: str | Path, overwrite: bool = False, passphrase: str | None
     except (tarfile.TarError, OSError, EOFError) as exc:
         raise SnapshotError(f"not a readable snapshot archive: {exc}") from exc
 
-    entries: dict[str, bytes] = {}
-    with tf:
-        # Validate meta first.
-        try:
-            meta_member = tf.getmember(META_FILENAME)
-        except KeyError as exc:
-            raise SnapshotError(f"snapshot missing {META_FILENAME}; not a presence snapshot") from exc
-        meta_file = tf.extractfile(meta_member)
-        if meta_file is None:
-            raise SnapshotError("snapshot meta unreadable")
-        try:
-            meta = json.loads(meta_file.read().decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            raise SnapshotError(f"snapshot meta is not valid JSON: {exc}") from exc
-        if meta.get("format") != SCHEMA_FORMAT:
-            raise SnapshotError(
-                f"snapshot format {meta.get('format')!r} != supported {SCHEMA_FORMAT!r}; "
-                "this snapshot was made by a different version of presence"
-            )
-
-        for member in tf.getmembers():
-            if member.name == META_FILENAME:
-                continue
-            parts = Path(member.name).parts
-            if member.name.startswith("/") or "\0" in member.name or not parts or ".." in parts or not member.isreg():
-                raise SnapshotError(f"refusing unsafe tar member: {member.name!r}")
-            f = tf.extractfile(member)
-            entries[member.name] = f.read() if f is not None else b""
+    meta, entries = _read_archive(tf)
 
     reencrypt = [r for r in (meta.get("encrypted_files") or []) if r in entries]
     if reencrypt:

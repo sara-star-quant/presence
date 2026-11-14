@@ -116,3 +116,25 @@ def test_audit_round_trip_verifies(isolated_state, text):
     audit.append("second", {})
     assert audit.verify_chain()["ok"]
     _clear(isolated_state)
+
+
+def test_restore_rejects_a_symlink_meta_member(isolated_state):
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        info = tarfile.TarInfo(snapshot.META_FILENAME)
+        info.type = tarfile.SYMTYPE
+        info.linkname = "missing"
+        tf.addfile(info)
+    snap = isolated_state.parent / "in.snap"
+    snap.write_bytes(buf.getvalue())
+    with pytest.raises(snapshot.SnapshotError):
+        snapshot.restore(snap)
+
+
+def test_restore_reports_a_truncated_archive_as_snapshot_error(isolated_state):
+    blob = _archive(["a/b.txt"])
+    snap = isolated_state.parent / "in.snap"
+    for cut in (len(blob) // 2, len(blob) - 8):
+        snap.write_bytes(blob[:cut])
+        with pytest.raises(snapshot.SnapshotError):
+            snapshot.restore(snap)
