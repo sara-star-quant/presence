@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.11.3
+
+Stop counting mentions of a test tool as test evidence.
+
+The commit and Stop gates treated any command that mentioned a test tool as a passing run, so `grep pytest`, `pytest --version`, and a red run behind a pipe or `|| true` all counted as verification. Update and restart Claude Code.
+
+- `lib/verify.py`: a command counts only when the tool is in command position, is not an info call, and its exit code describes the run. `pytest | tail` records nothing for now.
+- Experimental, unsigned receipts: each commit records what ran since the last edit; `lib/cli.py receipt --attach` writes it to a git note and `verify-receipt` checks it (`docs/receipts.md`).
+- Audit log size limits measured and documented in `docs/zerotrust.md`; v0.11.2 state fixture added.
+
 ## v0.11.2
 
 Fix telemetry and the confidence gates on the real Claude Code.
