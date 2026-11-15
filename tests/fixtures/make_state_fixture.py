@@ -56,6 +56,16 @@ def main(tag: str) -> None:
                 return [("post-tool-bash.sh", {**base, "hook_event_name": "PostToolUseFailure", "error": f"Exit code {code}\nfailed"})]
             return [("post-tool-bash.sh", {**base, "hook_event_name": "PostToolUse", "tool_response": {"stdout": "ok", "interrupted": False}})]
 
+        def commit_step() -> list[tuple[str, dict]]:
+            # From v0.11.3 a successful commit also records a receipt.
+            if not (wt / "lib" / "receipt.py").exists():
+                return []
+            sh("git", "commit", "--allow-empty", "-m", "fixture commit", "-q", cwd=repo)
+            sha = sh("git", "rev-parse", "HEAD", cwd=repo).stdout.strip()
+            return [("post-tool-bash.sh", {"cwd": cwd, "hook_event_name": "PostToolUse", "tool_name": "Bash",
+                                           "tool_input": {"command": "git commit -m fixture"},
+                                           "tool_response": {"stdout": f"[main {sha[:7]}] fixture commit", "interrupted": False}})]
+
         steps = [
             ("session-start.sh", {"cwd": cwd, "session_id": "fx"}),
             ("user-prompt-submit.sh", {"cwd": cwd, "prompt": "fix the parser"}),
@@ -63,6 +73,7 @@ def main(tag: str) -> None:
             *bash("pytest", 1),
             *bash("pytest", 0),
             *bash("git push origin main", 0),
+            *commit_step(),
             ("stop.sh", {"cwd": cwd, "session_id": "fx", "transcript_path": str(transcript)}),
             ("session-start.sh", {"cwd": cwd, "session_id": "fx2"}),
         ]
