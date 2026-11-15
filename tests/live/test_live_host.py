@@ -73,6 +73,7 @@ def test_hooks_load_and_record_a_commit_and_a_passing_test(live):
     assert live.commits() == 2, out["result"]
     assert "commit" in live.jsonl("telemetry/claims.jsonl")
     assert "test_pass" in live.jsonl("events/*/*.jsonl")
+    assert '"verified_since_edit":true' in live.jsonl("telemetry/receipts.jsonl").replace(" ", "")
 
 
 def test_session_context_reaches_the_model(live):
