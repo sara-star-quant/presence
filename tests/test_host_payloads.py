@@ -121,11 +121,25 @@ def test_a_successful_commit_is_recorded_as_a_claim(version, run):
 
 
 @pytest.mark.parametrize("version", VERSIONS)
-def test_a_passing_test_run_counts_as_verification(version, run):
-    r, state = run(_one(version, "post_tool_bash.python-m-pytest-version.json"))
+def test_a_passing_test_run_counts_as_verification(version, run, tmp_path):
+    # The captured probe is `pytest --version`, which proves nothing; swap in a real run
+    # and keep every other field exactly as the host sent it.
+    d = json.loads(_one(version, "post_tool_bash.python-m-pytest-version.json").read_text())
+    d["tool_input"]["command"] = "python -m pytest -q"
+    probe = tmp_path / "post_tool_bash.real-run.json"
+    probe.write_text(json.dumps(d))
+    r, state = run(probe)
     assert r.returncode == 0, r.stderr
     kinds = [e["kind"] for e in _events(state)]
     assert "test_pass" in kinds, kinds
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+def test_an_info_only_call_is_not_verification(version, run):
+    r, state = run(_one(version, "post_tool_bash.python-m-pytest-version.json"))
+    assert r.returncode == 0, r.stderr
+    kinds = [e["kind"] for e in _events(state)]
+    assert "test_pass" not in kinds, kinds
 
 
 @pytest.mark.parametrize("version", VERSIONS)

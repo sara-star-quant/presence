@@ -44,6 +44,48 @@ def test_classify_command(cmd, exit_code, expected):
     assert classify_command(cmd, exit_code) == expected
 
 
+@pytest.mark.parametrize(
+    "cmd, expected",
+    [
+        # mentions the tool but does not run it
+        ("grep -rn pytest docs", None),
+        ("echo pytest", None),
+        ("cat tests/test_pytest_plugin.py", None),
+        ("git log --grep='npm test'", None),
+        ("pip install pytest", None),
+        ("sed -i 's/pytest/x/' a.py", None),
+        ("python3 - <<'EOF'\nimport pytest\nEOF", None),
+        # runs the tool but proves nothing
+        ("pytest --version", None),
+        ("pytest --help", None),
+        ("pytest --collect-only", None),
+        # exit code does not describe the test run
+        ("pytest || true", None),
+        ("pytest 2>&1 | tail -5", None),
+        ("npm test | tee out.log", None),
+        ("pytest; echo done", None),
+        ("ls || pytest", None),
+        ("pytest &", None),
+        # real runs, through the wrappers and chains agents actually use
+        ("cd repo && pytest -q", "test_pass"),
+        ("ls; cargo test", "test_pass"),
+        ("pytest -x && ruff check .", "test_pass"),
+        ("FOO=1 pytest", "test_pass"),
+        (".venv/bin/python -m pytest -q", "test_pass"),
+        ("uv run pytest", "test_pass"),
+        ("./node_modules/.bin/jest", "test_pass"),
+        ("timeout 60 go test ./...", "test_pass"),
+        ("pytest -n 4", "test_pass"),
+    ],
+)
+def test_classify_requires_a_real_run(cmd, expected):
+    assert classify_command(cmd, 0) == expected
+
+
+def test_classify_chain_failure_is_a_fail():
+    assert classify_command("cd repo && pytest", 1) == "test_fail"
+
+
 def test_classify_empty_command():
     assert classify_command("", 0) is None
     assert classify_command(None, 0) is None

@@ -35,6 +35,7 @@ def live(tmp_path):
     for cmd in (["init", "-q"], ["remote", "add", "origin", "https://example.invalid/presence-live.git"],
                 ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init"]):
         subprocess.run(["git", *cmd], cwd=repo, check=True, capture_output=True)
+    (repo / "test_ok.py").write_text("def test_ok():\n    assert True\n")  # a real test run to verify with
     env = {**os.environ, "PRESENCE_STATE": str(state), "PRESENCE_NO_DAEMON": "1",
            "PATH": os.path.dirname(sys.executable) + os.pathsep + os.environ["PATH"]}
 
@@ -68,7 +69,7 @@ def live(tmp_path):
 
 def test_hooks_load_and_record_a_commit_and_a_passing_test(live):
     out = live("Use the Bash tool to run these one at a time: git commit --allow-empty -m probe, then "
-               "python -m pytest --version. Reply with the single word done.")
+               "python -m pytest -q test_ok.py. Reply with the single word done.")
     assert live.commits() == 2, out["result"]
     assert "commit" in live.jsonl("telemetry/claims.jsonl")
     assert "test_pass" in live.jsonl("events/*/*.jsonl")
@@ -98,7 +99,7 @@ def test_stop_gate_block_forces_another_turn(live):
 
 def test_commit_gate_allows_a_commit_after_a_passing_test(live):
     out = live("Use the Write tool to create a.txt containing hi. Then use the Bash tool to run "
-               "python -m pytest --version. Then use the Bash tool to run: git add a.txt && git commit -m add-a. "
+               "python -m pytest -q test_ok.py. Then use the Bash tool to run: git add a.txt && git commit -m add-a. "
                "Run exactly these commands and no others, then reply with the single word done.",
                preset="enterprise-strict")
     assert live.commits() == 2, f"verified work was blocked: {out['result']}\n{live.jsonl('events/*/*.jsonl')}"
