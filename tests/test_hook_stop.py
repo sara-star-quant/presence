@@ -151,3 +151,25 @@ def test_last_assistant_text_string_and_list(tmp_path):
         encoding="utf-8",
     )
     assert hook_stop._last_assistant_text(p) == "block A\nblock B"
+
+
+def _stop_after_edit(hook_runner, edited_path):
+    run, state, repo = hook_runner
+    run("hook_post_tool_edit", {"cwd": str(repo), "tool_name": "Edit", "tool_input": {"file_path": edited_path}})
+    run("hook_stop", {"cwd": str(repo), "last_assistant_message": "Done, it works now."})
+    f = state / "telemetry" / "confidence.jsonl"
+    return f.read_text() if f.exists() else ""
+
+
+def test_claiming_done_after_editing_only_docs_does_not_trip_the_gate(hook_runner):
+    _, _, repo = hook_runner
+    assert _stop_after_edit(hook_runner, f"{repo}/README.md") == ""
+
+
+def test_claiming_done_after_editing_a_file_outside_the_project_does_not_trip_the_gate(hook_runner):
+    assert _stop_after_edit(hook_runner, "/home/someone/.claude/memory/note.md") == ""
+
+
+def test_claiming_done_after_editing_code_without_a_test_still_trips_the_gate(hook_runner):
+    _, _, repo = hook_runner
+    assert "unhedged_success" in _stop_after_edit(hook_runner, f"{repo}/lib/a.py")

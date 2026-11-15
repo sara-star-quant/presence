@@ -50,3 +50,10 @@ def test_edit_skipped_when_events_disabled(hook_runner):
         settings={"preset": "solo-dev", "overrides": {"events.enabled": False}},
     )
     assert _edit_events(state, repo) == []
+
+
+def test_edit_records_whether_it_is_code_docs_or_outside_the_project(hook_runner):
+    run, state, repo = hook_runner
+    for path in (f"{repo}/lib/a.py", f"{repo}/README.md", "/somewhere/else/notes.md"):
+        run("hook_post_tool_edit", {"cwd": str(repo), "tool_name": "Edit", "tool_input": {"file_path": path}})
+    assert [e["scope"] for e in _edit_events(state, repo)] == ["code", "docs", "outside"]
