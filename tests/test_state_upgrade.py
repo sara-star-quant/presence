@@ -91,4 +91,19 @@ def test_upgrade_does_not_rewrite_old_records(upgraded):
 
 
 def test_fixtures_cover_the_last_five_minors():
-    assert {"v0.7.1", "v0.8.1", "v0.9.2", "v0.10.0", "v0.11.0", "v0.11.1", "v0.11.2"} <= set(TAGS)
+    assert {"v0.7.1", "v0.8.1", "v0.9.2", "v0.10.0", "v0.11.0", "v0.11.1", "v0.11.2", "v0.11.3"} <= set(TAGS)
+
+
+@pytest.mark.parametrize("tag", TAGS)
+def test_old_receipts_still_check_out(tag):
+    """A receipt written by an earlier release keeps its format and digest under the current code."""
+    sys.path.insert(0, str(ROOT / "lib"))
+    import receipt
+
+    f = FIXTURES / tag / "telemetry" / "receipts.jsonl"
+    if not f.exists():
+        pytest.skip(f"{tag} predates receipts")
+    lines = [json.loads(ln) for ln in f.read_text().splitlines() if ln.strip()]
+    assert lines
+    for r in lines:
+        assert r["v"] == receipt.FORMAT and r["digest"] == receipt._digest(r)
