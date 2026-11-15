@@ -1,7 +1,9 @@
 """Calibrated-confidence checker: parse success claims; check evidence."""
 from __future__ import annotations
 
+import os
 import re
+import shlex
 
 from _common import now_ts
 from events import peek_events
@@ -106,6 +108,73 @@ _BUILD_PATTERNS = [
 ]
 
 
+_SEPARATORS = {";", "&&", "||", "|", "&"}
+_WRAPPERS = {"time", "env", "nice", "nohup", "command", "npx", "bunx"}
+_RUN_WRAPPERS = {"uv", "poetry", "pipenv", "pdm", "hatch"}  # `<tool> run <cmd>`
+_INFO_ONLY = {"--version", "--help", "-h", "--collect-only", "--co", "--dry-run"}
+
+
+def _command_start(words: list[str]) -> list[str]:
+    """Drop env assignments and runner wrappers so the first word is the tool itself."""
+    i = 0
+    while i < len(words):
+        w = os.path.basename(words[i])
+        if "=" in words[i] and not words[i].startswith("-") and words[i].split("=", 1)[0].isidentifier():
+            i += 1
+        elif w in _WRAPPERS:
+            i += 1
+            while i < len(words) and words[i].startswith("-"):
+                i += 1
+        elif (
+            (w == "timeout" and i + 1 < len(words))
+            or (w.startswith("python") and words[i + 1 : i + 2] == ["-m"])
+            or (w in _RUN_WRAPPERS and words[i + 1 : i + 2] == ["run"])
+        ):
+            i += 2
+        else:
+            break
+    rest = words[i:]
+    return [os.path.basename(rest[0]), *rest[1:]] if rest else rest
+
+
+def _runs(cmd: str, patterns: list[re.Pattern]) -> bool:
+    """True iff ``cmd`` runs one of ``patterns`` *and* its exit status describes that run.
+
+    The tool must sit in command position (not an argument to grep or echo), must not be
+    an info-only call (``--version``), and the shell must report its status: not on either
+    side of ``||`` or ``|`` (``pytest | tail`` exits 0 when the tests fail), not followed
+    by ``;`` or ``&`` and more work. A chain of ``&&`` is fine: exit 0 means every link
+    passed. Multi-line commands are skipped; heredocs make clause splitting a guess.
+    """
+    if "\n" in cmd.strip():
+        return False
+    try:
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        tokens = list(lex)
+    except ValueError:
+        return False
+    clauses: list[tuple[list[str], str | None, str | None]] = []  # words, separator before, after
+    cur: list[str] = []
+    before: str | None = None
+    for tok in tokens:
+        if tok in _SEPARATORS:
+            clauses.append((cur, before, tok))
+            cur, before = [], tok
+        else:
+            cur.append(tok)
+    clauses.append((cur, before, None))
+    for i, (words, sep_before, _) in enumerate(clauses):
+        if sep_before not in (None, ";", "&&"):
+            continue
+        if any(sep != "&&" for _, _, sep in clauses[i:] if sep is not None):
+            continue
+        start = _command_start(words)
+        if start and not _INFO_ONLY.intersection(start) and any(p.match(" ".join(start)) for p in patterns):
+            return True
+    return False
+
+
 def classify_command(cmd: str | None, exit_code) -> str | None:
     """Return ``test_pass``/``test_fail``/``build_pass``/``build_fail`` or ``None``.
 
@@ -118,8 +187,8 @@ def classify_command(cmd: str | None, exit_code) -> str | None:
         code = int(exit_code)
     except (TypeError, ValueError):
         return None
-    is_test = any(p.search(cmd) for p in _TEST_PATTERNS)
-    is_build = any(p.search(cmd) for p in _BUILD_PATTERNS)
+    is_test = _runs(cmd, _TEST_PATTERNS)
+    is_build = _runs(cmd, _BUILD_PATTERNS)
     if not (is_test or is_build):
         return None
     kind = "test" if is_test else "build"
