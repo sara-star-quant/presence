@@ -147,7 +147,9 @@ def _forge(repo, sha, **over):
             "verified_since_edit": True, "evidence": [{"kind": "test_pass", "cmd": "pytest", "ts": 1}], "tool": "x"}
     body.update(over)
     body["digest"] = receipt._digest(body)
-    _git(repo, "notes", "--ref=presence", "add", "-f", "-m", json.dumps(body), sha)
+    # stdin, not -m: an oversized note would exceed the per-argument limit on Linux
+    subprocess.run(["git", "notes", "--ref=presence", "add", "-f", "-F", "-", sha], cwd=repo, input=json.dumps(body),
+                   check=True, capture_output=True, text=True)
 
 
 def test_an_option_like_rev_is_refused(isolated_state, fake_repo):
