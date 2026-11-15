@@ -47,13 +47,13 @@ def run_mcp() -> None:
     mcp_server.main()
 
 
-def run_receipt(rev: str, attach: bool) -> int:
+def run_receipt(rev: str, attach: bool, sign_key: str | None = None) -> int:
     import json
     import os
 
     import receipt
     try:
-        r = receipt.attach(os.getcwd(), rev) if attach else receipt.find(os.getcwd(), rev)
+        r = receipt.attach(os.getcwd(), rev, sign_key) if attach else receipt.find(os.getcwd(), rev)
     except (LookupError, ValueError) as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
@@ -61,12 +61,12 @@ def run_receipt(rev: str, attach: bool) -> int:
     return 0
 
 
-def run_verify_receipt(rev: str) -> int:
+def run_verify_receipt(rev: str, allowed_signers: str | None = None) -> int:
     import os
 
     import receipt
     try:
-        res = receipt.verify(os.getcwd(), rev)
+        res = receipt.verify(os.getcwd(), rev, allowed_signers)
     except ValueError as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
@@ -74,7 +74,7 @@ def run_verify_receipt(rev: str) -> int:
     detail = "; ".join(receipt.safe_text(e["cmd"]) for e in res.get("evidence", []))
     line = f"{res['status']} {res.get('commit', '')[:12]}"
     if res["status"] == "verified":
-        line += " (unsigned receipt: the committer's machine says so)"
+        line += f" (signed by {receipt.safe_text(res['signer'])})" if res.get("signed") else " (unsigned receipt: the committer's machine says so)"
     sys.stdout.write(line + (f" [{detail}]" if detail else "") + "\n")
     return 0 if res["status"] == "verified" else 1
 
@@ -91,9 +91,11 @@ def main() -> None:
     rc = sub.add_parser("receipt", help="show the verification receipt recorded for a commit")
     rc.add_argument("rev", nargs="?", default="HEAD")
     rc.add_argument("--attach", action="store_true", help="also write it into the git note refs/notes/presence")
+    rc.add_argument("--sign-key", help="sign the note with this SSH key (implies --attach); a .pub path signs via ssh-agent")
 
     vr = sub.add_parser("verify-receipt", help="check the receipt note on a commit (needs only the repo)")
     vr.add_argument("rev", nargs="?", default="HEAD")
+    vr.add_argument("--allowed-signers", help="trust only receipts signed by a key in this ssh allowed_signers file")
 
     args = parser.parse_args()
 
@@ -102,9 +104,9 @@ def main() -> None:
     elif args.command == "mcp":
         run_mcp()
     elif args.command == "receipt":
-        sys.exit(run_receipt(args.rev, args.attach))
+        sys.exit(run_receipt(args.rev, args.attach or bool(args.sign_key), args.sign_key))
     elif args.command == "verify-receipt":
-        sys.exit(run_verify_receipt(args.rev))
+        sys.exit(run_verify_receipt(args.rev, args.allowed_signers))
 
 
 if __name__ == "__main__":
