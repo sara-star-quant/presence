@@ -182,3 +182,103 @@ def test_cli_output_strips_terminal_escapes_and_labels_the_receipt_unsigned(isol
                          capture_output=True, text=True, check=False).stdout
     assert "\x1b" not in out and "\x07" not in out and out.count("\n") == 1, repr(out)
     assert "unsigned" in out
+
+
+# --- signed receipts: the repo-write attacker -------------------------------------------------
+
+ssh_keygen = pytest.mark.skipif(__import__("shutil").which("ssh-keygen") is None, reason="needs ssh-keygen")
+
+
+def _key(tmp_path, name):
+    path = tmp_path / name
+    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(path), "-C", name], check=True)
+    return path
+
+
+def _allowed(tmp_path, *keys):
+    f = tmp_path / "allowed_signers"
+    f.write_text("".join(f"{k.name}@example.org {' '.join(k.with_suffix('.pub').read_text().split()[:2])}\n" for k in keys))
+    return f
+
+
+def _signed_note(repo, tmp_path, key):
+    append_event({"kind": "test_pass", "cmd": "pytest -q"}, cwd=repo)
+    sha = _commit(repo)
+    receipt.record(repo, sha)
+    receipt.attach(repo, sha, sign_key=key)
+    return sha
+
+
+@ssh_keygen
+def test_a_receipt_signed_by_a_pinned_key_verifies_and_names_the_signer(isolated_state, fake_repo, tmp_path):
+    key = _key(tmp_path, "alice")
+    sha = _signed_note(fake_repo, tmp_path, key)
+    res = receipt.verify(fake_repo, sha, allowed_signers=_allowed(tmp_path, key))
+    assert res["status"] == "verified" and res["signed"] is True and res["signer"] == "alice@example.org"
+
+
+@ssh_keygen
+def test_a_forged_receipt_signed_with_the_attackers_own_key_is_untrusted(isolated_state, fake_repo, tmp_path):
+    """Repo write access gives the attacker any note they like, a valid digest and their own key. It does not give them ours."""
+    alice, mallory = _key(tmp_path, "alice"), _key(tmp_path, "mallory")
+    sha = _commit(fake_repo)
+    _forge(fake_repo, sha)
+    body = json.loads(_git(fake_repo, "notes", "--ref=presence", "show", sha))
+    body["signature"] = receipt.sign_digest(body["digest"], mallory)
+    _git(fake_repo, "notes", "--ref=presence", "add", "-f", "-m", json.dumps(body), sha)
+    assert receipt.verify(fake_repo, sha, allowed_signers=_allowed(tmp_path, alice))["status"] == "untrusted"
+
+
+@ssh_keygen
+def test_an_unsigned_forgery_is_untrusted_once_signers_are_pinned(isolated_state, fake_repo, tmp_path):
+    alice = _key(tmp_path, "alice")
+    sha = _commit(fake_repo)
+    _forge(fake_repo, sha)
+    assert receipt.verify(fake_repo, sha)["status"] == "verified"  # without pinning anyone can forge this
+    assert receipt.verify(fake_repo, sha, allowed_signers=_allowed(tmp_path, alice))["status"] == "untrusted"
+
+
+@ssh_keygen
+def test_a_signature_cannot_be_moved_onto_a_different_claim(isolated_state, fake_repo, tmp_path):
+    key = _key(tmp_path, "alice")
+    sha = _signed_note(fake_repo, tmp_path, key)
+    note = json.loads(_git(fake_repo, "notes", "--ref=presence", "show", sha))
+    note["verified_since_edit"] = True
+    note["evidence"] = [{"kind": "test_pass", "cmd": "true", "ts": 1}]
+    note["digest"] = receipt._digest(note)  # the attacker can recompute the digest, not the signature
+    _git(fake_repo, "notes", "--ref=presence", "add", "-f", "-m", json.dumps(note), sha)
+    assert receipt.verify(fake_repo, sha, allowed_signers=_allowed(tmp_path, key))["status"] == "untrusted"
+
+
+@ssh_keygen
+def test_a_missing_or_unreadable_signers_file_is_an_error_not_a_pass(isolated_state, fake_repo, tmp_path):
+    key = _key(tmp_path, "alice")
+    sha = _signed_note(fake_repo, tmp_path, key)
+    with pytest.raises(ValueError):
+        receipt.verify(fake_repo, sha, allowed_signers=tmp_path / "nope")
+
+
+@ssh_keygen
+def test_cli_signs_and_enforces_pinned_signers_end_to_end(isolated_state, fake_repo, tmp_path):
+    import os
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    env = {**os.environ, "PRESENCE_STATE": str(isolated_state), "PYTHONPATH": str(root / "lib")}
+    alice, mallory = _key(tmp_path, "alice"), _key(tmp_path, "mallory")
+
+    def cli(*args):
+        return subprocess.run([sys.executable, str(root / "lib" / "cli.py"), *args], cwd=fake_repo, env=env,
+                              capture_output=True, text=True, check=False)
+
+    append_event({"kind": "test_pass", "cmd": "pytest -q"}, cwd=fake_repo)
+    sha = _commit(fake_repo)
+    receipt.record(fake_repo, sha)
+    assert cli("receipt", "--attach", "--sign-key", str(alice)).returncode == 0
+    ok = cli("verify-receipt", "--allowed-signers", str(_allowed(tmp_path, alice)))
+    assert ok.returncode == 0 and "signed by alice@example.org" in ok.stdout, ok.stdout + ok.stderr
+    bad = cli("verify-receipt", "--allowed-signers", str(_allowed(tmp_path, mallory)))
+    assert bad.returncode == 1 and bad.stdout.startswith("untrusted"), bad.stdout
+    _git(fake_repo, "notes", "--ref=presence", "remove", sha)
+    gone = cli("verify-receipt", "--allowed-signers", str(_allowed(tmp_path, alice)))
+    assert gone.returncode == 1 and gone.stdout.startswith("none")  # a deleted note fails closed

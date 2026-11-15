@@ -8,6 +8,15 @@ git push origin refs/notes/presence                              # share it
 python3 "${CLAUDE_PLUGIN_ROOT}/lib/cli.py" verify-receipt HEAD   # anyone with the repo
 ```
 
+Sign it so write access to the repo is not enough to forge one:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/lib/cli.py" receipt --sign-key ~/.ssh/id_ed25519      # attaches and signs
+python3 "${CLAUDE_PLUGIN_ROOT}/lib/cli.py" verify-receipt HEAD --allowed-signers ~/ci/allowed_signers
+```
+
+`allowed_signers` is the ordinary `ssh-keygen` file (`name@example.org ssh-ed25519 AAAA...`). The verifier must supply it from somewhere the repo's writers cannot change: a CI secret, a file on the runner, never a path inside the checkout under test.
+
 The Bash hook records a receipt locally on every successful `git commit`. Nothing touches your repo until you run `--attach`.
 
 ## What is in one
@@ -16,9 +25,19 @@ The Bash hook records a receipt locally on every successful `git commit`. Nothin
 
 `verify-receipt` exits 0 only for `verified`. Other results: `unverified` (an edit or failure came after the last pass), `no_evidence` (presence saw nothing run), `tampered` (digest mismatch), `mismatch` (the note belongs to another commit or tree), `invalid`, `none`.
 
+## Who can forge one
+
+| Attacker | Unsigned | Signed and pinned |
+|---|---|---|
+| Can write to the repo (stolen token, rogue collaborator) | Forges any receipt | Cannot: needs a pinned key. Editing a note, copying one to another commit, or signing with their own key all end in `untrusted` |
+| Deletes the note | `none`, exit 1 | `none`, exit 1; CI should treat a missing receipt as a failure |
+| Runs as you on your machine, including the agent | Forges any receipt | Can sign if the key works silently. A hardware key (`ssh-keygen -t ed25519-sk`, signing through `ssh-agent` with a `.pub` path) needs a touch per signature |
+| Holds the signing key and the verifier's policy | Forges any receipt | Forges any receipt. No scheme survives this |
+
+A signature proves who vouched for the claim, not that the claim is true: it is still the machine that ran the agent saying what it saw. For proof, have CI re-run the tests on the commit's tree and sign that; the receipt's `tree` field is what lets CI match them up.
+
 ## What it does not prove
 
-- **Not signed.** The digest catches a note edited afterwards and a note copied onto another commit. Anyone who can write to the repo can still forge a whole receipt. A receipt is the machine's own claim, not an independent witness. Signing and a witnessed audit head are on the [roadmap](roadmap.md).
 - **Only what the hooks saw.** Edits made through shell redirection, MCP tools or subagents are invisible, so `verified_since_edit` can be wrong in both directions.
 - **Any passing test counts.** There is no link yet between the edited files and the tests that ran.
 - **Notes are public once pushed.** Commands are redacted, but they still show what you ran (paths, test selectors). Review `git notes --ref=presence show <rev>` before pushing the notes ref to a public remote.

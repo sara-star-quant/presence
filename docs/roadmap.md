@@ -18,7 +18,7 @@ The code-level pieces are in place: the contract is frozen and enforced by `test
 
 **In order of dependency**:
 
-1. **Signed receipts.** Sign with the committer's existing SSH or GPG key so a forged receipt costs a key. Until then a receipt is a claim by the machine that ran the agent.
+1. **Signed receipts (shipped, opt-in).** SSH-signed, verified against signers the verifier pins. Remaining: a CI step that re-runs the tests on the receipt's tree and signs that result, since a signature shows who vouched, not that the claim is true.
 2. **A witnessed audit head.** Anchor the audit chain head somewhere the agent cannot rewrite: a separate-user daemon, or a periodic signed publish to a transparency log. Network is off under zerotrust, so this is opt-in with the trade-off stated. Today "tamper-evident" holds against corruption and outsiders, not against the agent running as the same user.
 3. **A written format and test vectors.** The receipt and audit line formats as a spec with language-neutral vectors, checked by Python and Rust the way key storage already is. A standalone verifier crate comes after this and only if someone wants to embed it; a hash chain alone has many equivalents, a chain with a witness does not. Formal checking (a model checker or Kani on a small verifier) fits here and nowhere else in the product.
 4. **Receipt consumers.** A CI step and a pull request check that run `verify-receipt`. This is what makes the format useful to someone who does not run presence.
