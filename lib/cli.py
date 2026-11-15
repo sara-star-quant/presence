@@ -47,6 +47,30 @@ def run_mcp() -> None:
     mcp_server.main()
 
 
+def run_receipt(rev: str, attach: bool) -> int:
+    import json
+    import os
+
+    import receipt
+    try:
+        r = receipt.attach(os.getcwd(), rev) if attach else receipt.find(os.getcwd(), rev)
+    except LookupError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
+    sys.stdout.write(json.dumps(r, indent=2, sort_keys=True) + "\n")
+    return 0
+
+
+def run_verify_receipt(rev: str) -> int:
+    import os
+
+    import receipt
+    res = receipt.verify(os.getcwd(), rev)
+    detail = "; ".join(e.get("cmd", "") for e in res.get("evidence", []))
+    sys.stdout.write(f"{res['status']} {res.get('commit', '')[:12]}" + (f" ({detail})" if detail else "") + "\n")
+    return 0 if res["status"] == "verified" else 1
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="presence: hook + MCP CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -56,12 +80,23 @@ def main() -> None:
 
     sub.add_parser("mcp", help="(v0.4.1+) start the MCP server on stdio")
 
+    rc = sub.add_parser("receipt", help="show the verification receipt recorded for a commit")
+    rc.add_argument("rev", nargs="?", default="HEAD")
+    rc.add_argument("--attach", action="store_true", help="also write it into the git note refs/notes/presence")
+
+    vr = sub.add_parser("verify-receipt", help="check the receipt note on a commit (needs only the repo)")
+    vr.add_argument("rev", nargs="?", default="HEAD")
+
     args = parser.parse_args()
 
     if args.command == "hook":
         run_hook(args.hook_name)
     elif args.command == "mcp":
         run_mcp()
+    elif args.command == "receipt":
+        sys.exit(run_receipt(args.rev, args.attach))
+    elif args.command == "verify-receipt":
+        sys.exit(run_verify_receipt(args.rev))
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from cmdparse import (
     is_git_push,
 )
 from events import append_event
+from receipt import record as record_receipt
 from redact import redact_command
 from telemetry import (
     get_head_commit,
@@ -125,6 +126,9 @@ def main() -> None:
             head = get_head_commit(commit_cwd)
             if head:
                 record_commit_claim(commit_cwd, head["sha"], head["message"], intent=cmd[:200])
+        head = get_head_commit(commit_cwd)
+        if head:
+            record_receipt(commit_cwd, head["sha"])
     elif is_git_push(cmd):
         record_push_claim(session_cwd, intent=cmd[:200])
     elif is_gh_pr_create(cmd):
