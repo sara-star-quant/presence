@@ -10,6 +10,28 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 The code-level pieces are in place: the contract is frozen and enforced by `tests/test_contract.py` ([contract.md](contract.md)), the Zero-Trust gates fail closed, coverage gates at 80%, and each threat names a pinning test. What is missing is mostly outside the code: real-world validation, a host compatibility matrix, platform and artifact coverage, upgrade-path tests, an external security look, and a second maintainer. See [v1-readiness.md](v1-readiness.md) for the evidence and exit criteria per gap.
 
+## Evidence that outlives the session
+
+**Status**: first step shipped as experimental ([receipts.md](receipts.md)). The rest is sequenced below; none of it is promised for a version.
+
+**The gap**: presence's evidence lives in a directory the agent itself can write, and it is only visible while presence is installed. That is enough to nudge an agent, not enough to hand to a reviewer, a CI job or an auditor.
+
+**In order of dependency**:
+
+1. **Signed receipts.** Sign with the committer's existing SSH or GPG key so a forged receipt costs a key. Until then a receipt is a claim by the machine that ran the agent.
+2. **A witnessed audit head.** Anchor the audit chain head somewhere the agent cannot rewrite: a separate-user daemon, or a periodic signed publish to a transparency log. Network is off under zerotrust, so this is opt-in with the trade-off stated. Today "tamper-evident" holds against corruption and outsiders, not against the agent running as the same user.
+3. **A written format and test vectors.** The receipt and audit line formats as a spec with language-neutral vectors, checked by Python and Rust the way key storage already is. A standalone verifier crate comes after this and only if someone wants to embed it; a hash chain alone has many equivalents, a chain with a witness does not. Formal checking (a model checker or Kani on a small verifier) fits here and nowhere else in the product.
+4. **Receipt consumers.** A CI step and a pull request check that run `verify-receipt`. This is what makes the format useful to someone who does not run presence.
+5. **Test evidence from runner output.** `pytest | tail` exits with `tail`'s status, so it records nothing today. Reading the runner's own summary line is more recall for more parser surface.
+6. **Link edits to tests.** Count a pass as evidence for an edit only when the run could have covered it (changed files against collected tests).
+7. **Wider observation.** Edits through shell redirection, MCP tools and subagents are invisible to the hooks.
+8. **Measured gate accuracy.** Score the confidence gate on its own telemetry (Brier score, reliability table, false "done" rate) and compare live sessions with and without it. A gate that cannot show its error rate is a belief.
+9. **The live host in CI.** Each Claude Code version is tested only when someone re-runs the live suite; only 2.1.325 is covered.
+
+**Decision criterion**: build 4 only when someone outside the project asks for receipts they can check; until then 1 to 3 are the work, because they decide whether the claim holds at all.
+
+**What we will not do**: ship a receipt format that looks authoritative while unsigned, or call anything "tamper-proof" while the agent can write the log.
+
 ## Native Windows support without WSL2
 
 **Status**: WSL2 is the supported Windows path; native deferred until demand.
