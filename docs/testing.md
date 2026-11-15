@@ -15,6 +15,7 @@ What runs, what each layer is meant to catch, and what is not covered. Numbers a
 | Coverage-guided fuzzing | `fuzz/` (Atheris under ClusterFuzzLite) | The same, reaching branches that random input does not |
 | Backend parity | `tests/test_crypto_backend_parity.py` | The Python and Rust backends disagreeing on the keychain entry |
 | Supply chain | `tests/test_release_supply_chain.py` | A GitHub Action referenced by tag instead of commit SHA |
+| Gate replay | `bench/gate_replay.py`, `tests/test_gate_replay.py` | Not a regression test: replays your own session transcripts through the confidence gate and reports how often it fires, on what kind of edit, and what happened next. Local only, counts and rates, no message text |
 | Performance gate | `bench/`, CI `bench` job | Hook latency regressions (cold start median 300 ms, aggregate session 12000 ms, both CI-runner thresholds) |
 
 ## Contract and upgrade tests
@@ -61,3 +62,12 @@ python3 -m venv .venv
 ```
 
 [CONTRIBUTING.md](../CONTRIBUTING.md) has the full development setup.
+
+## Replaying the confidence gate
+
+`python3 bench/gate_replay.py ~/.claude/projects` runs the gate's own functions over your past sessions. Definitions are in the script header and fixed in advance: an outcome is the first test or build run after a claim and before any later edit, and no rate prints for a group with fewer than 30 resolved turns.
+
+Two limits shape how to read it. Agents mostly test after a claim when they are unsure, so resolved turns are not a random sample. And a later failure can be unrelated to the claim: in one maintainer's history, about one in six docs-only claims was followed by a failing test run, which no docs edit can cause. Treat a "false done" count as an upper bound with that noise in it.
+
+What the first replay found changed the gate: strict exit-status rules had dropped nearly every real test run (four in five were piped through `tail`), and more than four in five of the edits it asked tests to verify were notes or docs. The gate now reads the runner's own summary line when a pipe hides the exit code, and only edits to code inside the project make work unverified.
+
