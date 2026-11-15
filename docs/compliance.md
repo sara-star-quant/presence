@@ -20,7 +20,12 @@ Local technical primitives that exist today (v0.5.0+):
   `docs/zerotrust.md`.
 - **Tamper-evident audit log.** Every state-mutating operation under `zerotrust`
   appends to `audit.jsonl` with a per-line SHA-256 hash chain. Mutation, removal,
-  or reordering is detectable via `python3 lib/integrity.py --audit-verify`.
+  or reordering is detectable via `python3 lib/integrity.py --audit-verify`. That holds
+  against edits by anyone who cannot also rewrite the log: the file and its anchor sit
+  in your own account's directory, so whoever can write them (including a process
+  running as you) can recompute the whole chain. It is evidence of accident and
+  outside tampering, not of an honest agent; an externally anchored head is on the
+  [roadmap](roadmap.md).
 - **Fail-closed integrity check at SessionStart.** A missing or mutated plugin
   file (against `MANIFEST.lock`) blocks all hooks for the session and writes the
   blocking event to the audit log.
