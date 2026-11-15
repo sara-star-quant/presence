@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -55,6 +56,12 @@ def is_enabled(cfg: dict) -> bool:
     if (cfg.get("network") or {}).get("egress_allowed", True) is False:
         return False
     return bool((cfg.get("update_check") or {}).get("enabled", False))
+
+
+# What a release tag looks like. The tag is shown in the terminal and /presence-doctor
+# output, which an agent reads, so anything else is dropped rather than displayed.
+_TAG_RE = re.compile(r"v?\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[0-9A-Za-z.]{1,20})?")
+MAX_BODY_BYTES = 1_000_000
 
 
 def read_cache() -> dict | None:
@@ -110,7 +117,7 @@ def status(cfg: dict, current_tag: str) -> dict:
 
     checked_at = _parse_checked_at(cache.get("checked_at"))
     latest_tag = cache.get("latest_tag")
-    if checked_at is None or not isinstance(latest_tag, str):
+    if checked_at is None or not isinstance(latest_tag, str) or not _TAG_RE.fullmatch(latest_tag):
         return {"state": "no_cache"}
 
     age = max(0, time.time() - checked_at)
@@ -133,11 +140,11 @@ def _fetch_latest_tag() -> str:
         headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"},
     )
     with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310  # nosec B310 fixed https URL, not user input
-        body = resp.read()
+        body = resp.read(MAX_BODY_BYTES)
     payload = json.loads(body)
     tag = payload.get("tag_name")
-    if not isinstance(tag, str) or not tag:
-        raise ValueError("GitHub releases response missing tag_name")
+    if not isinstance(tag, str) or not _TAG_RE.fullmatch(tag):
+        raise ValueError("GitHub releases response has no release-shaped tag_name")
     return tag
 
 

@@ -129,10 +129,20 @@ def test_download_accepts_binary_mode_and_uppercase_hashes(clone, tmp_path):
 
 
 @needs_asset
-def test_download_without_sums_warns_but_installs_older_releases(clone, tmp_path):
+def test_download_without_sums_refuses_to_install(clone, tmp_path):
+    """A dropped or blocked SHA256SUMS request must not turn into an unverified install."""
     r = _download(clone, _release(tmp_path, sums=None))
-    assert r.returncode == 0 and "not verified" in r.stderr
-    assert (clone / "lib" / "presence-client").exists()
+    assert r.returncode != 0 and "SHA256SUMS" in r.stderr
+    assert not (clone / "lib" / "presence-client").exists()
+
+
+def test_install_pins_https_for_every_github_download():
+    """curl -L follows redirects; without --proto-redir a redirect can downgrade to http."""
+    text = INSTALL_SH.read_text()
+    assert "--proto-redir '=https'" in text and "--tlsv1.2" in text
+    bare = [ln for ln in text.splitlines() if "curl -" in ln and "_curl" not in ln and "--proto" not in ln and "command -v" not in ln
+            and not ln.lstrip().startswith(("#", "warn", "die", "info"))]
+    assert not bare, f"download via _curl so the protocol is pinned: {bare}"
 
 
 @needs_asset

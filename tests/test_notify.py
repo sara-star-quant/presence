@@ -128,3 +128,52 @@ def test_dispatch_returns_immediately_even_against_a_slow_endpoint(isolated_stat
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_plain_http_to_a_remote_host_never_dispatches(isolated_state, monkeypatch):
+    """A webhook over http sends redacted claim text in the clear and lets anyone on the path edit it."""
+    n = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    calls = []
+    monkeypatch.setattr(n, "_dispatch", lambda url, payload: calls.append((url, payload)))
+    for url in ("http://hooks.example.com/x", "http://127.0.0.1.evil.example/x", "http://localhost.evil.example/x"):
+        _write_notify_settings(isolated_state, url)
+        n.notify_confidence("unhedged_success", True, final_excerpt="all good")
+    assert calls == []
+
+
+def test_loopback_http_and_remote_https_still_dispatch(isolated_state, monkeypatch):
+    n = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    calls = []
+    monkeypatch.setattr(n, "_dispatch", lambda url, payload: calls.append(url))
+    for url in ("http://127.0.0.1:8080/x", "http://localhost/x", "http://[::1]:9/x", "https://hooks.example.com/x"):
+        _write_notify_settings(isolated_state, url)
+        n.notify_confidence("unhedged_success", True, final_excerpt="all good")
+    assert len(calls) == 4
+
+
+def test_webhook_url_never_appears_in_the_child_argv(isolated_state, monkeypatch):
+    """The URL is usually the secret (Slack and Zapier hooks are bearer URLs); argv is world-readable in ps."""
+    n = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    seen = {}
+
+    class FakeProc:
+        stdin = type("S", (), {"write": lambda self, b: seen.setdefault("stdin", b), "close": lambda self: None})()
+        def wait(self): pass
+
+    def fake_popen(argv, **kw):
+        seen["argv"] = argv
+        return FakeProc()
+
+    monkeypatch.setattr(n.subprocess, "Popen", fake_popen)
+    n._dispatch("https://hooks.example.com/SECRET-TOKEN", {"claim": "c"})
+    assert "SECRET-TOKEN" not in " ".join(seen["argv"])
+    assert seen["stdin"].startswith(b"https://hooks.example.com/SECRET-TOKEN\n")
+
+
+def test_a_rejected_webhook_url_is_reported_not_silent(isolated_state, monkeypatch):
+    """An upgrade must not quietly turn off someone's notifications: doctor has to be able to say why."""
+    n = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    _write_notify_settings(isolated_state, "http://hooks.example.com/x")
+    n.notify_confidence("unhedged_success", True, final_excerpt="all good")
+    log = (isolated_state / "logs" / "warnings.log").read_text()
+    assert "notify_url_rejected" in log and "https" in log

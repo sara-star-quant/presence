@@ -54,7 +54,7 @@ def run_receipt(rev: str, attach: bool) -> int:
     import receipt
     try:
         r = receipt.attach(os.getcwd(), rev) if attach else receipt.find(os.getcwd(), rev)
-    except LookupError as exc:
+    except (LookupError, ValueError) as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
     sys.stdout.write(json.dumps(r, indent=2, sort_keys=True) + "\n")
@@ -65,9 +65,17 @@ def run_verify_receipt(rev: str) -> int:
     import os
 
     import receipt
-    res = receipt.verify(os.getcwd(), rev)
-    detail = "; ".join(e.get("cmd", "") for e in res.get("evidence", []))
-    sys.stdout.write(f"{res['status']} {res.get('commit', '')[:12]}" + (f" ({detail})" if detail else "") + "\n")
+    try:
+        res = receipt.verify(os.getcwd(), rev)
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
+    # One line, plain ASCII: the note is untrusted text from the repo.
+    detail = "; ".join(receipt.safe_text(e["cmd"]) for e in res.get("evidence", []))
+    line = f"{res['status']} {res.get('commit', '')[:12]}"
+    if res["status"] == "verified":
+        line += " (unsigned receipt: the committer's machine says so)"
+    sys.stdout.write(line + (f" [{detail}]" if detail else "") + "\n")
     return 0 if res["status"] == "verified" else 1
 
 
