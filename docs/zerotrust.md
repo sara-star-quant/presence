@@ -117,7 +117,7 @@ Path: `~/.claude/presence/audit.jsonl`
 Each line:
 
 ```json
-{"ts": 1714074000, "event": "session_start", "preset": "zerotrust",
+{"ts": 1714074000, "event": "preset_switch", "preset": "zerotrust",
  "details": {...}, "prev_hash": "<hex64>", "hash": "<hex64>"}
 ```
 
@@ -138,6 +138,21 @@ PYTHONPATH="${CLAUDE_PLUGIN_ROOT}/lib" python3 "${CLAUDE_PLUGIN_ROOT}/lib/integr
 ```
 
 This moves the bad log to `audit.jsonl.broken-<ts>` and starts a fresh chain whose first line (`audit_rotated`) records the old log's last hash and line count. The check is local tamper-evidence, not attestation: anyone who can edit both `audit.jsonl` and `audit.head` can still rewrite history.
+
+### Size limits
+
+Only operator-level events enter the log: preset switches, sealed snapshot export and restore, log rotation, and `integrity_fail`. Ordinary tool use never does, so a healthy install adds a handful of lines a year. The one automatic growth path is `integrity_fail`, which adds a line per session while an install stays broken.
+
+Verification and append are both linear in log size, and SessionStart verifies the whole log under `fail_closed`. Measured on an Apple M1 Pro, Python 3.15, 280-byte lines (memory is the growth over a bare interpreter):
+
+| Lines | Verify | Append | Verify memory |
+|---|---|---|---|
+| 1,000 | 6 ms | 0.8 ms | +0.7 MB |
+| 10,000 | 52 ms | 2.4 ms | +9 MB |
+| 100,000 | 0.5 s | 19 ms | +90 MB |
+| 500,000 | 2.5 s | 90 ms | +452 MB |
+
+`tests/test_audit.py::test_chain_at_the_documented_limit` pins 100,000 lines. A full SessionStart on that log took 0.7 s against 0.2 s on an empty one, and the number of project directories (tested at 500) made no measurable difference. Past roughly a million lines the walk costs seconds and about a gigabyte per session. If a log ever gets there, rotate it with `--audit-rotate`. Incremental verification from the last checkpoint is the fix if real logs ever approach the limit; the data says they will not, so it is not built.
 
 ## Encryption-at-rest specifics
 

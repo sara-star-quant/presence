@@ -80,7 +80,8 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 
 ### 9. Operational limits are tuned, not characterised
 
-- **Evidence**: a perf bench gate exists and guards cold-hook latency. Nothing measures behavior with a very large audit log, hundreds of projects, a full event queue, or a slow filesystem (network home directories). The SessionStart audit check re-reads the whole log each time.
+- **Done**: measured and documented in [zerotrust.md](zerotrust.md#size-limits). Verify and append are linear in the audit log (0.5 s and 90 MB at 100k lines, 2.5 s and 450 MB at 500k), project count has no measurable effect on SessionStart, and the event queue is already capped at 2 MB. Only operator events enter the audit log, so the ceiling is out of reach for honest use; a test pins 100k lines.
+- **Still open**: a slow or networked home directory is unmeasured. Incremental audit verification stays unbuilt because the numbers do not call for it.
 - **Why it blocks**: fail-closed plus unbounded growth is the combination that turns a slow day into an inert plugin.
 - **Exit criterion**: documented limits with tests at the edge (log of 100k lines, 500 projects, an event queue at the emergency cap), and the incremental audit verification we deferred, if the numbers say it is needed.
 

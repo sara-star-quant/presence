@@ -44,13 +44,25 @@ def main(tag: str) -> None:
         transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [
             {"type": "text", "text": "Done. The change is in place."}]}}) + "\n")
         cwd = str(repo)
+        # Releases from v0.11.2 read the real host shape (PostToolUseFailure carries the
+        # exit code); older ones read tool_response.exit_code.
+        real = "PostToolUseFailure" in (wt / "lib" / "hook_post_tool_bash.py").read_text()
+
+        def bash(cmd: str, code: int) -> list[tuple[str, dict]]:
+            if not real:
+                return [("post-tool-bash.sh", {"cwd": cwd, "tool_input": {"command": cmd}, "tool_response": {"exit_code": code}})]
+            base = {"cwd": cwd, "tool_name": "Bash", "tool_input": {"command": cmd}}
+            if code:
+                return [("post-tool-bash.sh", {**base, "hook_event_name": "PostToolUseFailure", "error": f"Exit code {code}\nfailed"})]
+            return [("post-tool-bash.sh", {**base, "hook_event_name": "PostToolUse", "tool_response": {"stdout": "ok", "interrupted": False}})]
+
         steps = [
             ("session-start.sh", {"cwd": cwd, "session_id": "fx"}),
             ("user-prompt-submit.sh", {"cwd": cwd, "prompt": "fix the parser"}),
             ("post-tool-edit.sh", {"cwd": cwd, "tool_name": "Edit", "tool_input": {"file_path": "a.py"}}),
-            ("post-tool-bash.sh", {"cwd": cwd, "tool_input": {"command": "pytest"}, "tool_response": {"exit_code": 1}}),
-            ("post-tool-bash.sh", {"cwd": cwd, "tool_input": {"command": "pytest"}, "tool_response": {"exit_code": 0}}),
-            ("post-tool-bash.sh", {"cwd": cwd, "tool_input": {"command": "git push origin main"}, "tool_response": {"exit_code": 0}}),
+            *bash("pytest", 1),
+            *bash("pytest", 0),
+            *bash("git push origin main", 0),
             ("stop.sh", {"cwd": cwd, "session_id": "fx", "transcript_path": str(transcript)}),
             ("session-start.sh", {"cwd": cwd, "session_id": "fx2"}),
         ]

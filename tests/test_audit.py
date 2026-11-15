@@ -174,3 +174,36 @@ def test_session_start_gate_blocks_on_broken_chain(isolated_state):
     assert msg and "truncated: yes" in msg and "--audit-rotate" in msg
     # Disabled outside fail_closed presets.
     assert asyncio.run(hook_session_start.fail_closed_audit_check({})) is None
+
+
+def _write_chain(n: int) -> list[str]:
+    """Write n valid chained lines straight to disk (appending n times would take minutes)."""
+    import hashlib
+    prev, lines = audit.GENESIS_HASH, []
+    for i in range(n):
+        rec = {"ts": 1700000000 + i, "event": "preset_switch", "preset": "zerotrust", "details": {"i": i}, "prev_hash": prev}
+        rec["hash"] = hashlib.sha256(prev.encode("ascii") + audit._canonical(rec)).hexdigest()
+        prev = rec["hash"]
+        lines.append(json.dumps(rec, separators=(",", ":")))
+    audit.audit_path().write_text("\n".join(lines) + "\n")
+    audit._write_head(n, prev)
+    return lines
+
+
+def test_chain_at_the_documented_limit(isolated_state):
+    """docs/zerotrust.md quotes 100k lines as the tested ceiling: it verifies, still catches
+    a tampered last line and a one-line truncation, and takes a further append."""
+    n = 100_000
+    lines = _write_chain(n)
+    assert audit.verify_chain()["ok"]
+
+    audit.append("after_limit", {})
+    rep = audit.verify_chain()
+    assert rep["ok"] and rep["lines"] == n + 1
+
+    path = audit.audit_path()
+    path.write_text("\n".join(lines[:-1] + [lines[-1].replace("preset_switch", "preset_swatch")]) + "\n")
+    assert audit.verify_chain()["tampered"] == [n - 1]
+
+    path.write_text("\n".join(lines[:-1]) + "\n")
+    assert audit.verify_chain()["truncated"]
