@@ -37,6 +37,17 @@ warn() { printf '\033[33mwarn :\033[0m %s\n' "$*" >&2; }
 info() { printf '\033[36minfo :\033[0m %s\n' "$*"; }
 ok()   { printf '\033[32mok   :\033[0m %s\n' "$*"; }
 
+# curl for anything fetched over the network. Pinned to https and TLS 1.2+, including across
+# redirects, so a redirect cannot downgrade a download to plain http. PRESENCE_RELEASE_BASE
+# (mirrors, tests) opts out of the pin because it may be a file:// or loopback URL.
+_curl() {
+  if [ -n "${PRESENCE_RELEASE_BASE:-}" ]; then
+    curl "$@"
+  else
+    curl --proto '=https' --proto-redir '=https' --tlsv1.2 "$@"
+  fi
+}
+
 register_plugin() {
   local py_bin
   py_bin="$(command -v python3 2>/dev/null || true)"
@@ -123,7 +134,7 @@ bootstrap_python_via_uv() {
 
   if ! command -v uv >/dev/null 2>&1; then
     info "downloading uv installer from https://astral.sh"
-    if ! curl -LsSf https://astral.sh/uv/install.sh | sh; then
+    if ! _curl -LsSf https://astral.sh/uv/install.sh | sh; then
       warn "uv install failed; install Python 3.12+ manually and rerun"
       return 1
     fi
@@ -581,7 +592,7 @@ download_ext() {
     local ver
     ver=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/.claude-plugin/plugin.json" | head -n 1)
     base="https://github.com/${repo}/releases/download/v${ver}"
-    if ! curl -fsSIL "$base/$asset" >/dev/null 2>&1; then
+    if ! _curl -fsSIL "$base/$asset" >/dev/null 2>&1; then
       warn "no v${ver} release asset for $asset; falling back to the latest release"
       base="https://github.com/${repo}/releases/latest/download"
     fi
@@ -591,27 +602,29 @@ download_ext() {
   local tmp target
   tmp=$(mktemp -d)
   target="$SCRIPT_DIR/lib/presence-client"
-  if ! curl -fsSL --output "$tmp/$asset" "$base/$asset"; then
+  if ! _curl -fsSL --output "$tmp/$asset" "$base/$asset"; then
     rm -rf "$tmp"
     die "could not download $asset from $base; verify a release exists with that asset, or use --build-ext"
   fi
 
-  if curl -fsSL --output "$tmp/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null; then
-    local expected actual
-    expected=$(awk -v a="$asset" '$2 == a || $2 == "*" a {print tolower($1)}' "$tmp/SHA256SUMS" | head -n 1)
-    if [ -z "$expected" ]; then
-      rm -rf "$tmp"
-      die "SHA256SUMS has no entry for $asset; refusing to install an unverifiable binary"
-    fi
-    actual=$(_sha256 "$tmp/$asset") || { rm -rf "$tmp"; die "no sha256sum or shasum available to verify the download"; }
-    if [ "$expected" != "$actual" ]; then
-      rm -rf "$tmp"
-      die "checksum mismatch for $asset (expected $expected, got $actual); refusing to install"
-    fi
-    ok "checksum verified"
-  else
-    warn "release has no SHA256SUMS (releases before v0.11.0); the binary is not verified"
+  # Fail closed: every release since v0.11.0 ships SHA256SUMS, so a missing file means a broken
+  # mirror or someone dropping the request, and neither is a reason to run an unverified binary.
+  if ! _curl -fsSL --output "$tmp/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null; then
+    rm -rf "$tmp"
+    die "could not download SHA256SUMS from $base; refusing to install an unverifiable binary"
   fi
+  local expected actual
+  expected=$(awk -v a="$asset" '$2 == a || $2 == "*" a {print tolower($1)}' "$tmp/SHA256SUMS" | head -n 1)
+  if [ -z "$expected" ]; then
+    rm -rf "$tmp"
+    die "SHA256SUMS has no entry for $asset; refusing to install an unverifiable binary"
+  fi
+  actual=$(_sha256 "$tmp/$asset") || { rm -rf "$tmp"; die "no sha256sum or shasum available to verify the download"; }
+  if [ "$expected" != "$actual" ]; then
+    rm -rf "$tmp"
+    die "checksum mismatch for $asset (expected $expected, got $actual); refusing to install"
+  fi
+  ok "checksum verified"
 
   # Build provenance: only when gh is available and we are talking to GitHub itself.
   if [ -z "${PRESENCE_RELEASE_BASE:-}" ] && command -v gh >/dev/null 2>&1; then

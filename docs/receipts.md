@@ -21,6 +21,7 @@ The Bash hook records a receipt locally on every successful `git commit`. Nothin
 - **Not signed.** The digest catches a note edited afterwards and a note copied onto another commit. Anyone who can write to the repo can still forge a whole receipt. A receipt is the machine's own claim, not an independent witness. Signing and a witnessed audit head are on the [roadmap](roadmap.md).
 - **Only what the hooks saw.** Edits made through shell redirection, MCP tools or subagents are invisible, so `verified_since_edit` can be wrong in both directions.
 - **Any passing test counts.** There is no link yet between the edited files and the tests that ran.
+- **Notes are public once pushed.** Commands are redacted, but they still show what you ran (paths, test selectors). Review `git notes --ref=presence show <rev>` before pushing the notes ref to a public remote.
 - **Amend and rebase** change the commit hash, so the old receipt stops matching. That is the safe direction.
 
 The format is experimental and not part of the frozen [contract](contract.md); the two CLI commands may change before 1.0.

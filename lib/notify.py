@@ -47,6 +47,7 @@ import subprocess
 import sys
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from _common import now_ts, settings
@@ -64,7 +65,14 @@ def notify_confidence(claim: str, verified: bool, **details) -> None:
     if not notify_cfg.get("enabled"):
         return
     url = notify_cfg.get("webhook_url")
-    if not url or not url.startswith(("https://", "http://")):
+    if not _allowed_url(url):
+        if url:
+            from warnings_log import warn_once
+            warn_once(
+                "notify_url_rejected",
+                "notify.webhook_url is not sent to: it must be https (http only to localhost)",
+                fix="set notify.webhook_url to an https URL",
+            )
         return
 
     from redact import redact_text
@@ -85,6 +93,21 @@ def notify_confidence(claim: str, verified: bool, **details) -> None:
     _dispatch(url, payload)
 
 
+def _allowed_url(url: object) -> bool:
+    """https anywhere; plain http only to this machine. A webhook over http carries the
+    claim text in the clear and lets anyone on the path rewrite it."""
+    if not isinstance(url, str):
+        return False
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        return False
+    if parts.scheme == "https":
+        return bool(host)
+    return parts.scheme == "http" and host in ("localhost", "127.0.0.1", "::1")
+
+
 def _dispatch(url: str, payload: dict) -> None:
     """Hand the POST off to a fully detached subprocess (setsid'd, no stdout/
     stderr) and return immediately -- a slow or dead webhook must never make
@@ -95,7 +118,7 @@ def _dispatch(url: str, payload: dict) -> None:
     """
     try:
         proc = subprocess.Popen(
-            [sys.executable, __file__, "--send", url],
+            [sys.executable, __file__, "--send"],
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -103,7 +126,9 @@ def _dispatch(url: str, payload: dict) -> None:
         )
         if proc.stdin is None:
             return
-        proc.stdin.write(json.dumps(payload).encode("utf-8"))
+        # The URL is usually the secret (Slack and Zapier hooks are bearer URLs) and argv is
+        # readable by every local user, so it travels on stdin with the payload.
+        proc.stdin.write(url.encode("utf-8") + b"\n" + json.dumps(payload).encode("utf-8"))
         proc.stdin.close()
         # Reap on a daemon thread instead of leaving it to Popen.__del__: a
         # still-running child at garbage-collection time triggers a
@@ -114,14 +139,18 @@ def _dispatch(url: str, payload: dict) -> None:
         pass  # a notification failure must never affect the gate itself
 
 
-def _send_from_stdin(url: str) -> None:
+def _send_from_stdin() -> None:
     """Detached-child entry point: read the payload from stdin and POST it.
     Runs outside the hook process (see _dispatch), so this function's own
     network timeout can never block Claude's turn.
     """
     try:
-        payload = sys.stdin.buffer.read()
+        raw = sys.stdin.buffer.read()
     except OSError:
+        return
+    first, _, payload = raw.partition(b"\n")
+    url = first.decode("utf-8", "replace")
+    if not _allowed_url(url):
         return
     req = urllib.request.Request(  # noqa: S310 -- scheme validated http(s)-only in notify_confidence
         url,
@@ -137,5 +166,5 @@ def _send_from_stdin(url: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) >= 3 and sys.argv[1] == "--send":
-        _send_from_stdin(sys.argv[2])
+    if len(sys.argv) >= 2 and sys.argv[1] == "--send":
+        _send_from_stdin()

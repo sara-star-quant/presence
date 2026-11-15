@@ -18,6 +18,9 @@
 | T10 | Symlink attack on read paths (transcript, plugin files) | Path resolution uses `Path.resolve()`. Zero-Trust mode refuses transcript paths outside `~/.claude/projects/`. |
 | T11 | Subprocess injection | All `git` calls use list args, never `shell=True`. No user-controlled strings reach a shell. |
 | T12 | State file size attack (transcript or event queue, leading to memory DoS) | Transcripts are tail-read with a max-bytes cap (262 KiB by default; same under Zero-Trust). The event queue is drained on every consumer call (truncates), with a hard 2 MB emergency cap. |
+| T13 | An on-path attacker alters what presence downloads or sends | `install.sh` pins every download to https and TLS 1.2 across redirects, requires the binary to match `SHA256SUMS` (a missing file fails closed, never a warning), and reports the result of `gh attestation verify` when `gh` is present (a failure warns; it does not block). The webhook takes https, or http to loopback only. The update check reads at most 1 MB and keeps a response only if its tag looks like a version. |
+| T14 | A hostile git note or release tag reaches the terminal or an agent's context | `verify-receipt` caps the note (16 KiB, five evidence entries), requires well-formed fields, prints one line of printable ASCII, and labels the receipt unsigned. Revisions that look like options are refused. |
+| T15 | The webhook URL, usually a bearer secret, is readable by other local users | The detached sender takes the URL on stdin with the payload, never in argv. |
 
 ## Which tests pin each claim
 
@@ -32,6 +35,11 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 | T6 perms re-tightened at SessionStart | `tests/test_hardening.py::test_reverify_state_perms_retightens` |
 | T7 plugin tamper and extra files fail closed | `tests/test_hardening.py::test_extra_file_fails_integrity`, `tests/test_hardening.py::test_integrity_gate_blocks_on_extra` |
 | T8 egress blocked under zerotrust, payload redacted | `tests/test_notify.py::test_zerotrust_egress_block_wins_even_if_notify_is_enabled`, `tests/test_notify.py::test_final_excerpt_is_redacted_before_dispatch` |
+| T13 downloads pinned to https, missing checksums fail closed | `tests/test_release_supply_chain.py::test_install_pins_https_for_every_github_download`, `tests/test_release_supply_chain.py::test_download_without_sums_refuses_to_install` |
+| T13 plain-http webhook refused except to loopback | `tests/test_notify.py::test_plain_http_to_a_remote_host_never_dispatches`, `tests/test_notify.py::test_loopback_http_and_remote_https_still_dispatch` |
+| T13 update response bounded and tag validated | `tests/test_update_check.py::test_fetch_reads_a_bounded_body`, `tests/test_update_check.py::test_fetch_rejects_a_tag_that_is_not_a_version` |
+| T14 receipt notes are untrusted input | `tests/test_receipt.py::test_an_oversized_note_is_invalid_not_parsed`, `tests/test_receipt.py::test_malformed_evidence_is_invalid`, `tests/test_receipt.py::test_cli_output_strips_terminal_escapes_and_labels_the_receipt_unsigned`, `tests/test_receipt.py::test_an_option_like_rev_is_refused` |
+| T15 webhook URL stays out of argv | `tests/test_notify.py::test_webhook_url_never_appears_in_the_child_argv` |
 | T12 transcript size cap | `tests/test_hook_stop.py::test_transcript_max_bytes_override_and_invalid` |
 | audit line edit detected | `tests/test_audit.py::test_tampered_line_detected` |
 | audit broken link detected | `tests/test_audit.py::test_broken_link_detected` |
@@ -44,6 +52,8 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 - A compromised Claude Code binary itself. That is outside the trust boundary; if Claude Code is hostile, hooks are not your problem.
 - A compromised local user account. Once an attacker has shell as you, they have your `~/.claude/` regardless of presence. In particular the Zero-Trust audit log is tamper-evident against in-place edits of individual lines (the SHA-256 hash chain detects a modified line or a broken link), but its genesis hash is a public constant and the chain carries no secret key, so rewriting the whole file with a fresh valid chain is not detectable. Tail truncation is caught by a sidecar head (`audit.head`), but a writer who edits both files defeats it. Use it to catch accidental or process-level corruption, not to bind the account owner.
 - A local attacker observing process arguments. On macOS, creating or rotating the keychain data key shells out to `security add-generic-password -w <hex>`, so the key is briefly visible in `ps` for the lifetime of that one subprocess (`security` has no stdin path for the value). The Linux `secret-tool` path passes the key over stdin and does not.
+- The opt-in `--bootstrap` path, which pipes the uv installer from astral.sh into `sh` over TLS. Nothing pins or checksums that script; skip the flag and install Python 3.12 yourself if that matters.
+- A forged receipt. Format 1 is unsigned, so anyone who can write to the repo can write a consistent one. `verify-receipt` says "unsigned" for that reason; signing is on the roadmap.
 - Side-channel timing attacks on hook execution.
 
 The PreToolUse commit/push confidence gate is an advisory nudge, not an access control: it is trivially bypassable (rename the command, split it, run git directly) and is meant to prompt verification, not to enforce it.

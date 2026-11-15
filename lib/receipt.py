@@ -24,6 +24,9 @@ from events import peek_events
 FORMAT = 1
 NOTES_REF = "presence"
 MAX_EVIDENCE = 5
+MAX_NOTE_BYTES = 16_384  # five 500-character commands fit in about 4 KB
+MAX_CMD = 500
+_KINDS = {"test_pass", "build_pass"}
 
 
 def receipts_path() -> Path:
@@ -33,6 +36,38 @@ def receipts_path() -> Path:
 def _digest(body: dict) -> str:
     rest = {k: v for k, v in body.items() if k != "digest"}
     return hashlib.sha256(json.dumps(rest, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
+def _rev(rev: str) -> str:
+    """A revision from the command line must not be able to pose as a git option."""
+    if not isinstance(rev, str) or not rev or rev.startswith("-") or "\0" in rev:
+        raise ValueError(f"not a usable revision: {rev!r}")
+    return rev
+
+
+def safe_text(text: object, limit: int = 80) -> str:
+    """One printable ASCII line. A note comes from a repo anyone may have written to, and its
+    text can reach a terminal or an agent's context: no escapes, no newlines, bounded."""
+    return "".join(c if " " <= c <= "~" else "?" for c in str(text)[:limit])
+
+
+def _well_formed(note: dict) -> bool:
+    ev = note.get("evidence")
+    return (
+        isinstance(note.get("commit"), str)
+        and isinstance(note.get("tree"), str)
+        and isinstance(note.get("verified_since_edit"), bool)
+        and isinstance(ev, list)
+        and len(ev) <= MAX_EVIDENCE
+        and all(
+            isinstance(e, dict)
+            and e.get("kind") in _KINDS
+            and isinstance(e.get("cmd"), str)
+            and len(e["cmd"]) <= MAX_CMD
+            and isinstance(e.get("ts"), int)
+            for e in ev
+        )
+    )
 
 
 def _git(cwd, *args: str) -> str:
@@ -85,7 +120,7 @@ def record(cwd, sha: str) -> dict:
 
 def find(cwd, rev: str) -> dict:
     """The receipt recorded on this machine for ``rev``. LookupError if there is none."""
-    sha = _git(cwd, "rev-parse", "--verify", f"{rev}^{{commit}}")
+    sha = _git(cwd, "rev-parse", "--verify", f"{_rev(rev)}^{{commit}}")
     found = [r for r in read_jsonl(receipts_path()) if r.get("commit") == sha]
     if not found:
         raise LookupError(f"no receipt recorded for {sha[:12]} on this machine")
@@ -102,22 +137,24 @@ def attach(cwd, rev: str) -> dict:
 def verify(cwd, rev: str) -> dict:
     """Check the git note on ``rev``. Needs only the repo, never presence state.
 
-    status: verified | unverified (an edit or failure after the last pass) |
+    status: verified (consistent, complete, unsigned) | unverified (an edit or failure after the last pass) |
     no_evidence (nothing was observed running) | tampered (digest) | mismatch
     (note belongs to another commit or tree) | invalid | none.
     """
-    sha = _git_try(cwd, "rev-parse", "--verify", f"{rev}^{{commit}}")
+    sha = _git_try(cwd, "rev-parse", "--verify", f"{_rev(rev)}^{{commit}}")
     if sha is None:
         return {"status": "invalid", "reason": f"{rev} is not a commit"}
     raw = _git_try(cwd, "notes", f"--ref={NOTES_REF}", "show", sha)
     if raw is None:
         return {"status": "none", "commit": sha}
     try:
-        note = json.loads(raw)
-        if not isinstance(note, dict) or note.get("v") != FORMAT:
+        if len(raw.encode()) > MAX_NOTE_BYTES:
             raise ValueError
-    except ValueError:
-        return {"status": "invalid", "commit": sha, "reason": "note is not a format 1 receipt"}
+        note = json.loads(raw)
+        if not isinstance(note, dict) or note.get("v") != FORMAT or not _well_formed(note):
+            raise ValueError
+    except (ValueError, RecursionError):
+        return {"status": "invalid", "commit": sha, "reason": "note is not a well-formed format 1 receipt"}
     if note.get("digest") != _digest(note):
         return {"status": "tampered", "commit": sha}
     if note.get("commit") != sha or note.get("tree") != _git_try(cwd, "rev-parse", f"{sha}^{{tree}}"):
@@ -128,4 +165,6 @@ def verify(cwd, rev: str) -> dict:
         status = "no_evidence"
     else:
         status = "verified"
-    return {"status": status, "commit": sha, "evidence": note.get("evidence", []), "tool": note.get("tool")}
+    # signed is False until receipts are signed: "verified" means consistent and complete, and a
+    # whole receipt can still be forged by anyone who can write to the repo.
+    return {"status": status, "commit": sha, "evidence": note["evidence"], "signed": False}

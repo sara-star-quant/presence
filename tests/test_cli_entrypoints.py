@@ -51,8 +51,8 @@ def test_notify_send_from_stdin_posts_payload(monkeypatch):
         return _Ctx()
 
     monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
-    monkeypatch.setattr(sys, "stdin", type("S", (), {"buffer": io.BytesIO(b'{"k":1}')})())
-    notify._send_from_stdin("https://hooks.example/x")
+    monkeypatch.setattr(sys, "stdin", type("S", (), {"buffer": io.BytesIO(b'https://hooks.example/x\n{"k":1}')})())
+    notify._send_from_stdin()
     assert seen == {"url": "https://hooks.example/x", "data": b'{"k":1}'}
 
 
@@ -61,5 +61,14 @@ def test_notify_send_from_stdin_swallows_network_errors(monkeypatch):
         raise urllib.error.URLError("down")
 
     monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
-    monkeypatch.setattr(sys, "stdin", type("S", (), {"buffer": io.BytesIO(b"{}")})())
-    notify._send_from_stdin("https://hooks.example/x")
+    monkeypatch.setattr(sys, "stdin", type("S", (), {"buffer": io.BytesIO(b"https://hooks.example/x\n{}")})())
+    notify._send_from_stdin()
+
+
+def test_notify_send_from_stdin_refuses_a_disallowed_url(monkeypatch):
+    def boom(req, timeout):
+        raise AssertionError("must not send")
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(sys, "stdin", type("S", (), {"buffer": io.BytesIO(b"http://hooks.example/x\n{}")})())
+    notify._send_from_stdin()
