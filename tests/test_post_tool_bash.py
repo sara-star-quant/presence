@@ -207,3 +207,29 @@ def test_exit_code_from_the_real_host_contract(payload, expected):
     from hook_post_tool_bash import _exit_code
 
     assert _exit_code(payload, payload.get("tool_response") or {}) == expected
+
+
+def _run_piped(hook_runner, stdout):
+    """What the real host sends for `pytest | tail`: PostToolUse, no exit code, the tail in stdout."""
+    run, state, repo = hook_runner
+    run("hook_post_tool_bash", {
+        "cwd": str(repo), "hook_event_name": "PostToolUse", "tool_name": "Bash",
+        "tool_input": {"command": "pytest -q 2>&1 | tail -3"},
+        "tool_response": {"stdout": stdout, "interrupted": False},
+    })
+    return state
+
+
+def test_a_piped_run_that_passed_counts_through_the_runner_summary(hook_runner):
+    state = _run_piped(hook_runner, "..........\n20 passed in 1.22s\n")
+    assert _events_of_kind(state, "test_pass") and not _events_of_kind(state, "test_fail")
+
+
+def test_a_piped_run_that_failed_is_a_failure_even_though_the_pipe_exited_zero(hook_runner):
+    state = _run_piped(hook_runner, "FAILED a.py::t - assert 0\n1 failed, 19 passed in 1.22s\n")
+    assert _events_of_kind(state, "test_fail") and not _events_of_kind(state, "test_pass")
+
+
+def test_a_piped_run_with_no_summary_records_no_verdict(hook_runner):
+    state = _run_piped(hook_runner, "some unrelated output\n")
+    assert not _events_of_kind(state, "test_pass") and not _events_of_kind(state, "test_fail")

@@ -91,7 +91,8 @@ def main() -> None:
         }, cwd=session_cwd)
 
         # Classify only when we know the exit code; never silently bless a failed test as a pass
-        classified = classify_command(cmd, exit_code)
+        output = "\n".join(str(tool_response.get(k) or "") for k in ("stdout", "stderr"))
+        classified = classify_command(cmd, exit_code, output)
         if classified:
             append_event({"kind": classified, "cmd": redact_command(cmd[:500], level=level, profiles=profiles)}, cwd=session_cwd)
 

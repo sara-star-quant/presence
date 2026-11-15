@@ -100,6 +100,8 @@ def build(cwd, sha: str) -> dict:
     evidence: list[dict] = []
     for ev in peek_events(cwd):
         kind = ev.get("kind")
+        if kind == "edit" and ev.get("scope", "code") != "code":
+            continue  # notes and docs cannot be verified by a test run
         if kind in ("edit", "test_fail", "build_fail"):
             dirty, evidence = True, []
         elif kind in ("test_pass", "build_pass"):

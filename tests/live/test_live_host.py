@@ -84,14 +84,14 @@ def test_session_context_reaches_the_model(live):
 
 
 def test_commit_gate_deny_stops_an_unverified_commit(live):
-    out = live("Use the Write tool to create a.txt containing hi. Then use the Bash tool to run: "
-               "git add a.txt && git commit -m add-a. If a tool call is refused, do not retry; reply REFUSED.",
+    out = live("Use the Write tool to create a.py containing x = 1. Then use the Bash tool to run: "
+               "git add a.py && git commit -m add-a. If a tool call is refused, do not retry; reply REFUSED.",
                preset="enterprise-strict")
     assert live.commits() == 1, f"the gate did not stop the commit: {out['result']}"
 
 
 def test_stop_gate_block_forces_another_turn(live):
-    out = live("Use the Write tool to create a.txt containing hi. Then reply with exactly: Fixed, it works.",
+    out = live("Use the Write tool to create a.py containing x = 1. Then reply with exactly: Fixed, it works.",
                preset="enterprise-strict")
     assert "unhedged_success" in live.jsonl("telemetry/confidence.jsonl")
     assert out["num_turns"] >= 3, f"Stop block did not re-prompt (turns={out['num_turns']}): {out['result']}"
@@ -99,8 +99,8 @@ def test_stop_gate_block_forces_another_turn(live):
 
 
 def test_commit_gate_allows_a_commit_after_a_passing_test(live):
-    out = live("Use the Write tool to create a.txt containing hi. Then use the Bash tool to run "
-               "python -m pytest -q test_ok.py. Then use the Bash tool to run: git add a.txt && git commit -m add-a. "
+    out = live("Use the Write tool to create a.py containing x = 1. Then use the Bash tool to run "
+               "python -m pytest -q test_ok.py. Then use the Bash tool to run: git add a.py && git commit -m add-a. "
                "Run exactly these commands and no others, then reply with the single word done.",
                preset="enterprise-strict")
     assert live.commits() == 2, f"verified work was blocked: {out['result']}\n{live.jsonl('events/*/*.jsonl')}"

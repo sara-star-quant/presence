@@ -41,15 +41,38 @@ def scan_recent(cwd=None, since_ts: int | None = None, window_seconds: int = 180
     """
     if since_ts is None:
         since_ts = now_ts() - window_seconds
+    return scan_events(peek_events(cwd), since_ts)
+
+
+DOC_EXT = {".md", ".txt", ".rst"}
+
+
+def edit_scope(path: str, root: str) -> str:
+    """Whether an edit is something a test run could verify: ``code`` inside the project,
+    ``docs`` (prose files), or ``outside`` the project (notes, config in the home directory)."""
+    if not path:
+        return "code"  # unknown path: keep asking for evidence
+    base = os.path.normpath(root)
+    full = os.path.normpath(path if os.path.isabs(path) else os.path.join(base, path))
+    if full != base and not full.startswith(base + os.sep):
+        return "outside"
+    return "docs" if os.path.splitext(full)[1].lower() in DOC_EXT else "code"
+
+
+def scan_events(events, since_ts: int) -> dict:
+    """The recency facts from an ordered event list. Pure, so tests and the transcript replay
+    in bench/gate_replay.py run exactly the logic the hooks run."""
     last_edit = 0
     last_pass = 0
     passed_since_edit = False
-    for ev in peek_events(cwd):
+    for ev in events:
         ts = ev.get("ts", 0)
         if ts < since_ts:
             continue
         kind = ev.get("kind")
         if kind == "edit":
+            if ev.get("scope", "code") != "code":
+                continue  # events from older releases carry no scope and count as code
             last_edit = max(last_edit, ts)
             passed_since_edit = False
         elif kind in ("test_pass", "build_pass"):
@@ -137,7 +160,7 @@ def _command_start(words: list[str]) -> list[str]:
     return [os.path.basename(rest[0]), *rest[1:]] if rest else rest
 
 
-def _runs(cmd: str, patterns: list[re.Pattern]) -> bool:
+def _find_run(cmd: str, patterns: list[re.Pattern], need_status: bool = True) -> list[str] | None:
     """True iff ``cmd`` runs one of ``patterns`` *and* its exit status describes that run.
 
     The tool must sit in command position (not an argument to grep or echo), must not be
@@ -147,13 +170,13 @@ def _runs(cmd: str, patterns: list[re.Pattern]) -> bool:
     passed. Multi-line commands are skipped; heredocs make clause splitting a guess.
     """
     if "\n" in cmd.strip():
-        return False
+        return None
     try:
         lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
         tokens = list(lex)
     except ValueError:
-        return False
+        return None
     clauses: list[tuple[list[str], str | None, str | None]] = []  # words, separator before, after
     cur: list[str] = []
     before: str | None = None
@@ -165,21 +188,65 @@ def _runs(cmd: str, patterns: list[re.Pattern]) -> bool:
             cur.append(tok)
     clauses.append((cur, before, None))
     for i, (words, sep_before, _) in enumerate(clauses):
-        if sep_before not in (None, ";", "&&"):
+        if need_status and sep_before not in (None, ";", "&&"):
             continue
-        if any(sep != "&&" for _, _, sep in clauses[i:] if sep is not None):
+        if need_status and any(sep != "&&" for _, _, sep in clauses[i:] if sep is not None):
             continue
         start = _command_start(words)
         if start and not _INFO_ONLY.intersection(start) and any(p.match(" ".join(start)) for p in patterns):
-            return True
-    return False
+            return start
+    return None
 
 
-def classify_command(cmd: str | None, exit_code) -> str | None:
+def _runs(cmd: str, patterns: list[re.Pattern]) -> bool:
+    return _find_run(cmd, patterns) is not None
+
+
+_TAIL_BYTES = 8192
+_PYTEST = re.compile(r"(?m)^[= ]*((?:\d+ \w+(?:, )?)+)\s+in [\d.]+s")
+_CARGO = re.compile(r"test result: (ok|FAILED)\. (\d+) passed; (\d+) failed")
+_JEST = re.compile(r"(?m)^\s*Tests:?\s+(.*)$")
+_SUMMARY_TOOLS = {"pytest": "pytest", "cargo": "cargo", "go": "go", "jest": "jest", "vitest": "jest"}
+
+
+def _summary_verdict(output: str, start: list[str]) -> str | None:
+    """``pass`` or ``fail`` from the runner's own closing summary, else None. Only the tail of
+    the output is read, and only tools whose summary format is known."""
+    tool = _SUMMARY_TOOLS.get(start[0].lower())
+    tail = output[-_TAIL_BYTES:]
+    if tool == "pytest":
+        found = _PYTEST.findall(tail)
+        counts = {w: int(n) for n, w in re.findall(r"(\d+) (\w+)", found[-1])} if found else {}
+        if counts.get("failed") or counts.get("error") or counts.get("errors"):
+            return "fail"
+        return "pass" if counts.get("passed") else None
+    if tool == "cargo":
+        results = _CARGO.findall(tail)
+        if any(r[0] == "FAILED" or int(r[2]) for r in results):
+            return "fail"
+        return "pass" if any(int(r[1]) for r in results) else None
+    if tool == "go":
+        lines = tail.splitlines()
+        if any(ln.startswith(("FAIL", "--- FAIL")) for ln in lines):
+            return "fail"
+        return "pass" if any(ln.startswith("ok") for ln in lines) else None
+    if tool == "jest":
+        found = _JEST.findall(tail)
+        if not found:
+            return None
+        return "fail" if "failed" in found[-1] else "pass" if "passed" in found[-1] else None
+    return None
+
+
+def classify_command(cmd: str | None, exit_code, output: str | None = None) -> str | None:
     """Return ``test_pass``/``test_fail``/``build_pass``/``build_fail`` or ``None``.
 
     If ``exit_code`` is missing/unparseable, returns ``None`` and refuses to classify
     (so a failed test cannot be silently logged as a pass).
+
+    When the exit status cannot describe the run (``pytest | tail``, ``pytest || true``) but a
+    test tool is in command position and the command exited 0, the runner's own summary line in
+    ``output`` decides. A summary that is missing or unreadable leaves the run unclassified.
     """
     if not cmd:
         return None
@@ -189,7 +256,12 @@ def classify_command(cmd: str | None, exit_code) -> str | None:
         return None
     is_test = _runs(cmd, _TEST_PATTERNS)
     is_build = _runs(cmd, _BUILD_PATTERNS)
-    if not (is_test or is_build):
-        return None
-    kind = "test" if is_test else "build"
-    return f"{kind}_{'pass' if code == 0 else 'fail'}"
+    if is_test or is_build:
+        kind = "test" if is_test else "build"
+        return f"{kind}_{'pass' if code == 0 else 'fail'}"
+    if output and code == 0:
+        run = _find_run(cmd, _TEST_PATTERNS, need_status=False)
+        verdict = _summary_verdict(output, run) if run else None
+        if verdict:
+            return f"test_{verdict}"
+    return None
