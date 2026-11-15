@@ -22,7 +22,7 @@ Each control below is shipped in v0.2.
 | Network egress | optional `gh` PR check, release-freshness check, webhook notifier available | all disabled -- release-freshness check and webhook notifier via `network.egress_allowed: false` (wins regardless of the feature's own toggle); `gh` PR check via its own `telemetry.gh_pr_check` flag |
 | Commit/push gate | warn or off | hard block until verified test/build evidence exists |
 | Stop-hook gate | silent (logged to `confidence.jsonl`) | hard block (re-prompts the model on unhedged success without evidence) |
-| Audit log | not produced | tamper-evident append-only log with per-line SHA-256 hash chain at `~/.claude/presence/audit.jsonl` |
+| Audit log | not produced | hash-chained append-only log at `~/.claude/presence/audit.jsonl`: edits, deletions and reordering by anyone who cannot also rewrite the log are detectable (a process running as you can still recompute it) |
 | Transcript reads | up to 256 KiB | 256 KiB cap + path must be under `~/.claude/projects/` |
 | Settings immutability | direct edit | `presence-unlock` flow required (TTL'd marker) before any settings.json or preset write |
 | State permissions | `0o700` / `0o600` | enforced and verified every session |
