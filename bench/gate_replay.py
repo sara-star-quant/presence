@@ -41,6 +41,7 @@ import hashlib
 import json
 import math
 import random
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -152,15 +153,17 @@ def replay(path: Path) -> tuple[list[dict], int]:
     events = _events(entries)
     sid = hashlib.sha256(str(path).encode()).hexdigest()[:8]
     turns = []
+    turn_no = -1
     for i, ev in enumerate(events):
         if ev["kind"] != "final":
             continue
+        turn_no += 1  # the id counts turns, not events, so it survives classifier changes
         history = [x for x in events[:i] if x["kind"] != "final"]
         scan = scan_events(history, ev["ts"] - WINDOW)
         claim = has_unhedged_success_claim(ev["text"])
         scopes = {x["scope"] for x in history if x["kind"] == "edit" and x["ts"] >= ev["ts"] - WINDOW}
         turns.append({
-            "id": f"{sid}:{i}", "session": sid, "claim": claim,
+            "id": f"{sid}:{turn_no}", "session": sid, "claim": claim,
             "eligible": claim and bool(scopes),
             "fired": claim and scan["has_recent_edit"] and not scan["verified_since_edit"],
             "edit_class": "code" if "code" in scopes else "docs" if "docs" in scopes else "outside" if scopes else "none",
@@ -242,22 +245,122 @@ def summarize(turns: list[dict]) -> str:
     return "\n".join(out)
 
 
+TRUTH = ("true_done", "false_done", "unclear")
+_ID = re.compile(r"[0-9a-f]+:\d+")
+
+
+def load_ledger(path: Path) -> dict[str, dict]:
+    rows: dict[str, dict] = {}
+    if Path(path).exists():
+        for line in Path(path).read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                rows[row["id"]] = row
+    return rows
+
+
+def merge_ledger(path: Path, turns: list[dict]) -> None:
+    """Keep every turn ever seen, newest reading wins (an unresolved turn may resolve later).
+    A turn holds booleans and classes only: no text, paths or commands."""
+    rows = load_ledger(path)
+    rows.update({t["id"]: t for t in turns})
+    Path(path).write_text("".join(json.dumps(rows[k], sort_keys=True) + "\n" for k in sorted(rows)))
+
+
+def load_labels(path: Path) -> dict[str, str]:
+    labels: dict[str, str] = {}
+    if Path(path).exists():
+        for line in Path(path).read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                labels[row["id"]] = row["truth"]
+    return labels
+
+
+def add_label(path: Path, turn_id: str, truth: str) -> None:
+    if truth not in TRUTH or not _ID.fullmatch(turn_id):
+        raise ValueError(f"label a turn id like abcd1234:7 as one of {', '.join(TRUTH)}")
+    with open(path, "a") as f:
+        f.write(json.dumps({"id": turn_id, "truth": truth}) + "\n")
+
+
+def show(files, turn_id: str) -> str:
+    """The final message and the next user message of one turn, for hand labelling. Blind on
+    purpose: nothing about the gate's verdict or the outcome, so the label is an independent
+    judgement of whether the claim was true when it was made."""
+    sid, _, n = turn_id.partition(":")
+    for f in files:
+        if hashlib.sha256(str(f).encode()).hexdigest()[:8] != sid:
+            continue
+        entries, _ = _read(f)
+        finals = [e for e in _events(entries) if e["kind"] == "final"]
+        final = finals[int(n)]
+        reply = next((e for e in entries if _is_prompt(e) and _epoch(e) > final["ts"]), None)
+        content = ((reply or {}).get("message") or {}).get("content", "")
+        if isinstance(content, list):
+            content = " ".join(b.get("text", "") for b in content if isinstance(b, dict))
+        return (f"Assistant's final message:\n{final['text'][:800]}\n\n"
+                f"Your next message:\n{str(content)[:400] or '(none: the session ended)'}")
+    raise ValueError(f"no transcript matches {turn_id}")
+
+
+def proxy_check(turns: list[dict], labels: dict[str, str]) -> str:
+    """How well the outcome proxy (later failing run) agrees with a human label of the same turn."""
+    outcome = {t["id"]: t["outcome"] for t in turns}
+    usable = [(outcome[i], v) for i, v in labels.items()
+              if i in outcome and v in ("true_done", "false_done") and outcome[i] != "unresolved"]
+    agree = sum(p == v for p, v in usable)
+    caught = sum(p == v == "false_done" for p, v in usable)
+    noise = sum(p == "false_done" and v == "true_done" for p, v in usable)
+    missed = sum(p == "true_done" and v == "false_done" for p, v in usable)
+    head = (f"Proxy check: {len(labels)} labelled, {len(usable)} usable (a clear label and a resolved outcome). "
+            f"Proxy flagged false and the label agreed: {caught}; flagged false but the label said true: {noise}; "
+            f"flagged true but the label said false: {missed}.")
+    if len(usable) < MIN_RESOLVED:
+        return head + " Agreement: not enough evidence."
+    lo, hi = wilson(agree, len(usable))
+    return head + f" Agreement: {agree / len(usable):.0%} ({lo:.0%} to {hi:.0%}, n={len(usable)})."
+
+
+def sample_ids(turns: list[dict], n: int) -> list[str]:
+    """Claim turns whose outcome is resolved, whatever the gate did: that is where the proxy and a
+    human judgement can be compared. Seeded, so the same ledger gives the same sample."""
+    pool = sorted(t["id"] for t in turns if t["claim"] and t["outcome"] != "unresolved")
+    return random.Random(0).sample(pool, min(n, len(pool)))  # noqa: S311  seeded: reproducible, not security
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("projects", type=Path)
-    ap.add_argument("--sample", type=int, default=0, help="print this many ids of fired code turns for hand labelling")
+    ap.add_argument("--sample", type=int, default=0, help="print this many ids of claim turns with a resolved outcome, for hand labelling")
+    ap.add_argument("--ledger", type=Path, help="merge this run into a local history of turns (no text) and report on all of it")
+    ap.add_argument("--labels", type=Path, help="hand labels file; adds a proxy check to the report")
+    ap.add_argument("--label", nargs=2, metavar=("ID", "TRUTH"), help=f"record a label ({', '.join(TRUTH)}); needs --labels")
+    ap.add_argument("--show", metavar="ID", help="print one turn's message and your next reply, blind to the gate, to label it")
     args = ap.parse_args()
     files = sorted(args.projects.glob("*/*.jsonl"))
+    if args.label:
+        if not args.labels:
+            ap.error("--label needs --labels FILE")
+        add_label(args.labels, *args.label)
+        return
+    if args.show:
+        print(show(files, args.show))
+        return
     turns, skipped = [], 0
     for f in files:
         t, s = replay(f)
         turns += t
         skipped += s
+    if args.ledger:
+        merge_ledger(args.ledger, turns)
+        turns = list(load_ledger(args.ledger).values())
     print(summarize(turns))
+    if args.labels:
+        print("\n" + proxy_check(turns, load_labels(args.labels)))
     print(f"\nTranscripts: {len(files)}; turns: {len(turns)}; claims: {sum(t['claim'] for t in turns)}; unreadable lines skipped: {skipped}")
     if args.sample:
-        pool = [t["id"] for t in turns if t["fired"] and t["edit_class"] == "code"]
-        print("Sample for hand labelling:", ", ".join(random.Random(0).sample(pool, min(args.sample, len(pool)))))  # noqa: S311
+        print("Sample for hand labelling:", ", ".join(sample_ids(turns, args.sample)))
 
 
 if __name__ == "__main__":

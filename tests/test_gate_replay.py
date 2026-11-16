@@ -151,3 +151,76 @@ def test_a_rate_with_an_interval_appears_once_enough_turns_resolved():
              "outcome": "false_done" if i < 15 else "true_done", "session": f"s{i % 7}"} for i in range(40)]
     row = next(ln for ln in gr.summarize(rows).splitlines() if ln.startswith("| code"))
     assert "38% (" in row and "n=40" in row
+
+
+# --- ledger and hand labels -----------------------------------------------------------------
+
+def _claim_turn(tmp_path, session, name="s.jsonl"):
+    turns, _ = gr.replay(session.write(tmp_path, name))
+    return [t for t in turns if t["claim"]][0]
+
+
+def test_turn_ids_do_not_change_when_the_classifier_sees_more_runs(tmp_path):
+    """Labels are keyed by id, so an extra classified command before the turn must not renumber it."""
+    plain = Session().prompt().edit(f"{CWD}/a.py").final("Done.")
+    busier = Session().prompt().edit(f"{CWD}/a.py").run("pytest -q").run("ruff check .").final("Done.")
+    a = _claim_turn(tmp_path, plain, "x.jsonl")["id"].split(":")[1]
+    b = _claim_turn(tmp_path, busier, "x.jsonl")["id"].split(":")[1]
+    assert a == b
+
+
+def test_ledger_keeps_history_overwrites_resolved_turns_and_stores_no_text(tmp_path):
+    ledger = tmp_path / "ledger.jsonl"
+    s = Session().prompt().edit(f"{CWD}/a.py").final("Fixed, SECRET-MESSAGE-TEXT.")
+    first, _ = gr.replay(s.write(tmp_path))
+    gr.merge_ledger(ledger, first)
+    assert [t["outcome"] for t in gr.load_ledger(ledger).values() if t["claim"]] == ["unresolved"]
+    s.prompt("run").run("pytest -q", ok=False)  # the session grew: the same turn now resolves
+    later, _ = gr.replay(s.write(tmp_path))
+    gr.merge_ledger(ledger, later)
+    rows = gr.load_ledger(ledger)
+    assert [t["outcome"] for t in rows.values() if t["claim"]] == ["false_done"]
+    assert "SECRET" not in ledger.read_text() and "a.py" not in ledger.read_text()
+    gr.merge_ledger(ledger, [])  # a pass over transcripts that were deleted loses nothing
+    assert len(gr.load_ledger(ledger)) == len(rows)
+
+
+def test_a_label_must_be_one_of_the_known_values_and_the_latest_wins(tmp_path):
+    labels = tmp_path / "labels.jsonl"
+    gr.add_label(labels, "aaaa:1", "true_done")
+    gr.add_label(labels, "aaaa:1", "false_done")
+    assert gr.load_labels(labels) == {"aaaa:1": "false_done"}
+    with pytest.raises(ValueError):
+        gr.add_label(labels, "aaaa:1", "yes")
+
+
+def test_show_prints_the_message_and_the_reply_but_not_the_gate_verdict_or_outcome(tmp_path):
+    s = Session().prompt("make it work").edit(f"{CWD}/a.py").final("Fixed the parser.").prompt("still broken").run("pytest -q", ok=False)
+    path = s.write(tmp_path)
+    turn = [t for t in gr.replay(path)[0] if t["claim"]][0]
+    out = gr.show(tmp_path.glob("*.jsonl"), turn["id"])
+    assert "Fixed the parser." in out and "still broken" in out
+    for leak in ("fired", "false_done", "true_done", "unresolved", "eligible"):
+        assert leak not in out
+
+
+def test_proxy_check_reports_counts_but_no_rate_on_a_small_sample():
+    turns = [{"id": f"s:{i}", "outcome": "false_done" if i % 2 else "true_done"} for i in range(10)]
+    labels = {t["id"]: ("false_done" if i % 2 else "true_done") for i, t in enumerate(turns)}
+    out = gr.proxy_check(turns, labels)
+    assert "not enough evidence" in out and "10 labelled" in out
+
+
+def test_proxy_check_agreement_with_enough_labels():
+    turns = [{"id": f"s:{i}", "outcome": "false_done" if i < 20 else "true_done"} for i in range(40)]
+    labels = {t["id"]: ("false_done" if i < 15 else "true_done") for i, t in enumerate(turns)}  # 5 proxy false alarms
+    out = gr.proxy_check(turns, labels)
+    assert "88% (" in out  # 35 of 40 agree
+
+
+def test_sample_draws_resolved_claim_turns_only_and_is_reproducible():
+    turns = [{"id": f"s:{i}", "claim": i % 2 == 0, "outcome": ("unresolved", "true_done", "false_done")[i % 3]} for i in range(60)]
+    pick = gr.sample_ids(turns, 10)
+    assert pick == gr.sample_ids(turns, 10)
+    byid = {t["id"]: t for t in turns}
+    assert all(byid[i]["claim"] and byid[i]["outcome"] != "unresolved" for i in pick) and len(pick) == 10
