@@ -79,6 +79,22 @@ def run_verify_receipt(rev: str, allowed_signers: str | None = None) -> int:
     return 0 if res["status"] == "verified" else 1
 
 
+def run_verify_evidence(rev: str, repo: str) -> int:
+    import os
+
+    import ci_evidence
+    try:
+        res = ci_evidence.verify(os.getcwd(), rev, repo)
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
+    line = f"{res['status']} tree {res['tree'][:12]}"
+    if res["status"] == "verified":
+        line += f" (CI run {res['run']})"
+    sys.stdout.write(line + "\n")
+    return 0 if res["status"] == "verified" else 1
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="presence: hook + MCP CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -97,6 +113,10 @@ def main() -> None:
     vr.add_argument("rev", nargs="?", default="HEAD")
     vr.add_argument("--allowed-signers", help="trust only receipts signed by a key in this ssh allowed_signers file")
 
+    ve = sub.add_parser("verify-evidence", help="check that CI re-ran the tests on a commit's tree and signed the result (needs gh)")
+    ve.add_argument("rev", nargs="?", default="HEAD")
+    ve.add_argument("--repo", required=True, help="owner/name of the repository whose CI must have signed it")
+
     args = parser.parse_args()
 
     if args.command == "hook":
@@ -105,6 +125,8 @@ def main() -> None:
         run_mcp()
     elif args.command == "receipt":
         sys.exit(run_receipt(args.rev, args.attach or bool(args.sign_key), args.sign_key))
+    elif args.command == "verify-evidence":
+        sys.exit(run_verify_evidence(args.rev, args.repo))
     elif args.command == "verify-receipt":
         sys.exit(run_verify_receipt(args.rev, args.allowed_signers))
 

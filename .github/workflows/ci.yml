@@ -218,3 +218,35 @@ jobs:
           assert head is None or 'sha' in head, f'unexpected get_head_commit shape: {head}'
           print('wheel smoke-test ok')
           "
+
+  attest-tests:
+    # Independent evidence for receipts: after every required job passed on the pushed commit,
+    # sign a subject derived from its tree hash. `presence verify-evidence` rebuilds the subject
+    # and checks this workflow, on main, signed it. Not a required check, so no ruleset impact.
+    name: attest test evidence
+    needs: [test, coverage, ruff, bandit, shellcheck, manifest-integrity, ascii, bench]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write       # keyless signing identity
+      attestations: write   # store the attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Write the subject and the predicate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          tree=$(git rev-parse "$COMMIT^{tree}")
+          printf 'presence test evidence v1\ntree %s\n' "$tree" > evidence-subject.txt
+          jq -n --arg tree "$tree" --arg commit "$COMMIT" --arg run_url "$RUN_URL" --argjson needs "$NEEDS_JSON" \
+            '{tree: $tree, commit: $commit, run_url: $run_url, jobs: ($needs | with_entries(.value = .value.result))}' > evidence-predicate.json
+          cat evidence-predicate.json
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: evidence-subject.txt
+          predicate-type: https://github.com/sara-star-quant/presence/attestations/test-evidence/v1
+          predicate-path: evidence-predicate.json
+
