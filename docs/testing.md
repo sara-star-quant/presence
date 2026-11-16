@@ -71,3 +71,5 @@ Two limits shape how to read it. Agents mostly test after a claim when they are 
 
 What the first replay found changed the gate: strict exit-status rules had dropped nearly every real test run (four in five were piped through `tail`), and more than four in five of the edits it asked tests to verify were notes or docs. The gate now reads the runner's own summary line when a pipe hides the exit code, and only edits to code inside the project make work unverified.
 
+`--ledger FILE` keeps every turn the replay has seen (booleans and classes only, no text), so history outlives transcript cleanup and a report covers all of it. `--show ID` prints one turn's final message and your next reply without the gate's verdict or the outcome, `--label ID true_done|false_done|unclear` records your judgement, and `--labels FILE` adds a table of how often the later-failure proxy agrees with you.
+
