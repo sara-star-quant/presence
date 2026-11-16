@@ -80,3 +80,12 @@ See: `lib/snapshot.py`, [recipes.md](recipes.md).
 The output of `/presence-bugreport` (or `python3 lib/bugreport.py --md`): a paste-friendly markdown blob combining install-verify output, doctor report, recent warnings, and state sizes. Designed to drop into the GitHub bug-report issue template.
 
 See: `lib/bugreport.py`, `commands/presence-bugreport.md`.
+
+## Receipt
+
+A small JSON statement, stored as a git note, saying what presence saw run before a commit: the redacted test or build commands that passed after the last code edit, bound to the commit and its tree by a digest. Optionally signed with an SSH key and verified against signers the verifier pins. Experimental. See [receipts.md](receipts.md).
+
+## CI evidence
+
+A signed statement from the repository's own CI workflow, on main, that every required job passed on a tree. It is the independent counterpart to a receipt, which is the developer machine's own claim. Checked with `verify-evidence`. See [receipts.md](receipts.md#proof-from-ci).
+
