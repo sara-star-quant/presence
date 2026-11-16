@@ -46,6 +46,8 @@ Every PR and every push to main runs:
 - the two latency gates above, and a wheel build for the Rust client
 - CodeQL and ClusterFuzzLite
 
+GitHub cancels a job that waits too long for a macOS runner, which turns the run red and skips the CI attestation. `.github/workflows/rerun-cancelled.yml` re-runs the run once when that is the only problem; a failing job, a job someone cancelled while it ran, and a second attempt are never retried.
+
 ## Not covered
 
 - **The live Claude Code host in CI.** `tests/live/` drives a real Claude Code session against this checkout, but it needs a logged-in `claude` and costs a few cents, so CI does not run it: `PRESENCE_LIVE_HOST=1 .venv/bin/python -m pytest tests/live`. Run it before a release and when Claude Code updates. The captured-payload tests cover the input side and replay in CI; a new Claude Code version stays unverified until someone re-captures with `tests/fixtures/capture_host_payloads.py`. The README lists the tested versions.

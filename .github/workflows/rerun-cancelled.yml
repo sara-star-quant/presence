@@ -1,0 +1,29 @@
+name: Retry queue cancellations
+# GitHub cancels a job that waits too long for a macOS runner. That turns main red and skips the
+# attestation until someone re-runs CI. This retries once, and only for that case. It runs the
+# script from the default branch and reads nothing from the run's branch or pull request.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  rerun:
+    name: retry queue cancellations
+    if: ${{ github.event.workflow_run.conclusion != 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write   # re-run the cancelled jobs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Re-run once if the only problem is jobs that never got a runner
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          REPO: ${{ github.repository }}
+        run: bash .github/scripts/rerun_cancelled.sh "$RUN_ID" "$ATTEMPT" "$REPO"
