@@ -25,6 +25,7 @@ A preset key, hook name, or CLI subcommand slated for removal is first deprecate
 - Python module internals under `lib/` (function names, signatures).
 - Wording of warnings, doctor output, and injected context text.
 - The Rust extension's internal API (`ext/` has its own version).
+- The receipt format and the `receipt`, `verify-receipt` and `verify-evidence` commands: experimental until 1.0, and not in the frozen snapshot ([receipts.md](receipts.md)).
 - The content of preset files shipped with the plugin (values may be retuned; the keys they use stay valid).
 
 ## Where this is checked

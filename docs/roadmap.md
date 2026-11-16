@@ -12,7 +12,7 @@ The code-level pieces are in place: the contract is frozen and enforced by `test
 
 ## Evidence that outlives the session
 
-**Status**: first step shipped as experimental ([receipts.md](receipts.md)). The rest is sequenced below; none of it is promised for a version.
+**Status**: first steps shipped in 0.12: opt-in signed receipts, CI-attested test runs, and the gate replay ([receipts.md](receipts.md), experimental). The rest is sequenced below; none of it is promised for a version.
 
 **The gap**: presence's evidence lives in a directory the agent itself can write, and it is only visible while presence is installed. That is enough to nudge an agent, not enough to hand to a reviewer, a CI job or an auditor.
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.12.0
+
+Receipts and CI evidence that anyone can check without presence.
+
+A commit can now carry a signed receipt of what ran before it, and CI attests the test run for the commit's tree, so a reviewer or a pipeline can check that the tests ran without trusting the agent or installing presence. Upgrade: a webhook on a plain remote http URL stops sending (`/presence-doctor` says so; use https), and `install.sh --download-ext` now refuses to install without `SHA256SUMS`. Update and restart Claude Code.
+
+- `lib/cli.py receipt`, `verify-receipt`, `verify-evidence`: experimental git-note receipts, SSH signatures checked against signers you pin, and a check of CI's attestation (`docs/receipts.md`).
+- Confidence gate: reads the runner's own summary when a pipe hides the exit code, and asks for tests only after code edits inside the project, so it stops firing on every turn.
+- Network paths: downloads pinned to https and TLS 1.2, webhook https-only with its URL off argv, update check bounded and validated, receipt notes treated as untrusted input.
+- `bench/gate_replay.py`: replays session transcripts through the gate, keeps a local ledger, and supports blind hand labelling.
+
 ## v0.11.3
 
 Stop counting mentions of a test tool as test evidence.
