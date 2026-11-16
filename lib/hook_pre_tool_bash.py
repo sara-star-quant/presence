@@ -13,9 +13,10 @@ import os
 from _common import emit, emit_context, hook_input, integrity_blocked, now_ts, safe_main, settings
 from cmdparse import is_git_commit, is_git_push
 from verify import scan_recent
+from worktree import view as tree_view
 
 
-def _evidence_after_edit(cwd) -> tuple[bool, int]:
+def _evidence_after_edit(cwd, session_id: str | None = None) -> tuple[bool, int]:
     """Return (evidence_present, last_edit_ts).
 
     evidence_present is True iff a passing test/build was logged AFTER the most
@@ -24,7 +25,8 @@ def _evidence_after_edit(cwd) -> tuple[bool, int]:
     """
     # Wide window: PreToolUse fires opportunistically, so include the longer
     # 1800 s scan_recent default rather than the 600 s test-evidence default.
-    recent = scan_recent(cwd, window_seconds=1800)
+    view = tree_view(cwd, session_id) if session_id else None
+    recent = scan_recent(cwd, window_seconds=1800, tree_view=view)
     return recent["verified_since_edit"], recent["last_edit_ts"]
 
 
@@ -44,7 +46,8 @@ def main() -> None:
     if not (is_git_commit(cmd) or is_git_push(cmd)):
         return
 
-    evidence_present, last_edit_ts = _evidence_after_edit(cwd)
+    sid = inp.get("session_id")
+    evidence_present, last_edit_ts = _evidence_after_edit(cwd, str(sid) if sid else None)
     if evidence_present:
         return
 

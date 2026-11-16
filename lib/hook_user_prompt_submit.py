@@ -5,6 +5,7 @@ import os
 
 from _common import emit_context, hook_input, integrity_blocked, safe_main, settings
 from events import drain_events, summarize_events
+from worktree import ensure_base
 
 
 def main() -> None:
@@ -13,6 +14,10 @@ def main() -> None:
     inp = hook_input()
     cfg = settings()
     cwd = inp.get("cwd") or os.getcwd()
+
+    # Baseline for "did code change this session", read from the working copy. Once per session.
+    if inp.get("session_id") and (cfg.get("confidence") or {}).get("enabled", True):
+        ensure_base(cwd, str(inp["session_id"]))
 
     if not (cfg.get("events") or {}).get("enabled", True):
         return

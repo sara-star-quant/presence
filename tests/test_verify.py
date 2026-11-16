@@ -202,3 +202,25 @@ def test_hostile_runner_output_cannot_stall_the_hook(hostile):
     for cmd in ("pytest | tail", "cargo test | tail", "go test ./... | tail", "npx jest | tail"):
         assert classify_command(cmd, 0, hostile) is None
     assert time.perf_counter() - start < 1.0
+
+
+# --- the tree view overrides what edit events say ------------------------------------------------
+
+@pytest.mark.parametrize("view, events, edited, verified", [
+    ({"code_changed": True, "verified_exact": False}, [], True, False),                    # an edit no hook saw
+    ({"code_changed": True, "verified_exact": True}, [{"kind": "edit", "ts": 5}], True, True),
+    ({"code_changed": False, "verified_exact": None}, [{"kind": "edit", "ts": 5}], False, True),  # edited, then put back
+    ({"code_changed": True, "verified_exact": None}, [{"kind": "edit", "ts": 5}], True, False),   # no tree recorded for any pass
+    ({"code_changed": True, "verified_exact": None}, [{"kind": "edit", "ts": 5}, {"kind": "test_pass", "ts": 6}], True, True),
+    ({"code_changed": True, "verified_exact": False}, [{"kind": "edit", "ts": 5}, {"kind": "test_pass", "ts": 6}], True, False),
+])
+def test_scan_events_trusts_the_tree_when_it_has_one(view, events, edited, verified):
+    from verify import scan_events
+    out = scan_events(events, 0, view)
+    assert (out["has_recent_edit"], out["verified_since_edit"]) == (edited, verified)
+
+
+def test_without_a_tree_view_the_event_logic_is_unchanged():
+    from verify import scan_events
+    assert scan_events([{"kind": "edit", "ts": 5}], 0)["verified_since_edit"] is False
+    assert scan_events([{"kind": "edit", "ts": 5}, {"kind": "test_pass", "ts": 6}], 0, None)["verified_since_edit"] is True
