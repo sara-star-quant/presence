@@ -284,3 +284,103 @@ def test_cli_signs_and_enforces_pinned_signers_end_to_end(isolated_state, fake_r
     _git(fake_repo, "notes", "--ref=presence", "remove", sha)
     gone = cli("verify-receipt", "--allowed-signers", str(_allowed(tmp_path, alice)))
     assert gone.returncode == 1 and gone.stdout.startswith("none")  # a deleted note fails closed
+
+
+# --- exact binding: the tree the tests passed on is the tree the commit records -------------------
+
+def _tree(repo, sha):
+    return _git(repo, "rev-parse", f"{sha}^{{tree}}")
+
+
+def test_a_pass_on_the_commits_own_tree_makes_an_exact_receipt(isolated_state, fake_repo):
+    sha = _commit(fake_repo)
+    tree = _tree(fake_repo, sha)
+    append_event({"kind": "test_pass", "cmd": "pytest -q", "tree": tree}, cwd=fake_repo)
+    r = receipt.build(fake_repo, sha)
+    assert r["verified_since_edit"] is True and r["exact"] is True
+    assert [e["cmd"] for e in r["evidence"]] == ["pytest -q"]
+
+
+def test_a_pass_on_a_different_tree_is_unverified_even_if_no_edit_was_seen(isolated_state, fake_repo):
+    """The tests ran, then something changed the files outside every hook, then the commit."""
+    sha = _commit(fake_repo)
+    append_event({"kind": "test_pass", "cmd": "pytest -q", "tree": "0" * 40}, cwd=fake_repo)
+    r = receipt.build(fake_repo, sha)
+    assert r["verified_since_edit"] is False and r["exact"] is True and r["evidence"] == []
+
+
+def test_only_passes_on_this_tree_count_as_evidence(isolated_state, fake_repo):
+    sha = _commit(fake_repo)
+    tree = _tree(fake_repo, sha)
+    append_event({"kind": "test_pass", "cmd": "old run", "tree": "1" * 40}, cwd=fake_repo)
+    append_event({"kind": "test_pass", "cmd": "pytest -q", "tree": tree}, cwd=fake_repo)
+    assert [e["cmd"] for e in receipt.build(fake_repo, sha)["evidence"]] == ["pytest -q"]
+
+
+def test_a_later_failure_voids_an_earlier_exact_pass(isolated_state, fake_repo):
+    sha = _commit(fake_repo)
+    tree = _tree(fake_repo, sha)
+    append_event({"kind": "test_pass", "cmd": "pytest -q", "tree": tree}, cwd=fake_repo)
+    append_event({"kind": "test_fail", "cmd": "pytest -q"}, cwd=fake_repo)
+    assert receipt.build(fake_repo, sha)["verified_since_edit"] is False
+
+
+def test_events_without_a_tree_keep_the_old_event_order_rules(isolated_state, fake_repo):
+    append_event({"kind": "edit", "file": "a.txt"}, cwd=fake_repo)
+    append_event({"kind": "test_pass", "cmd": "pytest -q"}, cwd=fake_repo)
+    r = receipt.build(fake_repo, _commit(fake_repo))
+    assert r["verified_since_edit"] is True and r["exact"] is False
+
+
+def test_an_exact_receipt_signs_and_verifies_and_reports_exact(isolated_state, fake_repo):
+    sha = _commit(fake_repo)
+    append_event({"kind": "test_pass", "cmd": "pytest -q", "tree": _tree(fake_repo, sha)}, cwd=fake_repo)
+    receipt.record(fake_repo, sha)
+    receipt.attach(fake_repo, sha)
+    res = receipt.verify(fake_repo, sha)
+    assert res["status"] == "verified" and res["exact"] is True
+
+
+def test_a_malformed_exact_flag_is_invalid(isolated_state, fake_repo):
+    sha = _commit(fake_repo)
+    _forge(fake_repo, sha, exact="yes")
+    assert receipt.verify(fake_repo, sha)["status"] == "invalid"
+
+
+def test_real_scripts_bind_a_receipt_to_the_exact_tree_without_any_edit_event(isolated_state, fake_repo):
+    """No Edit hook fires here, as with a sed, a heredoc or a subagent. The tree still tells the story."""
+    import os
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    env = {**os.environ, "PRESENCE_STATE": str(isolated_state), "CLAUDE_PLUGIN_ROOT": str(root),
+           "PRESENCE_NO_DAEMON": "1", "PYTHONPATH": str(root / "lib"),
+           "PATH": os.path.dirname(sys.executable) + os.pathsep + os.environ["PATH"]}
+    cwd = str(fake_repo)
+
+    def hook(script, payload):
+        r = subprocess.run(["bash", str(root / "hooks" / "scripts" / script)],
+                           input=json.dumps({"cwd": cwd, "session_id": "s-exact", **payload}),
+                           capture_output=True, text=True, env=env, timeout=30, check=False)
+        assert r.returncode == 0, r.stderr
+
+    def cli(*args):
+        return subprocess.run([sys.executable, str(root / "lib" / "cli.py"), *args], cwd=cwd, env=env,
+                              capture_output=True, text=True, check=False)
+
+    hook("user-prompt-submit.sh", {"prompt": "go"})
+    (fake_repo / "a.py").write_text("x = 1\n")
+    hook("post-tool-bash.sh", {"hook_event_name": "PostToolUse", "tool_name": "Bash",
+                               "tool_input": {"command": "python -m pytest -q"},
+                               "tool_response": {"stdout": "1 passed in 0.1s", "interrupted": False}})
+    _git(fake_repo, "add", "a.py")
+    _git(fake_repo, "commit", "-q", "-m", "add a")
+    sha = _git(fake_repo, "rev-parse", "HEAD")
+    hook("post-tool-bash.sh", {"hook_event_name": "PostToolUse", "tool_name": "Bash",
+                               "tool_input": {"command": "git commit -m 'add a'"},
+                               "tool_response": {"stdout": f"[main {sha[:7]}] add a", "interrupted": False}})
+    assert cli("receipt", "--attach").returncode == 0
+    note = json.loads(_git(fake_repo, "notes", "--ref=presence", "show", sha))
+    assert note["exact"] is True and note["verified_since_edit"] is True
+    assert cli("verify-receipt").returncode == 0

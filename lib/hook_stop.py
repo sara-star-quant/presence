@@ -9,6 +9,7 @@ from _common import emit, hook_input, integrity_blocked, safe_main, settings
 from telemetry import record_confidence
 from verify import has_unhedged_success_claim, scan_recent
 from warnings_log import warn
+from worktree import view as tree_view
 
 # Default cap on how much transcript we'll read. Most sessions are well under this;
 # very long sessions still find the most recent assistant message in the tail.
@@ -115,12 +116,14 @@ def main() -> None:
 
     # One pass over peek_events to learn both edit + test recency. The Stop
     # hook used to scan the same file twice (last_edit, then last_pass).
-    recent = scan_recent(cwd, window_seconds=1800)
+    sid = inp.get("session_id")
+    view = tree_view(cwd, str(sid)) if sid else None
+    recent = scan_recent(cwd, window_seconds=1800, tree_view=view)
     if not recent["has_recent_edit"]:
         return
 
     verified = recent["verified_since_edit"]
-    record_confidence("unhedged_success", verified, final_excerpt=final[:200])
+    record_confidence("unhedged_success", verified, final_excerpt=final[:200], basis="tree" if view else "events")
 
     if verified:
         return

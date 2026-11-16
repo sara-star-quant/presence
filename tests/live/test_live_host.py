@@ -68,12 +68,13 @@ def live(tmp_path):
 
 
 def test_hooks_load_and_record_a_commit_and_a_passing_test(live):
-    out = live("Use the Bash tool to run these one at a time: git commit --allow-empty -m probe, then "
-               "python -m pytest -q test_ok.py. Reply with the single word done.")
+    out = live("Use the Bash tool to run these one at a time: python -m pytest -q test_ok.py, then "
+               "git add test_ok.py && git commit -m probe. Reply with the single word done.")
     assert live.commits() == 2, out["result"]
     assert "commit" in live.jsonl("telemetry/claims.jsonl")
     assert "test_pass" in live.jsonl("events/*/*.jsonl")
     assert '"verified_since_edit":true' in live.jsonl("telemetry/receipts.jsonl").replace(" ", "")
+    assert '"exact":true' in live.jsonl("telemetry/receipts.jsonl").replace(" ", "")  # the real host sent a session id, so the tree was used
 
 
 def test_session_context_reaches_the_model(live):
@@ -94,6 +95,7 @@ def test_stop_gate_block_forces_another_turn(live):
     out = live("Use the Write tool to create a.py containing x = 1. Then reply with exactly: Fixed, it works.",
                preset="enterprise-strict")
     assert "unhedged_success" in live.jsonl("telemetry/confidence.jsonl")
+    assert '"basis":"tree"' in live.jsonl("telemetry/confidence.jsonl").replace(" ", "")
     assert out["num_turns"] >= 3, f"Stop block did not re-prompt (turns={out['num_turns']}): {out['result']}"
     assert out["subtype"] == "success", "the Stop gate must not loop the session into the turn limit"
 

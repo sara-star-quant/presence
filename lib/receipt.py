@@ -63,6 +63,7 @@ def _well_formed(note: dict) -> bool:
         isinstance(note.get("commit"), str)
         and isinstance(note.get("tree"), str)
         and isinstance(note.get("verified_since_edit"), bool)
+        and isinstance(note.get("exact", False), bool)
         and (note.get("signature") is None or (isinstance(note["signature"], str) and len(note["signature"]) <= MAX_SIG))
         and isinstance(ev, list)
         and len(ev) <= MAX_EVIDENCE
@@ -96,23 +97,34 @@ def build(cwd, sha: str) -> dict:
     """
     from __init__ import __version__
 
+    events = peek_events(cwd)
+    tree = _git(cwd, "rev-parse", f"{sha}^{{tree}}")
+    # When the passing runs recorded the tree they ran on, that tree is the evidence: it matches the
+    # commit's tree or it does not, whoever edited what and however. Without trees (older state, or
+    # a repository git could not hash) fall back to the order of edit and run events.
+    exact = any(ev.get("tree") for ev in events if ev.get("kind") in ("test_pass", "build_pass"))
     dirty = False
     evidence: list[dict] = []
-    for ev in peek_events(cwd):
+    for ev in events:
         kind = ev.get("kind")
-        if kind == "edit" and ev.get("scope", "code") != "code":
-            continue  # notes and docs cannot be verified by a test run
+        if kind == "edit" and (exact or ev.get("scope", "code") != "code"):
+            continue  # exact mode ignores edit events; otherwise notes and docs cannot be verified by a test
         if kind in ("edit", "test_fail", "build_fail"):
             dirty, evidence = True, []
         elif kind in ("test_pass", "build_pass"):
+            if exact and ev.get("tree") != tree:
+                continue
             dirty = False
             evidence.append({"kind": kind, "cmd": ev.get("cmd", ""), "ts": ev.get("ts", 0)})
+    if exact:
+        dirty = not evidence
     body = {
         "v": FORMAT,
         "commit": sha,
-        "tree": _git(cwd, "rev-parse", f"{sha}^{{tree}}"),
+        "tree": tree,
         "ts": now_ts(),
         "verified_since_edit": not dirty,
+        "exact": exact,
         "evidence": evidence[-MAX_EVIDENCE:],
         "tool": f"presence {__version__}",
     }
@@ -225,4 +237,5 @@ def verify(cwd, rev: str, allowed_signers: str | Path | None = None) -> dict:
         status = "verified"
     # Without pinned signers "verified" means consistent and complete only: anyone who can write
     # to the repo can write a receipt that passes.
-    return {"status": status, "commit": sha, "evidence": note["evidence"], "signed": signer is not None, "signer": signer}
+    return {"status": status, "commit": sha, "evidence": note["evidence"], "exact": note.get("exact", False),
+            "signed": signer is not None, "signer": signer}

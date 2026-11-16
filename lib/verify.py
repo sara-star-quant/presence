@@ -31,7 +31,7 @@ def has_unhedged_success_claim(text: str) -> bool:
     return not any(p.search(text) for p in HEDGES)
 
 
-def scan_recent(cwd=None, since_ts: int | None = None, window_seconds: int = 1800) -> dict:
+def scan_recent(cwd=None, since_ts: int | None = None, window_seconds: int = 1800, tree_view: dict | None = None) -> dict:
     """Single peek_events pass returning the recency facts callers need.
 
     Replaces N independent `for ev in peek_events(cwd)` loops with one. The
@@ -41,7 +41,7 @@ def scan_recent(cwd=None, since_ts: int | None = None, window_seconds: int = 180
     """
     if since_ts is None:
         since_ts = now_ts() - window_seconds
-    return scan_events(peek_events(cwd), since_ts)
+    return scan_events(peek_events(cwd), since_ts, tree_view)
 
 
 DOC_EXT = {".md", ".txt", ".rst"}
@@ -59,9 +59,16 @@ def edit_scope(path: str, root: str) -> str:
     return "docs" if os.path.splitext(full)[1].lower() in DOC_EXT else "code"
 
 
-def scan_events(events, since_ts: int) -> dict:
+def scan_events(events, since_ts: int, tree_view: dict | None = None) -> dict:
     """The recency facts from an ordered event list. Pure, so tests and the transcript replay
-    in bench/gate_replay.py run exactly the logic the hooks run."""
+    in bench/gate_replay.py run exactly the logic the hooks run.
+
+    ``tree_view`` (lib/worktree.py ``view``) comes from looking at the working copy, so it sees
+    edits made by a shell command, an MCP tool or a checkout that no hook reported. When given,
+    it decides whether code changed; and, when a passing run was recorded with its tree, whether
+    that run covered exactly this tree. Without a recorded pass tree the event order still decides
+    verification.
+    """
     last_edit = 0
     last_pass = 0
     passed_since_edit = False
@@ -78,14 +85,20 @@ def scan_events(events, since_ts: int) -> dict:
         elif kind in ("test_pass", "build_pass"):
             last_pass = max(last_pass, ts)
             passed_since_edit = True
+    has_edit = last_edit > 0
+    verified = last_edit == 0 or passed_since_edit
+    if tree_view is not None:
+        has_edit = bool(tree_view["code_changed"])
+        exact = tree_view.get("verified_exact")
+        verified = (not has_edit) or (exact if exact is not None else passed_since_edit)
     return {
         "last_edit_ts": last_edit,
         "last_pass_ts": last_pass,
-        "has_recent_edit": last_edit > 0,
+        "has_recent_edit": has_edit,
         "has_recent_test_evidence": last_pass > 0,
         # Event order, not clock seconds: events are appended as they happen, and an edit
         # and the test that follows it routinely land in the same second.
-        "verified_since_edit": last_edit == 0 or passed_since_edit,
+        "verified_since_edit": verified,
     }
 
 

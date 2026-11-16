@@ -22,6 +22,7 @@ from telemetry import (
     record_push_claim,
 )
 from verify import classify_command
+from worktree import record_fail, record_pass
 
 
 def _exit_code(inp: dict, tool_response: dict) -> int | None:
@@ -94,7 +95,15 @@ def main() -> None:
         output = "\n".join(str(tool_response.get(k) or "") for k in ("stdout", "stderr"))
         classified = classify_command(cmd, exit_code, output)
         if classified:
-            append_event({"kind": classified, "cmd": redact_command(cmd[:500], level=level, profiles=profiles)}, cwd=session_cwd)
+            ev = {"kind": classified, "cmd": redact_command(cmd[:500], level=level, profiles=profiles)}
+            sid = inp.get("session_id")
+            if sid and classified.endswith("_pass"):
+                tree = record_pass(session_cwd, str(sid))  # the exact tree this run passed on
+                if tree:
+                    ev["tree"] = tree
+            elif sid:
+                record_fail(session_cwd, str(sid))
+            append_event(ev, cwd=session_cwd)
 
     if not (cfg.get("telemetry") or {}).get("enabled", True):
         return
