@@ -29,6 +29,11 @@ dropped, and 111 of 131 eligible turns were edits to docs or outside the project
 rule and edit scope came from that finding, and these definitions follow the shipped gate. The first
 run's numbers are the baseline; later runs are not comparable with it by design.
 
+The replay reads transcripts, which hold no working copy, so it models the gate's event-order
+fallback: an edit the transcript shows, a run it shows. The live gate also sees edits made through a
+shell or a checkout (lib/worktree.py), so the live fire rate can differ. The ``basis`` field on
+confidence.jsonl rows says which logic decided each live turn.
+
 Threats to validity, stated so a reader can discount the numbers: agents test after a claim
 mostly when unsure (selection), a later failure can be flaky or unrelated, sessions run with
 ``stop_action=block`` include the gate's own nudge, and the 30-minute window is the live one.

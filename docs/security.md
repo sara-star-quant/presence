@@ -21,6 +21,7 @@
 | T13 | An on-path attacker alters what presence downloads or sends | `install.sh` pins every download to https and TLS 1.2 across redirects, requires the binary to match `SHA256SUMS` (a missing file fails closed, never a warning), and reports the result of `gh attestation verify` when `gh` is present (a failure warns; it does not block). The webhook takes https, or http to loopback only. The update check reads at most 1 MB and keeps a response only if its tag looks like a version. |
 | T14 | A hostile git note or release tag reaches the terminal or an agent's context | `verify-receipt` caps the note (16 KiB, five evidence entries), requires well-formed fields, prints one line of printable ASCII, and labels the receipt unsigned. Revisions that look like options are refused. With `--allowed-signers`, only a receipt signed by a pinned SSH key passes, so write access to the repo does not let anyone forge one. |
 | T15 | The webhook URL, usually a bearer secret, is readable by other local users | The detached sender takes the URL on stdin with the payload, never in argv. |
+| T16 | The tree check copies file content or names into state or the repository | `snapshot` hashes through a throwaway index and object directory, so the repository gains no objects and its index is untouched; the state file holds hashed paths, git object ids and scopes only, never content or names |
 
 ## Which tests pin each claim
 
@@ -42,6 +43,7 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 | T14 forged, relabelled or relocated receipts fail under pinned signers | `tests/test_receipt.py::test_a_forged_receipt_signed_with_the_attackers_own_key_is_untrusted`, `tests/test_receipt.py::test_an_unsigned_forgery_is_untrusted_once_signers_are_pinned`, `tests/test_receipt.py::test_a_signature_cannot_be_moved_onto_a_different_claim` |
 | T14 CI evidence is accepted only from the repository's own main-branch workflow | `tests/test_ci_evidence.py::test_a_signed_ci_run_on_this_tree_verifies`, `tests/test_ci_evidence.py::test_a_predicate_for_another_tree_is_a_mismatch`, `tests/test_ci_evidence.py::test_unreadable_gh_output_is_never_a_pass` |
 | T15 webhook URL stays out of argv | `tests/test_notify.py::test_webhook_url_never_appears_in_the_child_argv` |
+| T16 snapshot leaves the repository untouched, state holds no content | `tests/test_worktree.py::test_computing_a_snapshot_adds_nothing_to_the_repository`, `tests/test_worktree.py::test_the_diff_lists_paths_against_the_base_tree_with_blob_ids_only` |
 | T12 transcript size cap | `tests/test_hook_stop.py::test_transcript_max_bytes_override_and_invalid` |
 | audit line edit detected | `tests/test_audit.py::test_tampered_line_detected` |
 | audit broken link detected | `tests/test_audit.py::test_broken_link_detected` |
