@@ -18,14 +18,14 @@ The code-level pieces are in place: the contract is frozen and enforced by `test
 
 **In order of dependency**:
 
-1. **Signed receipts (shipped, opt-in).** SSH-signed, verified against signers the verifier pins. Remaining: a CI step that re-runs the tests on the receipt's tree and signs that result, since a signature shows who vouched, not that the claim is true.
+1. **Signed receipts (shipped, opt-in).** SSH-signed, verified against signers the verifier pins. A CI job now re-runs the required checks and attests the result for the tree, checked with `verify-evidence`; what is left is a CI step that reruns only the tests a receipt names.
 2. **A witnessed audit head.** Anchor the audit chain head somewhere the agent cannot rewrite: a separate-user daemon, or a periodic signed publish to a transparency log. Network is off under zerotrust, so this is opt-in with the trade-off stated. Today "tamper-evident" holds against corruption and outsiders, not against the agent running as the same user.
 3. **A written format and test vectors.** The receipt and audit line formats as a spec with language-neutral vectors, checked by Python and Rust the way key storage already is. A standalone verifier crate comes after this and only if someone wants to embed it; a hash chain alone has many equivalents, a chain with a witness does not. Formal checking (a model checker or Kani on a small verifier) fits here and nowhere else in the product.
 4. **Receipt consumers.** A CI step and a pull request check that run `verify-receipt`. This is what makes the format useful to someone who does not run presence.
 5. **Test evidence from runner output (shipped).** When a pipe or `||` hides the exit code, the runner's own summary line decides (pytest, cargo, go, jest, vitest). More runners and a build-output reader are open.
 6. **Link edits to tests.** Count a pass as evidence for an edit only when the run could have covered it (changed files against collected tests).
 7. **Wider observation.** Edits through shell redirection, MCP tools and subagents are invisible to the hooks.
-8. **Measured gate accuracy (tool shipped, no rate yet).** `bench/gate_replay.py` replays session transcripts with pre-set definitions. On one maintainer's history there are too few resolved code turns to report a false "done" rate, so none is claimed. Next: more history, and a hand-labelled sample to check the outcome proxy.
+8. **Measured gate accuracy (tool shipped, no rate yet).** `bench/gate_replay.py` replays session transcripts with pre-set definitions. On one maintainer's history there are too few resolved code turns to report a false "done" rate, so none is claimed. A local ledger keeps turns past transcript cleanup and a blind labelling flow checks the outcome proxy against a human; the labelled sample is the next input.
 9. **The live host in CI.** Each Claude Code version is tested only when someone re-runs the live suite; only 2.1.325 is covered.
 
 **Decision criterion**: build 4 only when someone outside the project asks for receipts they can check; until then 1 to 3 are the work, because they decide whether the claim holds at all.

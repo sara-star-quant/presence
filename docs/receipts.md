@@ -36,6 +36,16 @@ The Bash hook records a receipt locally on every successful `git commit`. Nothin
 
 A signature proves who vouched for the claim, not that the claim is true: it is still the machine that ran the agent saying what it saw. For proof, have CI re-run the tests on the commit's tree and sign that; the receipt's `tree` field is what lets CI match them up.
 
+## Proof from CI
+
+A signature says who vouched; it does not say the tests passed. For that, CI re-runs them. After every required job passes on a push to main, `ci.yml` signs a subject derived from the commit's tree hash. Anyone with the GitHub CLI can check it:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/lib/cli.py" verify-evidence HEAD --repo sara-star-quant/presence
+```
+
+The subject is rebuilt from the tree, so there is nothing to download, and the tree (not the commit hash) is what links this to a receipt: a rebase merge changes the hash and keeps the tree. The verifier insists on the repository's own `ci.yml`, on `refs/heads/main`, on GitHub-hosted runners; without those pins a writer could attest anything from a workflow of their own. What it cannot cover: whoever may merge to main controls what main's workflow does, and an admin merge skips review. It needs network and `gh`.
+
 ## What it does not prove
 
 - **Only what the hooks saw.** Edits made through shell redirection, MCP tools or subagents are invisible, so `verified_since_edit` can be wrong in both directions.

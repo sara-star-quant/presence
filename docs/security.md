@@ -40,6 +40,7 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 | T13 update response bounded and tag validated | `tests/test_update_check.py::test_fetch_reads_a_bounded_body`, `tests/test_update_check.py::test_fetch_rejects_a_tag_that_is_not_a_version` |
 | T14 receipt notes are untrusted input | `tests/test_receipt.py::test_an_oversized_note_is_invalid_not_parsed`, `tests/test_receipt.py::test_malformed_evidence_is_invalid`, `tests/test_receipt.py::test_cli_output_strips_terminal_escapes_and_labels_the_receipt_unsigned`, `tests/test_receipt.py::test_an_option_like_rev_is_refused` |
 | T14 forged, relabelled or relocated receipts fail under pinned signers | `tests/test_receipt.py::test_a_forged_receipt_signed_with_the_attackers_own_key_is_untrusted`, `tests/test_receipt.py::test_an_unsigned_forgery_is_untrusted_once_signers_are_pinned`, `tests/test_receipt.py::test_a_signature_cannot_be_moved_onto_a_different_claim` |
+| T14 CI evidence is accepted only from the repository's own main-branch workflow | `tests/test_ci_evidence.py::test_a_signed_ci_run_on_this_tree_verifies`, `tests/test_ci_evidence.py::test_a_predicate_for_another_tree_is_a_mismatch`, `tests/test_ci_evidence.py::test_unreadable_gh_output_is_never_a_pass` |
 | T15 webhook URL stays out of argv | `tests/test_notify.py::test_webhook_url_never_appears_in_the_child_argv` |
 | T12 transcript size cap | `tests/test_hook_stop.py::test_transcript_max_bytes_override_and_invalid` |
 | audit line edit detected | `tests/test_audit.py::test_tampered_line_detected` |
