@@ -186,3 +186,19 @@ def test_only_code_edits_make_work_unverified():
     code_then_docs = [{"kind": "edit", "ts": 10, "scope": "code"}, {"kind": "edit", "ts": 11, "scope": "docs"}]
     assert scan_events(code_then_docs, 0)["verified_since_edit"] is False
     assert scan_events(code_then_docs + [{"kind": "test_pass", "ts": 12}], 0)["verified_since_edit"] is True
+
+
+@pytest.mark.parametrize("hostile", [
+    "9 " + "009 " * 2000 + "x",                      # ambiguous repetition in the pytest summary pattern
+    "1 passed, " * 800 + "x",
+    "\n" * 8000 + "  " * 100,                        # whitespace runs before a jest "Tests:" line
+    " " * 8000 + "\n" + " " * 8000,
+    "test result: ok. " + "9" * 8000,
+])
+def test_hostile_runner_output_cannot_stall_the_hook(hostile):
+    """Runner output is text a test can print, so every summary pattern must be linear on it."""
+    import time
+    start = time.perf_counter()
+    for cmd in ("pytest | tail", "cargo test | tail", "go test ./... | tail", "npx jest | tail"):
+        assert classify_command(cmd, 0, hostile) is None
+    assert time.perf_counter() - start < 1.0

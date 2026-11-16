@@ -203,9 +203,11 @@ def _runs(cmd: str, patterns: list[re.Pattern]) -> bool:
 
 
 _TAIL_BYTES = 8192
-_PYTEST = re.compile(r"(?m)^[= ]*((?:\d+ \w+(?:, )?)+)\s+in [\d.]+s")
+# Patterns here run on text a test can print, so each one must be unambiguous (no nested or
+# overlapping repetition): `\w+` would also match the digits of the next item.
+_PYTEST = re.compile(r"(?m)^[= ]*(\d+ [a-z]+(?:, \d+ [a-z]+)*) in [\d.]+s")
 _CARGO = re.compile(r"test result: (ok|FAILED)\. (\d+) passed; (\d+) failed")
-_JEST = re.compile(r"(?m)^\s*Tests:?\s+(.*)$")
+_JEST = re.compile(r"(?m)^[ \t]*Tests:?[ \t]+(.*)$")
 _SUMMARY_TOOLS = {"pytest": "pytest", "cargo": "cargo", "go": "go", "jest": "jest", "vitest": "jest"}
 
 
