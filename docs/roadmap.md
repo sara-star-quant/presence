@@ -23,8 +23,8 @@ The code-level pieces are in place: the contract is frozen and enforced by `test
 3. **A written format and test vectors.** The receipt and audit line formats as a spec with language-neutral vectors, checked by Python and Rust the way key storage already is. A standalone verifier crate comes after this and only if someone wants to embed it; a hash chain alone has many equivalents, a chain with a witness does not. Formal checking (a model checker or Kani on a small verifier) fits here and nowhere else in the product.
 4. **Receipt consumers.** A CI step and a pull request check that run `verify-receipt`. This is what makes the format useful to someone who does not run presence.
 5. **Test evidence from runner output (shipped).** When a pipe or `||` hides the exit code, the runner's own summary line decides (pytest, cargo, go, jest, vitest). More runners and a build-output reader are open.
-6. **Link edits to tests.** Count a pass as evidence for an edit only when the run could have covered it (changed files against collected tests).
-7. **Wider observation.** Edits through shell redirection, MCP tools and subagents are invisible to the hooks.
+6. **Link edits to tests (superseded).** A pass is now evidence for a tree, and a receipt names the exact tree it covered, so most of what this meant is done. Which tests ran against which files stays open and is low priority.
+7. **Wider observation (shipped).** The gate and receipts look at the working copy's tree, so edits through a shell, MCP tools, subagents and checkouts count. Open: ignored files, and repositories too big to hash within the budget.
 8. **Measured gate accuracy (tool shipped, no rate yet).** `bench/gate_replay.py` replays session transcripts with pre-set definitions. On one maintainer's history there are too few resolved code turns to report a false "done" rate, so none is claimed. A local ledger keeps turns past transcript cleanup and a blind labelling flow checks the outcome proxy against a human; the labelled sample is the next input.
 9. **The live host in CI.** Each Claude Code version is tested only when someone re-runs the live suite; only 2.1.325 is covered.
 

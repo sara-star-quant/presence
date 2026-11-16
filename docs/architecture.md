@@ -21,6 +21,7 @@ State lives **outside** the project repo to avoid polluting team workspaces:
 |-- presets/                            # user-defined presets (optional)
 |-- projects/<repo-id>/
 |   |-- model.md                        # living architecture + conventions notes
+|   |-- worktree.json                   # session baseline and last-verified git tree (hashes only)
 |   `-- last_seen                       # unix ts of last SessionStart in this repo
 |-- telemetry/
 |   |-- claims.jsonl                    # what Claude committed, per SHA
@@ -81,6 +82,12 @@ Stop
   |       - else: warn(unverified_success_claim) and let SessionStart surface it
   `-- update last_seen for next session
 ```
+
+## Verification by tree
+
+The Edit and Write hooks cannot see an edit made by a shell command, an MCP tool, a subagent or a `git checkout`, so the gate does not rely on them. On the first prompt of a session `lib/worktree.py` records the working copy as a git tree, using a throwaway index and object directory (the repository gains no objects). A passing test or build run records the tree it ran on, and the Stop hook and the commit gate compare the current tree with it: code changed since the baseline and the last passing tree is not this tree means unverified. Which paths changed comes from blob ids per path against the session's starting tree, classified as code, docs or outside the project; paths are stored hashed and no content is kept.
+
+Cost: about 0.1 s for a few thousand files, paid once per session start, per passing run, per claim at Stop, per commit attempt. Past a 3 second budget, or on any git failure, the session falls back to watching edit events. Receipts bind to the same tree ([receipts.md](receipts.md)).
 
 ## Customization
 

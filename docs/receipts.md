@@ -48,8 +48,8 @@ The subject is rebuilt from the tree, so there is nothing to download, and the t
 
 ## What it does not prove
 
-- **Only what the hooks saw.** Edits made through shell redirection, MCP tools or subagents are invisible, so `verified_since_edit` can be wrong in both directions.
-- **Any passing test counts.** There is no link yet between the edited files and the tests that ran.
+- **It is the working copy's tree, not a record of edits.** Each passing run records the git tree of the working copy it ran on (tracked changes and untracked files, minus ignored ones), and a receipt is `exact` when that tree is the commit's tree. Edits made by a shell command, an MCP tool or a subagent therefore count. A file the tests saw but the commit left out, or an ignored file the tests depended on, makes the tree differ, so the receipt says unverified.
+- **Big repositories fall back.** Hashing a working copy takes about 0.1 s for a few thousand files and seconds for tens of thousands. Past a 3 second budget the session stops using trees and the receipt reverts to the order of edit and run events (`exact: false`).
 - **Notes are public once pushed.** Commands are redacted, but they still show what you ran (paths, test selectors). Review `git notes --ref=presence show <rev>` before pushing the notes ref to a public remote.
 - **Amend and rebase** change the commit hash, so the old receipt stops matching. That is the safe direction.
 

@@ -104,7 +104,7 @@ or `~/.claude/plugins/presence/install.sh --uninstall` for a local install. Stat
 
 ## Security model
 
-Full threat model: [`docs/security.md`](docs/security.md), T1 to T15, each pinned by a named test.
+Full threat model: [`docs/security.md`](docs/security.md), T1 to T16, each pinned by a named test.
 
 - **Local only.** No analytics, no remote telemetry. Default presets make no outbound calls; the opt-in ones (`gh` PR status, release check, webhook notifier, `--bootstrap`, `--download-ext`) are off by default and forced off under `zerotrust`.
 - **Secrets are redacted before anything is written** to events or telemetry. Composable profiles for EU PII, US PII, and PCI-DSS are in [`presets/redaction/`](presets/redaction/); [`docs/compliance.md`](docs/compliance.md) states what that does and does not cover.

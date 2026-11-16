@@ -67,7 +67,7 @@ python3 -m venv .venv
 
 `python3 bench/gate_replay.py ~/.claude/projects` runs the gate's own functions over your past sessions. Definitions are in the script header and fixed in advance: an outcome is the first test or build run after a claim and before any later edit, and no rate prints for a group with fewer than 30 resolved turns.
 
-Two limits shape how to read it. Agents mostly test after a claim when they are unsure, so resolved turns are not a random sample. And a later failure can be unrelated to the claim: in one maintainer's history, about one in six docs-only claims was followed by a failing test run, which no docs edit can cause. Treat a "false done" count as an upper bound with that noise in it.
+The replay reads transcripts, which hold no working copy, so it models the event-order fallback and not the tree check the live gate prefers; the `basis` field on `confidence.jsonl` rows says which logic decided a live turn. Two limits shape how to read it. Agents mostly test after a claim when they are unsure, so resolved turns are not a random sample. And a later failure can be unrelated to the claim: in one maintainer's history, about one in six docs-only claims was followed by a failing test run, which no docs edit can cause. Treat a "false done" count as an upper bound with that noise in it.
 
 What the first replay found changed the gate: strict exit-status rules had dropped nearly every real test run (four in five were piped through `tail`), and more than four in five of the edits it asked tests to verify were notes or docs. The gate now reads the runner's own summary line when a pipe hides the exit code, and only edits to code inside the project make work unverified.
 
