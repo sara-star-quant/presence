@@ -121,13 +121,21 @@ def _save(cwd, state: dict) -> None:
     _common.atomic_write(_state_path(cwd), json.dumps(state, sort_keys=True))
 
 
+def _mark_slow(cwd, state: dict, seconds: float) -> None:
+    """Switch tree checks off for the session and say why: a git call cut off at the budget is a cost
+    problem (over_budget), anything else that returned nothing is a failure (not a repository, git error)."""
+    reason = "over_budget" if seconds >= BUDGET else "failed"
+    _save(cwd, {**state, "slow": True, "slow_reason": reason, "slow_seconds": round(seconds, 1)})
+
+
 def _timed(cwd, state: dict, fn):
     """Run a snapshot; if it fails or overruns BUDGET, switch tree checks off for the session. A slow
     answer is still returned this once."""
     start = time.monotonic()
     result = fn()
-    if result is None or time.monotonic() - start > BUDGET:
-        _save(cwd, {**state, "slow": True})
+    elapsed = time.monotonic() - start
+    if result is None or elapsed > BUDGET:
+        _mark_slow(cwd, state, elapsed)
     return result
 
 
@@ -138,8 +146,9 @@ def ensure_base(cwd, session_id: str) -> None:
     head = head_tree(cwd)
     start = time.monotonic()
     snap = snapshot(cwd, head, timeout=BUDGET) if head else None
-    if snap is None or time.monotonic() - start > BUDGET:
-        _save(cwd, {"session": session_id, "slow": True})  # tree checks are off for this session
+    elapsed = time.monotonic() - start
+    if snap is None or elapsed > BUDGET:
+        _mark_slow(cwd, {"session": session_id}, elapsed)  # tree checks are off for this session
         return
     _save(cwd, {"session": session_id, "head_tree": head, "base_tree": snap["tree"],
                 "base_diff": _pack(snap["diff"], str(_common.repo_root(cwd))), "verified": None})

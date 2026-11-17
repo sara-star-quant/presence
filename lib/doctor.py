@@ -175,6 +175,23 @@ def _confidence_stats() -> dict:
     return {"all_time": _tally(rows), "by_preset": by_preset}
 
 
+def _tree_fallbacks() -> tuple[int, dict[str, int]]:
+    """Projects whose last session stopped using tree checks, by reason. A state file written before
+    the reason was recorded counts as unknown."""
+    out: dict[str, int] = {}
+    total = 0
+    for f in sorted((state_dir() / "projects").glob("*/worktree.json")):
+        try:
+            state = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        total += 1
+        if isinstance(state, dict) and state.get("slow"):
+            reason = state.get("slow_reason") or "unknown"
+            out[reason] = out.get(reason, 0) + 1
+    return total, out
+
+
 def _version_observability() -> dict:
     """Plugin / ext crate / min-required ext version cross-check for the doctor.
 
@@ -251,6 +268,7 @@ def report(cwd: str | None = None) -> dict:
     cwd = cwd or "."
     rid = repo_id(cwd)
     py_ok, py_ver = python_version_ok()
+    tree_projects, tree_fallbacks = _tree_fallbacks()
     return {
         "presence_root": str(PLUGIN_ROOT),
         "state_dir": str(state_dir()),
@@ -276,9 +294,20 @@ def report(cwd: str | None = None) -> dict:
         "redact": _redact_summary(),
         "notify": _notify_summary(),
         "confidence_stats": _confidence_stats(),
+        "tree_projects": tree_projects,
+        "tree_fallbacks": tree_fallbacks,
         "version_observability": _version_observability(),
         "update_check": _update_check_block(),
     }
+
+
+def _tree_line(rep: dict) -> str:
+    reasons = rep["tree_fallbacks"]
+    if not reasons:
+        return "tree checks  : no project fell back"
+    detail = ", ".join(f"{r} {reasons[r]}" for r in ("over_budget", "failed", "unknown") if r in reasons)
+    return (f"tree checks  : fell back to edit events: {sum(reasons.values())} of {rep['tree_projects']} projects "
+            f"({detail})")
 
 
 def render(rep: dict) -> str:
@@ -341,6 +370,7 @@ def render(rep: dict) -> str:
         f"pinned python: {rep['pinned_python'] or '(none; using PATH python3)'}",
         f"git on PATH  : {'OK' if rep['git_available'] else 'FAIL (telemetry disabled)'}",
         f"integrity    : {rep['integrity']}",
+        _tree_line(rep),
         "",
         f"redact level : {redact.get('level', 'standard')}",
         "redact profiles:",
