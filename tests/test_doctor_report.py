@@ -108,3 +108,23 @@ def test_confidence_stats_bucketed_and_summed_across_repeated_preset(isolated_st
         for k in totals:
             totals[k] += t[k]
     assert totals == stats["all_time"]
+
+
+def test_doctor_counts_projects_whose_last_session_fell_back_to_edit_events(isolated_state, monkeypatch):
+    import json
+    d = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    projects = isolated_state / "projects"
+    for rid, state in {"a": {"slow": True, "slow_reason": "over_budget"}, "b": {"slow": True, "slow_reason": "failed"},
+                       "c": {"slow": True}, "d": {"base_tree": "x"}}.items():
+        (projects / rid).mkdir(parents=True)
+        (projects / rid / "worktree.json").write_text(json.dumps(state), encoding="utf-8")
+    rep = d.report(cwd=".")
+    assert rep["tree_fallbacks"] == {"over_budget": 1, "failed": 1, "unknown": 1}
+    assert "fell back to edit events: 3 of 4 projects (over_budget 1, failed 1, unknown 1)" in d.render(rep)
+
+
+def test_doctor_says_so_when_no_project_fell_back(isolated_state, monkeypatch):
+    d = _reload_modules_with_isolated_state(isolated_state, monkeypatch)
+    rep = d.report(cwd=".")
+    assert rep["tree_fallbacks"] == {}
+    assert "tree checks  : no project fell back" in d.render(rep)

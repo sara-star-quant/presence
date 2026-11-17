@@ -257,3 +257,45 @@ def test_judging_a_turn_keeps_what_the_last_pass_verified(repo, isolated_state):
     worktree.record_pass(repo, "s1")
     worktree.view(repo, "s1", judge=True)
     assert worktree.view(repo, "s1", judge=True)["verified_exact"] is True
+
+
+def _slow_state(repo):
+    import json
+    return json.loads((worktree._state_path(repo)).read_text())
+
+
+def test_a_failed_snapshot_records_why_the_session_fell_back(repo, isolated_state, monkeypatch):
+    monkeypatch.setattr(worktree, "snapshot", lambda *a, **k: None)
+    worktree.ensure_base(repo, "s1")
+    state = _slow_state(repo)
+    assert state["slow"] is True and state["slow_reason"] == "failed"
+
+
+def test_a_snapshot_over_budget_records_the_reason_and_the_time(repo, isolated_state, monkeypatch):
+    class SlowClock:
+        t = 0.0
+
+        @classmethod
+        def monotonic(cls):
+            cls.t += 10.0
+            return cls.t
+
+    monkeypatch.setattr(worktree, "time", SlowClock)
+    worktree.ensure_base(repo, "s1")
+    state = _slow_state(repo)
+    assert state["slow_reason"] == "over_budget" and state["slow_seconds"] == 10.0
+
+
+def test_a_snapshot_killed_at_the_budget_counts_as_over_budget_not_failed(repo, isolated_state, monkeypatch):
+    class Clock:
+        t = 0.0
+
+        @classmethod
+        def monotonic(cls):
+            cls.t += worktree.BUDGET  # the git call was cut off exactly at the budget
+            return cls.t
+
+    monkeypatch.setattr(worktree, "time", Clock)
+    monkeypatch.setattr(worktree, "snapshot", lambda *a, **k: None)
+    worktree.ensure_base(repo, "s1")
+    assert _slow_state(repo)["slow_reason"] == "over_budget"
