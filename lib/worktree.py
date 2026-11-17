@@ -164,10 +164,15 @@ def record_fail(cwd, session_id: str) -> None:
         _save(cwd, {**state, "verified": None})
 
 
-def view(cwd, session_id: str) -> dict | None:
+def view(cwd, session_id: str, judge: bool = False) -> dict | None:
     """What the gate needs: did code change since the session started, and did the last passing
     run cover exactly this tree (True, False, or None when no pass was recorded). None overall
-    when there is no baseline or the working copy cannot be read."""
+    when there is no baseline or the working copy cannot be read.
+
+    With judge set (the Stop hook, which has just weighed a claim) the working copy becomes the
+    baseline for the next judged turn, so a later turn that touches no code is not asked for
+    evidence about an edit already weighed. Without it the baseline stays the session start,
+    which is what the commit gate needs: unverified code stays unverified until a run covers it."""
     state = _load(cwd)
     if state.get("session") != session_id or not state.get("base_tree") or state.get("slow"):
         return None
@@ -175,11 +180,20 @@ def view(cwd, session_id: str) -> dict | None:
     if snap is None:
         return None
     now = _pack(snap["diff"], str(_common.repo_root(cwd)))
-    base = state.get("base_diff")
-    if now is None or base is None:
-        changed = snap["tree"] != state["base_tree"]  # too many paths to compare: assume code
-    else:
-        touched = {k for k in set(now) | set(base) if now.get(k) != base.get(k)}
-        changed = any((now.get(k) or base.get(k) or "").endswith(":code") for k in touched)
+    changed = _code_changed(now, state.get("base_diff"), snap["tree"], state["base_tree"])
     verified = state.get("verified")
-    return {"code_changed": changed, "verified_exact": None if verified is None else verified == snap["tree"]}
+    exact = None if verified is None else verified == snap["tree"]
+    if judge:
+        _save(cwd, {**_load(cwd), "turn_tree": snap["tree"], "turn_diff": now})
+        if "turn_tree" in state:
+            turn = _code_changed(now, state["turn_diff"], snap["tree"], state["turn_tree"])
+            # Code changed earlier and a run covered exactly this tree: still a verified claim worth recording.
+            changed = turn or (changed and exact is True)
+    return {"code_changed": changed, "verified_exact": exact}
+
+
+def _code_changed(now, base, tree: str, base_tree: str) -> bool:
+    if now is None or base is None:
+        return tree != base_tree  # too many paths to compare: assume code
+    touched = {k for k in set(now) | set(base) if now.get(k) != base.get(k)}
+    return any((now.get(k) or base.get(k) or "").endswith(":code") for k in touched)

@@ -233,3 +233,27 @@ def test_a_same_size_edit_within_the_same_second_is_not_missed(repo):
     target.write_text("x = 9\n")                   # same size as "x = 1\n"
     os.utime(target, (stamp, stamp))               # and the same mtime
     assert worktree.snapshot(repo)["tree"] != before
+
+
+def test_a_judged_edit_is_not_counted_again_on_the_next_turn(repo, isolated_state):
+    _start(repo)
+    (repo / "lib" / "a.py").write_text("x = 2\n")
+    assert worktree.view(repo, "s1", judge=True)["code_changed"] is True  # a claim turn judges the edit
+    assert worktree.view(repo, "s1", judge=True)["code_changed"] is False  # a later turn that touched no code
+    (repo / "lib" / "a.py").write_text("x = 3\n")
+    assert worktree.view(repo, "s1", judge=True)["code_changed"] is True  # new code, judged again
+
+
+def test_looking_without_judging_still_sees_every_edit_of_the_session(repo, isolated_state):
+    _start(repo)
+    (repo / "lib" / "a.py").write_text("x = 2\n")
+    worktree.view(repo, "s1", judge=True)
+    assert worktree.view(repo, "s1")["code_changed"] is True  # the commit gate asks about the whole session
+
+
+def test_judging_a_turn_keeps_what_the_last_pass_verified(repo, isolated_state):
+    _start(repo)
+    (repo / "lib" / "a.py").write_text("x = 2\n")
+    worktree.record_pass(repo, "s1")
+    worktree.view(repo, "s1", judge=True)
+    assert worktree.view(repo, "s1", judge=True)["verified_exact"] is True
