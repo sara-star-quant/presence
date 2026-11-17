@@ -173,3 +173,25 @@ def test_claiming_done_after_editing_a_file_outside_the_project_does_not_trip_th
 def test_claiming_done_after_editing_code_without_a_test_still_trips_the_gate(hook_runner):
     _, _, repo = hook_runner
     assert "unhedged_success" in _stop_after_edit(hook_runner, f"{repo}/lib/a.py")
+
+
+def test_a_turn_with_no_new_code_is_not_flagged_for_an_edit_already_judged(hook_runner, tmp_path):
+    import subprocess
+
+    import worktree
+    run, state, repo = hook_runner
+    (repo / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "seed"], cwd=repo, check=True)
+    worktree.ensure_base(repo, "s1")
+    t = tmp_path / "t.jsonl"
+    _write_transcript(t, "I fixed it, it works.")
+    payload = {"cwd": str(repo), "transcript_path": str(t), "session_id": "s1"}
+    (repo / "a.py").write_text("x = 2\n")
+    run("hook_stop", payload)
+    assert _warnings(state).count("unverified_success_claim") == 1
+    run("hook_stop", payload)  # a later turn that edited nothing
+    assert _warnings(state).count("unverified_success_claim") == 1
+    (repo / "a.py").write_text("x = 3\n")
+    run("hook_stop", payload)  # new code, so asked again
+    assert _warnings(state).count("unverified_success_claim") == 2
