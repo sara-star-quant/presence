@@ -120,6 +120,10 @@ def main() -> None:
     view = tree_view(cwd, str(sid), judge=True) if sid else None
     recent = scan_recent(cwd, window_seconds=1800, tree_view=view)
     if not recent["has_recent_edit"]:
+        if view and view.get("incoming"):
+            # A pull, merge or switch brought the code in. Leave a trace (verified is None: not judged) so the
+            # quiet turn can be counted and checked against what really happened.
+            record_confidence("unhedged_success", None, final_excerpt=final[:200], basis="tree", incoming=True)
         return
 
     verified = recent["verified_since_edit"]

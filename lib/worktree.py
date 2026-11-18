@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -38,6 +39,15 @@ ARTIFACTS = (
 MAX_DIFF = 500
 BUDGET = 3.0  # seconds a snapshot may take before the session falls back to watching edit events
 _HEX = frozenset("0123456789abcdef")
+REFLOG_CAP = 200  # newest HEAD movements read when asking whether a change arrived from elsewhere
+# What git writes to the HEAD log when work arrives rather than being written: a pull (its rebase steps
+# included), a merge, a checkout or switch, a rebase with no stops. Conflict stops, amends, commits,
+# cherry-picks and resets are not here, so they count as the agent's work.
+_INCOMING = re.compile(
+    r"(?:(?:pull|rebase)\b[^:()]*(?: \((?:start|pick|finish)\))?: "
+    r"|merge \S+: (?:Fast-forward|Merge made by)"
+    r"|checkout: moving from \S+ to \S+$)"
+)
 
 
 def _git(cwd, *args: str, env: dict | None = None, timeout: float = 5.0) -> subprocess.CompletedProcess:
@@ -105,6 +115,31 @@ def snapshot(cwd, base_head_tree: str | None = None, timeout: float = 5.0) -> di
             return {"tree": tree, "diff": diff}
     except (OSError, subprocess.TimeoutExpired):
         return None
+
+
+def _arrived(cwd, anchor_tree: str, tree: str) -> bool:
+    """True only when everything since the working copy last had ``anchor_tree`` is provably work that
+    arrived: the copy is clean, the anchor is exactly one HEAD movement, and every movement after it is a
+    pull, merge, checkout or clean rebase. Anything else (an expired log, a dirty copy, an unknown entry, a
+    round trip that makes the anchor ambiguous, a git error) is False, which keeps the gate as loud as before."""
+    if not _is_oid(anchor_tree):
+        return False
+    try:
+        r = _git(cwd, "reflog", "-n", str(REFLOG_CAP), "--format=%H %T %gs", timeout=1.0)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if r.returncode != 0:
+        return False
+    rows = [p for p in (line.split(" ", 2) for line in r.stdout.splitlines()) if len(p) == 3 and _is_oid(p[0]) and _is_oid(p[1])]
+    if not rows or rows[0][1] != tree:  # newest entry is HEAD; the working copy must equal it
+        return False
+    # An entry that did not move HEAD (stash, worktree add) is not a movement.
+    moves = [row for i, row in enumerate(rows) if i + 1 == len(rows) or row[0] != rows[i + 1][0]]
+    hits = [i for i, row in enumerate(moves) if row[1] == anchor_tree]
+    if len(hits) != 1:
+        return False
+    window = moves[: hits[0]]
+    return bool(window) and all(_INCOMING.match(row[2]) for row in window)
 
 
 def _pack(diff: dict[str, str] | None, root: str) -> dict[str, str] | None:
@@ -205,8 +240,13 @@ def view(cwd, session_id: str, judge: bool = False) -> dict | None:
         _save(cwd, {**_load(cwd), "turn_tree": snap["tree"], "turn_diff": now})
         if "turn_tree" in state:
             turn = _code_changed(now, state.get("turn_diff"), snap["tree"], state["turn_tree"])
+            incoming = turn and _arrived(cwd, state["turn_tree"], snap["tree"])
+            if incoming:
+                turn = False
             # Code changed earlier and a run covered exactly this tree: still a verified claim worth recording.
             changed = turn or (changed and exact is True)
+            if incoming:
+                return {"code_changed": changed, "verified_exact": exact, "incoming": True}
     return {"code_changed": changed, "verified_exact": exact}
 
 

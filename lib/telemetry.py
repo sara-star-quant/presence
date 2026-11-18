@@ -117,9 +117,11 @@ def record_confidence(claim: str, verified: bool, **details) -> None:
     append_jsonl_rotating(confidence_path(), {
         "ts": now_ts(),
         "claim": claim,
-        "verified": bool(verified),
+        "verified": None if verified is None else bool(verified),  # None: not judged (the work arrived, see hook_stop)
         **details,
     })
+    if verified is None:
+        return  # nothing was flagged or passed, so there is nothing to notify about
     # Local import, matches the lazy-import style settings() uses for warnings_log.
     from notify import notify_confidence
     notify_confidence(claim, verified, **details)
