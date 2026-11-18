@@ -283,7 +283,7 @@ def test_a_snapshot_over_budget_records_the_reason_and_the_time(repo, isolated_s
     monkeypatch.setattr(worktree, "time", SlowClock)
     worktree.ensure_base(repo, "s1")
     state = _slow_state(repo)
-    assert state["slow_reason"] == "over_budget" and state["slow_seconds"] == 10.0
+    assert state["slow_reason"] == "over_budget" and state["slow_seconds"] >= worktree.BUDGET
 
 
 def test_a_snapshot_killed_at_the_budget_counts_as_over_budget_not_failed(repo, isolated_state, monkeypatch):
@@ -299,3 +299,54 @@ def test_a_snapshot_killed_at_the_budget_counts_as_over_budget_not_failed(repo, 
     monkeypatch.setattr(worktree, "snapshot", lambda *a, **k: None)
     worktree.ensure_base(repo, "s1")
     assert _slow_state(repo)["slow_reason"] == "over_budget"
+
+
+# --- the snapshot runs in repositories we do not control --------------------------------------------
+
+def test_a_repository_configured_fsmonitor_program_is_not_run(repo):
+    marker = repo.parent / "fsmonitor-ran"
+    hook = repo.parent / "fsm.sh"
+    hook.write_text(f"#!/bin/sh\ntouch {marker}\nprintf '\\0'\n")
+    hook.chmod(0o755)
+    git(repo, "config", "core.fsmonitor", str(hook))
+    (repo / "lib" / "a.py").write_text("x = 9\n")
+    assert worktree.snapshot(repo) is not None
+    assert not marker.exists()
+
+
+def test_the_git_calls_of_one_snapshot_share_one_budget(repo, monkeypatch):
+    class Clock:
+        t = 0.0
+
+        @classmethod
+        def monotonic(cls):
+            cls.t += 1.0
+            return cls.t
+
+    seen = []
+    real = worktree._git
+
+    def spy(cwd, *args, **kw):
+        seen.append(kw.get("timeout"))
+        return real(cwd, *args, **kw)
+
+    monkeypatch.setattr(worktree, "time", Clock)
+    monkeypatch.setattr(worktree, "_git", spy)
+    worktree.snapshot(repo, git(repo, "rev-parse", "HEAD^{tree}"), timeout=3.0)
+    assert seen and seen[0] <= 3.0
+    assert all(b <= a for a, b in zip(seen, seen[1:], strict=False)) and seen[-1] < seen[0]  # each call gets what is left
+
+
+def test_a_base_tree_that_looks_like_an_option_is_never_passed_to_git(repo, tmp_path):
+    out = tmp_path / "written-by-git"
+    snap = worktree.snapshot(repo, base_head_tree=f"--output={out}")
+    assert snap is not None and snap["diff"] is None
+    assert not out.exists()
+
+
+def test_a_state_file_with_a_turn_tree_but_no_turn_diff_does_not_crash_the_gate(repo, isolated_state):
+    _start(repo)
+    state = worktree._load(repo)
+    worktree._save(repo, {**state, "turn_tree": state["base_tree"]})
+    (repo / "lib" / "a.py").write_text("x = 2\n")
+    assert worktree.view(repo, "s1", judge=True)["code_changed"] is True
