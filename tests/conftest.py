@@ -1,4 +1,5 @@
 """Pytest configuration: add lib/ to sys.path so tests import the same way hooks do."""
+import os
 import sys
 from pathlib import Path
 
@@ -6,6 +7,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "lib"))
+
+# Tests must not inherit the developer's git setup (commit signing, a global hooks directory, templates):
+# it slows every test commit several times over and ties results to one machine. CI has none of it.
+os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 
 @pytest.fixture
