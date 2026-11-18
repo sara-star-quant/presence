@@ -205,6 +205,36 @@ def test_checking_out_a_commit_directly_is_not_the_agents_work(repo, upstream, i
     assert turn(repo)["code_changed"] is False
 
 
+def test_a_pull_in_a_linked_worktree_is_not_the_agents_work(repo, upstream, tmp_path, isolated_state):
+    linked = tmp_path / "linked"
+    git(repo, "worktree", "add", "-q", str(linked), "-b", "side")
+    git(repo, "remote", "set-url", "up", str(upstream))
+    judged(linked)
+    publish(upstream)
+    git(linked, "pull", "-q", "--no-rebase", "--no-edit", "up", branch(repo))
+    assert turn(linked)["code_changed"] is False
+    (linked / "lib" / "a.py").write_text("x = 9\n")
+    git(linked, "commit", "-q", "-am", "agent change in the linked worktree")
+    assert turn(linked)["code_changed"] is True
+
+
+def test_extra_lines_around_the_log_rows_are_ignored(repo, upstream, isolated_state, monkeypatch):
+    """Signature checks and other config can print lines git was not asked for; only well formed rows count."""
+    real = worktree._git
+
+    def noisy(cwd, *args, **kw):
+        out = real(cwd, *args, **kw)
+        if "reflog" in args:
+            out.stdout = "gpg: Good signature from someone\n\n" + out.stdout + "warning: unrelated text\n"
+        return out
+
+    judged(repo)
+    publish(upstream)
+    git(repo, "pull", "-q", "--ff-only", "up", branch(repo))
+    monkeypatch.setattr(worktree, "_git", noisy)
+    assert turn(repo)["code_changed"] is False
+
+
 # --- what must not change --------------------------------------------------------------------
 
 def test_the_commit_gate_still_sees_pulled_code_in_the_session(repo, upstream, isolated_state):
