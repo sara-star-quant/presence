@@ -350,3 +350,29 @@ def test_a_state_file_with_a_turn_tree_but_no_turn_diff_does_not_crash_the_gate(
     worktree._save(repo, {**state, "turn_tree": state["base_tree"]})
     (repo / "lib" / "a.py").write_text("x = 2\n")
     assert worktree.view(repo, "s1", judge=True)["code_changed"] is True
+
+
+@pytest.mark.parametrize("name", ["-rf", "--output=pwn", "line\nbreak.py", "tab\there.py", "uni" + chr(0x202E) + "code.py", " lead.py"])
+def test_hostile_file_names_are_hashed_as_plain_paths(repo, name):
+    base = git(repo, "rev-parse", "HEAD^{tree}")
+    (repo / name).write_text("y\n")
+    snap = worktree.snapshot(repo, base_head_tree=base)
+    assert snap is not None and set(snap["diff"]) == {name}
+    assert not (repo / "pwn").exists()
+
+
+def test_a_symlinked_index_is_read_not_replaced(repo):
+    (repo / "lib" / "a.py").write_text("x = 4\n")
+    real = repo / "real_index"
+    (repo / ".git" / "index").replace(real)
+    (repo / ".git" / "index").symlink_to(real)
+    before = real.read_bytes()
+    assert worktree.snapshot(repo) is not None
+    assert real.read_bytes() == before
+
+
+def test_a_linked_worktree_snapshots_its_own_files(repo, tmp_path):
+    git(repo, "worktree", "add", "-q", str(tmp_path / "linked"), "-b", "side")
+    (tmp_path / "linked" / "new.py").write_text("z\n")
+    snap = worktree.snapshot(tmp_path / "linked", git(tmp_path / "linked", "rev-parse", "HEAD^{tree}"))
+    assert snap is not None and set(snap["diff"]) == {"new.py"}
