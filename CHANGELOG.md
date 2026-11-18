@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.13.1
+
+Merging a PR and pulling no longer flags the next claim.
+
+Work that arrives by pull, merge, checkout or a clean rebase is no longer counted as code the agent wrote, so the gate stops asking for evidence about a teammate's change. Code the agent commits, a dirty working copy, a conflict resolved by hand and any history the gate cannot read all stay flagged as before. Update and restart Claude Code.
+
+- A claim quieted this way leaves a confidence row with `verified: null` and `incoming: true`, so you can count and check them.
+- The commit and push gate keeps its session baseline and still warns after a pull.
+- Added cost is one `git reflog` read, about 28 ms, and only on turns where code changed.
+
 ## v0.13.0
 
 The gate and receipts now see every change, however it was made.
