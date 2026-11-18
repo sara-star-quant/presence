@@ -2,13 +2,14 @@
 
 ## v0.13.1
 
-Merging a PR and pulling no longer flags the next claim.
+Pulling a teammate's work no longer trips the confidence gate.
 
-Work that arrives by pull, merge, checkout or a clean rebase is no longer counted as code the agent wrote, so the gate stops asking for evidence about a teammate's change. Code the agent commits, a dirty working copy, a conflict resolved by hand and any history the gate cannot read all stay flagged as before. Update and restart Claude Code.
+If you merge a PR and pull, your next "done" stops asking for test evidence about code you did not write. The gate only gets quieter where it can prove the change arrived from elsewhere. Code the agent commits, uncommitted edits, hand-resolved conflicts and any history it cannot read still warn. Update and restart Claude Code.
 
-- A claim quieted this way leaves a confidence row with `verified: null` and `incoming: true`, so you can count and check them.
-- The commit and push gate keeps its session baseline and still warns after a pull.
-- Added cost is one `git reflog` read, about 28 ms, and only on turns where code changed.
+- Tradeoff: switching to a branch that holds earlier, untested agent work counts as arrived and stays quiet, because the claim is about the turn's own work.
+- Limit: it fails toward warning, never toward silence. Pulls that name a URL, conflict stops and resets stay loud, and the commit and push gate keeps its session baseline, so it still warns after a pull.
+- Cost: one `git reflog` read, about 28 ms, and only on turns where code changed.
+- Trust: a quieted claim leaves a confidence row with `verified: null` and `incoming: true`. The HEAD log is not authenticated, so an agent that forges it can hide a commit. The gate is a nudge, not a barrier.
 
 ## v0.13.0
 
