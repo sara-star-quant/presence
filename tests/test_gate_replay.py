@@ -224,3 +224,88 @@ def test_sample_draws_resolved_claim_turns_only_and_is_reproducible():
     assert pick == gr.sample_ids(turns, 10)
     byid = {t["id"]: t for t in turns}
     assert all(byid[i]["claim"] and byid[i]["outcome"] != "unresolved" for i in pick) and len(pick) == 10
+
+
+# --- sharing a ledger: export and pool ----------------------------------------------------------
+
+def _row(n, session="aaaa1111", **kw):
+    base = {"id": f"{session}:{n}", "session": session, "claim": True, "eligible": True, "fired": True,
+            "edit_class": "code", "outcome": "true_done"}
+    return {**base, **kw}
+
+
+def _ledger(tmp_path, rows, name="ledger.jsonl"):
+    p = tmp_path / name
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return p
+
+
+def test_export_refuses_a_row_with_a_field_that_could_carry_text_paths_or_commands(tmp_path):
+    for field, value in (("cmd", "pytest -q"), ("path", "/home/u/proj/a.py"), ("text", "all done")):
+        ledger = _ledger(tmp_path, [_row(0), _row(1, **{field: value})])
+        with pytest.raises(ValueError, match=field):
+            gr.export_ledger(ledger, None, tmp_path / "out.jsonl")
+        assert not (tmp_path / "out.jsonl").exists()
+
+
+def test_export_rehashes_ids_with_a_salt_so_a_path_guess_cannot_match_them(tmp_path):
+    ledger = _ledger(tmp_path, [_row(0), _row(1)])
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    gr.export_ledger(ledger, None, a, salt="one")
+    gr.export_ledger(ledger, None, b, salt="two")
+    ids_a = {json.loads(x)["id"] for x in a.read_text().splitlines()}
+    ids_b = {json.loads(x)["id"] for x in b.read_text().splitlines()}
+    assert len(ids_a) == 2 and ids_a.isdisjoint(ids_b) and ids_a.isdisjoint({"aaaa1111:0", "aaaa1111:1"})
+    assert "aaaa1111" not in a.read_text()
+
+
+def test_export_carries_the_hand_label_of_the_same_turn(tmp_path):
+    ledger = _ledger(tmp_path, [_row(0), _row(1)])
+    labels = tmp_path / "labels.jsonl"
+    labels.write_text(json.dumps({"id": "aaaa1111:1", "truth": "false_done"}) + "\n")
+    out = tmp_path / "out.jsonl"
+    gr.export_ledger(ledger, labels, out, salt="s")
+    rows = [json.loads(x) for x in out.read_text().splitlines()]
+    assert sorted(r.get("truth", "") for r in rows) == ["", "false_done"]
+
+
+def test_pooling_two_exports_gives_the_numbers_of_one_run_over_both(tmp_path):
+    one = [_row(i, "aaaa1111", fired=i % 2 == 0, outcome=("false_done" if i % 3 == 0 else "true_done")) for i in range(12)]
+    two = [_row(i, "bbbb2222", edit_class="docs", fired=False, outcome="unresolved") for i in range(7)]
+    out_one, out_two = tmp_path / "one.jsonl", tmp_path / "two.jsonl"
+    gr.export_ledger(_ledger(tmp_path, one, "l1.jsonl"), None, out_one, salt="x")
+    gr.export_ledger(_ledger(tmp_path, two, "l2.jsonl"), None, out_two, salt="y")
+    turns, _ = gr.pool([out_one, out_two])
+    assert gr.summarize(turns) == gr.summarize(one + two)
+    assert len({t["session"] for t in turns}) == 2  # sessions of different developers never merge
+
+
+def test_pooling_rejects_an_unexpected_field_and_a_bad_value(tmp_path):
+    ledger = _ledger(tmp_path, [_row(0)])
+    out = tmp_path / "out.jsonl"
+    gr.export_ledger(ledger, None, out, salt="s")
+    good = json.loads(out.read_text().splitlines()[0])
+    for bad in ({**good, "cmd": "x"}, {**good, "outcome": "fine"}, {**good, "fired": "yes"}, {**good, "id": "../etc/passwd"}):
+        p = tmp_path / "bad.jsonl"
+        p.write_text(json.dumps(bad) + "\n")
+        with pytest.raises(ValueError):
+            gr.pool([p])
+
+
+def test_pooled_labels_feed_the_proxy_check(tmp_path):
+    rows = [_row(i, outcome="false_done") for i in range(3)]
+    labels = tmp_path / "labels.jsonl"
+    labels.write_text("".join(json.dumps({"id": r["id"], "truth": "false_done"}) + "\n" for r in rows))
+    out = tmp_path / "out.jsonl"
+    gr.export_ledger(_ledger(tmp_path, rows), labels, out, salt="s")
+    turns, pooled_labels = gr.pool([out])
+    assert "3 labelled, 3 usable" in gr.proxy_check(turns, pooled_labels)
+
+
+def test_the_command_line_refuses_a_bad_export_with_a_message_not_a_traceback(tmp_path, monkeypatch):
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text(json.dumps({**_row(0), "cmd": "x"}) + "\n")
+    monkeypatch.setattr(sys, "argv", ["gate_replay.py", "--pool", str(bad)])
+    with pytest.raises(SystemExit) as exc:
+        gr.main()
+    assert "refused" in str(exc.value) and "cmd" in str(exc.value)

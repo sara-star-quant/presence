@@ -47,6 +47,7 @@ import json
 import math
 import random
 import re
+import secrets
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -327,6 +328,76 @@ def proxy_check(turns: list[dict], labels: dict[str, str]) -> str:
     return head + f" Agreement: {agree / len(usable):.0%} ({lo:.0%} to {hi:.0%}, n={len(usable)})."
 
 
+LEDGER_FIELDS = frozenset({"id", "session", "claim", "eligible", "fired", "edit_class", "outcome"})
+EXPORT_FIELDS = LEDGER_FIELDS | {"truth"}
+_OUTCOMES = ("false_done", "true_done", "unresolved")
+_SHARED_ID = re.compile(r"[0-9a-f]{8}:\d+")
+_HEX8 = re.compile(r"[0-9a-f]{8}")
+
+
+def _check_row(row: object, where: str) -> dict:
+    """A shared row holds booleans, a class, an outcome, an optional label and two hashed ids: nothing
+    else. Anything more could carry a path, a command or a message, so it is refused, not stripped."""
+    if not isinstance(row, dict):
+        raise ValueError(f"{where}: a row must be an object")
+    extra = set(row) - EXPORT_FIELDS
+    if extra:
+        raise ValueError(f"{where}: unexpected field {sorted(extra)[0]}")
+    missing = LEDGER_FIELDS - set(row)
+    if missing:
+        raise ValueError(f"{where}: missing field {sorted(missing)[0]}")
+    ok = (all(isinstance(row[k], bool) for k in ("claim", "eligible", "fired"))
+          and row["edit_class"] in (*CLASSES, "none") and row["outcome"] in _OUTCOMES
+          and row.get("truth", "true_done") in TRUTH
+          and isinstance(row["id"], str) and isinstance(row["session"], str))
+    if not ok:
+        raise ValueError(f"{where}: a field has an unexpected value")
+    return row
+
+
+def export_ledger(ledger: Path, labels: Path | None, out: Path, salt: str | None = None) -> int:
+    """Write the ledger (and the hand labels of its turns) in a form safe to hand to someone else.
+    Ids are re-hashed with a salt that is not kept, so a guess at a project path cannot be matched
+    to them, and exports of different developers never collide. Refuses the whole export on any row
+    with a field beyond counts and classes."""
+    salt = salt or secrets.token_hex(16)
+
+    def h(value: str) -> str:
+        return hashlib.sha256((salt + value).encode()).hexdigest()[:8]
+
+    truth = load_labels(labels) if labels else {}
+    shared = []
+    for row in load_ledger(ledger).values():
+        _check_row(row, "ledger")
+        new = {k: row[k] for k in LEDGER_FIELDS}
+        new["id"] = f"{h(row['id'])}:{row['id'].partition(':')[2]}"
+        new["session"] = h(row["session"])
+        if row["id"] in truth:
+            new["truth"] = truth[row["id"]]
+        shared.append(new)
+    Path(out).write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in shared))
+    return len(shared)
+
+
+def pool(paths: list[Path]) -> tuple[list[dict], dict[str, str]]:
+    """Turns and labels from several exports, validated row by row. Sessions stay separate per file."""
+    turns, labels, seen = [], {}, set()
+    for p in paths:
+        for n, line in enumerate(Path(p).read_text().splitlines(), 1):
+            if not line.strip():
+                continue
+            row = _check_row(json.loads(line), f"{p}:{n}")
+            if not _SHARED_ID.fullmatch(row["id"]) or not _HEX8.fullmatch(row["session"]):
+                raise ValueError(f"{p}:{n}: ids must be hashed")
+            if row["id"] in seen:
+                raise ValueError(f"{p}:{n}: duplicate turn id (the same export twice?)")
+            seen.add(row["id"])
+            if "truth" in row:
+                labels[row["id"]] = row["truth"]
+            turns.append({k: row[k] for k in LEDGER_FIELDS})
+    return turns, labels
+
+
 def sample_ids(turns: list[dict], n: int) -> list[str]:
     """Claim turns whose outcome is resolved, whatever the gate did: that is where the proxy and a
     human judgement can be compared. Seeded, so the same ledger gives the same sample."""
@@ -336,13 +407,37 @@ def sample_ids(turns: list[dict], n: int) -> list[str]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("projects", type=Path)
+    ap.add_argument("projects", type=Path, nargs="?")
     ap.add_argument("--sample", type=int, default=0, help="print this many ids of claim turns with a resolved outcome, for hand labelling")
     ap.add_argument("--ledger", type=Path, help="merge this run into a local history of turns (no text) and report on all of it")
     ap.add_argument("--labels", type=Path, help="hand labels file; adds a proxy check to the report")
     ap.add_argument("--label", nargs=2, metavar=("ID", "TRUTH"), help=f"record a label ({', '.join(TRUTH)}); needs --labels")
+    ap.add_argument("--export", type=Path, metavar="OUT", help="write the ledger (needs --ledger, optional --labels) as a redacted file to hand over")
+    ap.add_argument("--pool", type=Path, nargs="+", metavar="EXPORT", help="report over several developers' exports")
     ap.add_argument("--show", metavar="ID", help="print one turn's message and your next reply, blind to the gate, to label it")
     args = ap.parse_args()
+    if args.pool:
+        try:
+            turns, labels = pool(args.pool)
+        except ValueError as e:
+            sys.exit(f"refused: {e}")
+        print(summarize(turns))
+        print("\n" + proxy_check(turns, labels))
+        print(f"\nExports: {len(args.pool)}; turns: {len(turns)}; claims: {sum(t['claim'] for t in turns)}; "
+              "intervals resample sessions, not developers: with a handful of developers they do not cover a new one")
+        return
+    if args.export:
+        if not args.ledger:
+            ap.error("--export needs --ledger FILE")
+        try:
+            n = export_ledger(args.ledger, args.labels, args.export)
+        except ValueError as e:
+            sys.exit(f"refused: {e}")
+        print(f"Wrote {n} turns to {args.export}: booleans, classes, outcomes, hashed ids"
+              + (", and your labels" if args.labels else "") + ". No text, paths or commands.")
+        return
+    if not args.projects:
+        ap.error("projects is required unless --pool or --export is given")
     files = sorted(args.projects.glob("*/*.jsonl"))
     if args.label:
         if not args.labels:
