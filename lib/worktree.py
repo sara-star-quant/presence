@@ -10,8 +10,9 @@ objects and its own index is untouched. A clean copy hashes to ``HEAD^{tree}``, 
 what a commit records, so a tree that passed its tests can be matched to the commit and to CI.
 
 Per session the state file keeps a baseline (the working copy when the session started), the tree
-of the last passing run, and, per changed path, a blob id and a scope. Paths are stored hashed:
-state is encrypted at rest under zerotrust, and no file content ever lands in it. Any failure
+of the last passing run, and, per changed path, a blob id and a scope. Paths are stored hashed
+and no file content ever lands in it. The file is plain JSON even under zerotrust: tree and blob ids
+are not secret, but anyone holding a guess at a file's content can test it against them. Any failure
 returns None and the caller falls back to watching edit events.
 """
 from __future__ import annotations
@@ -40,7 +41,8 @@ _HEX = frozenset("0123456789abcdef")
 
 
 def _git(cwd, *args: str, env: dict | None = None, timeout: float = 5.0) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=env, timeout=timeout, check=False)
+    # core.fsmonitor names a program git would run; a repository's own config must not choose what we execute.
+    return subprocess.run(["git", "-c", "core.fsmonitor=false", *args], cwd=cwd, capture_output=True, text=True, env=env, timeout=timeout, check=False)
 
 
 def _is_oid(value: str) -> bool:
@@ -61,8 +63,15 @@ def snapshot(cwd, base_head_tree: str | None = None, timeout: float = 5.0) -> di
     ``diff`` lists the paths whose content differs from ``base_head_tree`` (None when there are
     more than MAX_DIFF of them, or no base was given). Deleted paths map to the null id.
     """
+    if base_head_tree and not _is_oid(base_head_tree):
+        base_head_tree = None  # state on disk reaches git's argv: only an object id may
+    deadline = time.monotonic() + timeout
+
+    def left() -> float:  # one budget for every git call of this snapshot, not one per call
+        return max(deadline - time.monotonic(), 0.05)
+
     try:
-        r = _git(cwd, "rev-parse", "--git-dir", "--git-path", "objects", "--git-path", "index", timeout=timeout)
+        r = _git(cwd, "rev-parse", "--git-dir", "--git-path", "objects", "--git-path", "index", timeout=left())
         if r.returncode != 0 or len(r.stdout.split("\n")) < 3:
             return None
         _, objects, index = (os.path.join(str(cwd), p) for p in r.stdout.split("\n")[:3])
@@ -79,16 +88,16 @@ def snapshot(cwd, base_head_tree: str | None = None, timeout: float = 5.0) -> di
             exclude = os.path.join(tmp, "exclude")
             with open(exclude, "w", encoding="utf-8") as f:
                 f.write("\n".join(ARTIFACTS) + "\n")
-            if _git(cwd, "-c", f"core.excludesFile={exclude}", "add", "-A", env=env, timeout=timeout).returncode != 0:
+            if _git(cwd, "-c", f"core.excludesFile={exclude}", "add", "-A", env=env, timeout=left()).returncode != 0:
                 return None
-            w = _git(cwd, "write-tree", env=env, timeout=timeout)
+            w = _git(cwd, "write-tree", env=env, timeout=left())
             tree = w.stdout.strip()
             if w.returncode != 0 or not _is_oid(tree):
                 return None
             diff = None
             if base_head_tree:
                 d = _git(cwd, "diff-tree", "-r", "--no-renames", "--raw", "-z", "--no-abbrev", base_head_tree, tree,
-                         env=env, timeout=timeout)
+                         env=env, timeout=left())
                 if d.returncode == 0:
                     parts = d.stdout.split("\0")
                     entries = {parts[i + 1]: parts[i].split()[3] for i in range(0, len(parts) - 1, 2) if parts[i]}
@@ -195,7 +204,7 @@ def view(cwd, session_id: str, judge: bool = False) -> dict | None:
     if judge:
         _save(cwd, {**_load(cwd), "turn_tree": snap["tree"], "turn_diff": now})
         if "turn_tree" in state:
-            turn = _code_changed(now, state["turn_diff"], snap["tree"], state["turn_tree"])
+            turn = _code_changed(now, state.get("turn_diff"), snap["tree"], state["turn_tree"])
             # Code changed earlier and a run covered exactly this tree: still a verified claim worth recording.
             changed = turn or (changed and exact is True)
     return {"code_changed": changed, "verified_exact": exact}

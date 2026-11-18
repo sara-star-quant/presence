@@ -44,6 +44,7 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 | T14 CI evidence is accepted only from the repository's own main-branch workflow | `tests/test_ci_evidence.py::test_a_signed_ci_run_on_this_tree_verifies`, `tests/test_ci_evidence.py::test_a_predicate_for_another_tree_is_a_mismatch`, `tests/test_ci_evidence.py::test_unreadable_gh_output_is_never_a_pass` |
 | T15 webhook URL stays out of argv | `tests/test_notify.py::test_webhook_url_never_appears_in_the_child_argv` |
 | T16 snapshot leaves the repository untouched, state holds no content | `tests/test_worktree.py::test_computing_a_snapshot_adds_nothing_to_the_repository`, `tests/test_worktree.py::test_the_diff_lists_paths_against_the_base_tree_with_blob_ids_only` |
+| T17 a repository's config cannot choose what the snapshot runs, and one snapshot has one time budget | `tests/test_worktree.py::test_a_repository_configured_fsmonitor_program_is_not_run`, `tests/test_worktree.py::test_the_git_calls_of_one_snapshot_share_one_budget`, `tests/test_worktree.py::test_a_base_tree_that_looks_like_an_option_is_never_passed_to_git` |
 | T12 transcript size cap | `tests/test_hook_stop.py::test_transcript_max_bytes_override_and_invalid` |
 | audit line edit detected | `tests/test_audit.py::test_tampered_line_detected` |
 | audit broken link detected | `tests/test_audit.py::test_broken_link_detected` |

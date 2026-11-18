@@ -49,7 +49,7 @@
     "lib/update_check.py": "0c57d01efb6a58be672f4bdcbfc8ef971ccceb70c22d3ab71f51e3cba3436d3f",
     "lib/verify.py": "97267653901d5d03b6e6b5d29137b5348b64ea83a859c5cc0814de645f5e1f32",
     "lib/warnings_log.py": "d75179dfd72cc53f6a0d6f274e2c84f500545ed931ce5a4478d884e445933086",
-    "lib/worktree.py": "2d074ab876988a4aa0844c58fbba18169511548d675c0991b36e761064f9621b",
+    "lib/worktree.py": "98987765f18c0068b19f9d6d8f7782b390084d0a3df13a6bc0f615f649f3e1da",
     "presets/_schema.json": "116378c43979099e8231fccc9759577d01050012395ba564467d89d914dff89d",
     "presets/enterprise-strict.json": "1b14e70990eb8d9b2e990131f887db6f7eadfc4f2dedadc242ff83578384eadf",
     "presets/redaction/pci-dss.json": "aec5bc6920ca95dc8c22cd07bb420404d449bc77a03665c48569548d0b31a259",
