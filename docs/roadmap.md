@@ -6,13 +6,13 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 ## Road to v1.0
 
-**Status**: far from it. 0.x continues (0.11, 0.12, 0.13, then a release candidate) until the gaps in [v1-readiness.md](v1-readiness.md) are closed or explicitly accepted. 1.0 is a stability promise, not a milestone counter.
+**Status**: far from it. 0.x continues (0.11 to 0.14, then a release candidate) until the gaps in [v1-readiness.md](v1-readiness.md) are closed or explicitly accepted. 1.0 is a stability promise, not a milestone counter.
 
 The code-level pieces are in place: the contract is frozen and enforced by `tests/test_contract.py` ([contract.md](contract.md)), the Zero-Trust gates fail closed, coverage gates at 80%, and each threat names a pinning test. What is missing is mostly outside the code: real-world validation, a host compatibility matrix, platform and artifact coverage, upgrade-path tests, an external security look, and a second maintainer. See [v1-readiness.md](v1-readiness.md) for the evidence and exit criteria per gap.
 
 ## Evidence that outlives the session
 
-**Status**: first steps shipped in 0.12: opt-in signed receipts, CI-attested test runs, and the gate replay ([receipts.md](receipts.md), experimental). The rest is sequenced below; none of it is promised for a version.
+**Status**: first steps shipped in 0.12: opt-in signed receipts, CI-attested test runs, and the gate replay ([receipts.md](receipts.md), experimental). 0.13 added exact verification by tree. The rest is sequenced below; none of it is promised for a version.
 
 **The gap**: presence's evidence lives in a directory the agent itself can write, and it is only visible while presence is installed. That is enough to nudge an agent, not enough to hand to a reviewer, a CI job or an auditor.
 
