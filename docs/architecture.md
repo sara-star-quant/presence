@@ -89,6 +89,8 @@ The Edit and Write hooks cannot see an edit made by a shell command, an MCP tool
 
 Cost: about 0.1 s for a few thousand files, paid once per session start, per passing run, per claim at Stop, per commit attempt. Past a 3 second budget, or on any git failure, the session falls back to watching edit events, and `/presence-doctor` reports how many projects did and whether the cause was cost or a git failure. Receipts bind to the same tree ([receipts.md](receipts.md)).
 
+Work that arrives from elsewhere. A pull, merge, checkout or clean rebase changes the tree without the agent writing anything, and asking for test evidence about a teammate's change teaches people to ignore the warning. When a turn shows changed code, the gate reads the newest 200 HEAD log entries once and treats the change as arrived only if the working copy is clean, the previous judged turn's tree matches exactly one entry, and every later entry is a pull, merge, checkout or clean rebase. Anything else (an expired log, a hand-resolved conflict, an amend, a reset, an ambiguous round trip between branches) behaves as before, so the rule can only quiet the gate, never make it louder. The tradeoffs: a checkout of a branch holding earlier untested agent work is quiet, because the claim concerns the turn's own work; the HEAD log is not authenticated, so an agent that forges it can hide a commit ([security.md](security.md)); and the commit and push gate keeps its session baseline, so it still warns after a pull. The read costs about 30 ms and runs only on turns where code changed. A quieted claim leaves a confidence row with `verified: null` and `incoming: true` so it can be counted.
+
 ## Customization
 
 `~/.claude/presence/settings.json`:

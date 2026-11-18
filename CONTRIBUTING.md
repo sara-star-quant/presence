@@ -109,4 +109,4 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). In short: b
 
 ## License
 
-By contributing, you agree your contributions are licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)). Sign off each commit with `git commit -s` to certify the [Developer Certificate of Origin](https://developercertificate.org/); the `Signed-off-by` line asserts you wrote the change or have the right to submit it under that license.
+By contributing, you agree your contributions are licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)). Sign off each commit with `git commit -s` to certify the [Developer Certificate of Origin](https://developercertificate.org/); the `Signed-off-by` line asserts you wrote the change or have the right to submit it under that license. CI checks the sign-off on every commit of a pull request (the maintainer and bots are exempt) and scans the code for copyleft licenses with ScanCode; a planted GPL header must fail that scan on every run, which proves it is looking.
