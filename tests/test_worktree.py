@@ -159,19 +159,32 @@ def test_a_failed_baseline_marks_the_session_slow_and_is_not_retried(repo, isola
     assert calls == []  # nothing tried again this session
 
 
+def _every_snapshot_looks_too_slow(monkeypatch):
+    """Real time, plus ten seconds each time a snapshot finishes. The git calls inside keep their real budget,
+    so a loaded machine cannot starve them and turn "slow" into "failed"."""
+    import time
+    real_snapshot = worktree.snapshot
+
+    class Clock:
+        offset = 0.0
+
+        @staticmethod
+        def monotonic():
+            return time.monotonic() + Clock.offset
+
+    def snapshot(*args, **kw):
+        out = real_snapshot(*args, **kw)
+        Clock.offset += 10.0
+        return out
+
+    monkeypatch.setattr(worktree, "time", Clock)
+    monkeypatch.setattr(worktree, "snapshot", snapshot)
+
+
 def test_a_snapshot_over_budget_is_used_once_then_skipped(repo, isolated_state, monkeypatch):
     _start(repo)
     (repo / "lib" / "a.py").write_text("x = 2\n")
-
-    class SlowClock:  # each reading jumps ten seconds: every snapshot looks too slow
-        t = 0.0
-
-        @classmethod
-        def monotonic(cls):
-            cls.t += 10.0
-            return cls.t
-
-    monkeypatch.setattr(worktree, "time", SlowClock)
+    _every_snapshot_looks_too_slow(monkeypatch)
     assert worktree.view(repo, "s1")["code_changed"] is True  # the slow answer is still a good answer
     calls = _count_calls(monkeypatch)
     assert worktree.view(repo, "s1") is None and calls == []
@@ -272,15 +285,7 @@ def test_a_failed_snapshot_records_why_the_session_fell_back(repo, isolated_stat
 
 
 def test_a_snapshot_over_budget_records_the_reason_and_the_time(repo, isolated_state, monkeypatch):
-    class SlowClock:
-        t = 0.0
-
-        @classmethod
-        def monotonic(cls):
-            cls.t += 10.0
-            return cls.t
-
-    monkeypatch.setattr(worktree, "time", SlowClock)
+    _every_snapshot_looks_too_slow(monkeypatch)
     worktree.ensure_base(repo, "s1")
     state = _slow_state(repo)
     assert state["slow_reason"] == "over_budget" and state["slow_seconds"] >= worktree.BUDGET

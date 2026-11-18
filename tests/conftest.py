@@ -12,6 +12,9 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 # it slows every test commit several times over and ties results to one machine. CI has none of it.
 os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+# The same goes for the compiled client: with it installed, every hook run by a test would spawn a real daemon
+# that outlives the test. tests/test_daemon.py starts daemon.py itself and is not affected.
+os.environ["PRESENCE_NO_DAEMON"] = "1"
 
 
 @pytest.fixture
