@@ -4,15 +4,15 @@ An honest gap analysis. 1.0 is a promise to people who depend on presence that t
 
 ## Where we are
 
-Facts as of v0.12.0 (2026-11-16):
+Facts as of v0.13.0 (2026-11-18):
 
 | Signal | Value |
 |---|---|
 | Age | first commit 2026-04-26, about seven months |
-| Releases | 33 tags; v0.9.0, v0.9.1, v0.9.2 and v0.10.0 all shipped on the same day |
-| Contributors | one author (133 commits on main), one contributor on GitHub, bus factor 1 |
+| Releases | 34 tags; v0.9.0, v0.9.1, v0.9.2 and v0.10.0 all shipped on the same day |
+| Contributors | one author (144 commits on main), one contributor on GitHub, bus factor 1 |
 | Outside signal | 9 stars, 0 forks, two open issues (#9 native Windows, #123 directory listing), no user-filed bugs |
-| Tests | 716 passing, 83% statement coverage (gate: 80%) |
+| Tests | 811 passing, 84% statement coverage (gate: 80%) |
 | Platforms in CI | Linux (x86_64 and arm64) and macOS, Python 3.12 to 3.14; no Windows |
 
 What the numbers say: the code is well tested against itself, and almost nothing has tested it against anyone else. A frozen contract is only worth freezing once real use has shown where it is wrong. Today every design decision has been validated by the one person who made it.
@@ -95,9 +95,10 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 
 1. **0.11: trust the artifacts (shipped).** Checksums, attestations, SBOM, SHA-pinned Actions, Linux arm64 build, support matrix.
 2. **0.12 (shipped): prove the boundaries, make the evidence checkable.** Real-host payload fixtures and a live harness, old-state fixtures, signed receipts and CI-attested test runs, a gate that reads runner output and ignores docs edits, network paths pinned. The Python/Rust key-storage guard is in.
-3. **0.13: harden.** Written self-audit against the threat table, external review request, more runners for the gate, and a hand-labelled sample to check its accuracy. Fuzzing and operational-limit tests are already in.
-4. **Soak, then a release candidate.** Run 1.0-rc for several weeks with the feedback channel open; fix what comes in as rc.N.
-5. **1.0** when the gaps above are closed or explicitly accepted in the release notes.
+3. **0.13 (shipped): exact evidence.** The gate and receipts verify by the working copy's tree, with a per-turn baseline and a recorded fallback reason; the snapshot is hardened against repository config and runaway git calls.
+4. **0.14: harden.** Written self-audit against the threat table, external review request, more runners for the gate, and a hand-labelled sample to check its accuracy. Fuzzing and operational-limit tests are already in.
+5. **Soak, then a release candidate.** Run 1.0-rc for several weeks with the feedback channel open; fix what comes in as rc.N.
+6. **1.0** when the gaps above are closed or explicitly accepted in the release notes.
 
 None of this is fast. Weeks to months of calendar time is realistic, mostly in the soak and the outside review, not in the code.
 

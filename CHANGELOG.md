@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.13.0
+
+The gate and receipts now see every change, however it was made.
+
+Until now the confidence gate and receipts learned about edits only from the edit tools, so a change made by a shell command, an MCP tool, a subagent or a checkout went unseen. They now look at the working copy's tree, and a receipt names the exact tree a passing run covered. A turn that touches no code is no longer flagged for an edit the gate already judged. Known limit: a pull or branch switch that changes code counts as a change, so merging a PR and pulling can flag the next claim. Update and restart Claude Code.
+
+- `lib/worktree.py`: hashes the working copy into a throwaway git tree; past a 3 second budget a session falls back to edit events, and `/presence-doctor` reports how many projects fell back and why.
+- Receipts record `exact` when built from tree evidence, and the live host suite asserts it.
+- Security: the snapshot runs git without repository-chosen helpers, keeps all its git calls in one time budget, and checks state read from disk before it reaches git.
+- Tested on Claude Code 2.1.327: real payloads captured, live suite passes.
+
 ## v0.12.0
 
 Receipts and CI evidence that anyone can check without presence.
