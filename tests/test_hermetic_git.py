@@ -25,3 +25,9 @@ def test_a_commit_in_a_scratch_repo_is_unsigned_and_hook_free(tmp_path):
                 ["commit", "-q", "--allow-empty", "-m", "x"]):
         subprocess.run(["git", *cmd], cwd=tmp_path, check=True, capture_output=True)
     assert "gpgsig" not in _git("cat-file", "-p", "HEAD", cwd=tmp_path)
+
+
+def test_the_suite_never_starts_a_daemon_by_accident():
+    """install.sh --verify runs the compiled client when one exists, and the client spawns a daemon per state
+    directory that outlives the test. CI has no such binary; a developer machine does."""
+    assert os.environ.get("PRESENCE_NO_DAEMON") == "1"
