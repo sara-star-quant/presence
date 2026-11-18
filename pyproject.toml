@@ -12,7 +12,7 @@
 dev = [
   "pytest>=9.2.0",
   "cryptography",  # only needed to exercise the zerotrust at-rest encryption tests
-  "ruff>=0.17.4",
+  "ruff>=0.17.5",
   "bandit>=1.9.4",  # security scan; CI parity with the lint job
   "hypothesis>=6.170.15",  # property-based fuzz tests (tests/test_fuzz.py); CI parity
   "coverage>=7.17.3",  # statement-coverage measurement (incl. subprocess hooks); CI parity
