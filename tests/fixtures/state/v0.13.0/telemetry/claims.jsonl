@@ -1,0 +1,2 @@
+{"ts":1794965629,"kind":"push","repo":"ae5ca6701aa9","intent":"git push origin main"}
+{"ts":1794965629,"kind":"commit","repo":"ae5ca6701aa9","root":"/private/var/folders/bh/_7hbmvg12psdrpdrjwf_4rrc0000gn/T/presence-fixture-rd4807ch/repo","sha":"75b7114b9fa54f301a6621215c7a0ca47c9f5e6f","message":"fixture commit","intent":"git commit -m fixture"}
