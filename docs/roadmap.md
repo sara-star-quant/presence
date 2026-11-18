@@ -27,7 +27,7 @@ The code-level pieces are in place: the contract is frozen and enforced by `test
 7. **Wider observation (shipped).** The gate and receipts look at the working copy's tree, so edits through a shell, MCP tools, subagents and checkouts count. Open: ignored files, and repositories too big to hash within the budget.
 8. **Measured gate accuracy (tool shipped, no rate yet).** `bench/gate_replay.py` replays session transcripts with pre-set definitions. On one maintainer's history there are too few resolved code turns to report a false "done" rate, so none is claimed. A local ledger keeps turns past transcript cleanup and a blind labelling flow checks the outcome proxy against a human; the labelled sample is the next input.
 9. **Shareable ledger (open, #150).** The replay ledger holds no text, but nothing checks that before someone hands it over, and a rate needs more than one developer's history. An export that strips and rejects unexpected fields, and a pooled report over several exports, make the measured rate in 8 possible.
-10. **The live host in CI.** Each Claude Code version is tested only when someone re-runs the live suite; only 2.1.325 is covered.
+10. **The live host in CI.** Each Claude Code version is tested only when someone re-runs the live suite; only 2.1.325 and 2.1.327 are covered.
 
 **Decision criterion**: build 4 only when someone outside the project asks for receipts they can check; until then 1 to 3 are the work, because they decide whether the claim holds at all.
 

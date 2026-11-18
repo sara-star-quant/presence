@@ -1,0 +1,9 @@
+{
+ "cwd": "/work/repo",
+ "hook_event_name": "UserPromptSubmit",
+ "permission_mode": "acceptEdits",
+ "prompt": "Using the Bash tool, run these commands one at a time, in order, and do not retry any: (1) git commit --allow-empty -m probe  (2) python -m pytest --version  (3) python -m pytest no_such_test.py -q  (4) git push origin main . Reply with the single word done.",
+ "prompt_id": "fixture-prompt_id",
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "transcript_path": "/home/user/.claude/projects/fixture/00000000.jsonl"
+}
