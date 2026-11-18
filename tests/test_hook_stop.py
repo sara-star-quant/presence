@@ -195,3 +195,42 @@ def test_a_turn_with_no_new_code_is_not_flagged_for_an_edit_already_judged(hook_
     (repo / "a.py").write_text("x = 3\n")
     run("hook_stop", payload)  # new code, so asked again
     assert _warnings(state).count("unverified_success_claim") == 2
+
+
+def _clone_remote(repo, tmp_path):
+    import subprocess
+    up = tmp_path / "upstream"
+    subprocess.run(["git", "clone", "-q", str(repo), str(up)], check=True)
+    for k, v in (("user.email", "t@t"), ("user.name", "t")):
+        subprocess.run(["git", "config", k, v], cwd=up, check=True)
+    subprocess.run(["git", "remote", "add", "up", str(up)], cwd=repo, check=True)
+    return up
+
+
+def test_a_claim_after_a_pull_is_not_flagged_and_leaves_a_record(hook_runner, tmp_path):
+    import subprocess
+
+    import worktree
+    run, state, repo = hook_runner
+    (repo / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "seed"], cwd=repo, check=True)
+    up = _clone_remote(repo, tmp_path)
+    worktree.ensure_base(repo, "s1")
+    t = tmp_path / "t.jsonl"
+    _write_transcript(t, "Merged and done, it works.")
+    payload = {"cwd": str(repo), "transcript_path": str(t), "session_id": "s1"}
+    run("hook_stop", payload)  # a quiet turn, so the next one has something to compare with
+    (up / "b.py").write_text("y = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=up, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "teammate"], cwd=up, check=True)
+    branch = subprocess.run(["git", "branch", "--show-current"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    subprocess.run(["git", "pull", "-q", "--ff-only", "up", branch], cwd=repo, check=True)
+    run("hook_stop", payload)
+    assert "unverified_success_claim" not in _warnings(state)
+    rows = _confidence(state)
+    assert len(rows) == 1 and rows[0]["verified"] is None and rows[0]["incoming"] is True
+    (repo / "a.py").write_text("x = 2\n")
+    subprocess.run(["git", "commit", "-q", "-am", "agent change"], cwd=repo, check=True)
+    run("hook_stop", payload)  # the agent's own commit is still asked about
+    assert _warnings(state).count("unverified_success_claim") == 1
