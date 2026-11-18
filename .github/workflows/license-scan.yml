@@ -1,0 +1,48 @@
+name: License scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: license scan (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install ScanCode Toolkit
+        run: pip install --upgrade pip && pip install "scancode-toolkit==32.5.0" "pluggy==1.5.0" typecode-libmagic
+      - name: Negative control, a planted GPL header must fail the policy
+        run: |
+          mkdir "$RUNNER_TEMP/control"
+          printf '%s\n' '# This program is free software; you can redistribute it and/or modify' \
+            '# it under the terms of the GNU General Public License as published by' \
+            '# the Free Software Foundation; either version 3 of the License, or' \
+            '# (at your option) any later version.' > "$RUNNER_TEMP/control/planted.py"
+          scancode --license --info --json-pp "$RUNNER_TEMP/control.json" "$RUNNER_TEMP/control"
+          if python3 .github/scripts/license_policy.py "$RUNNER_TEMP/control.json"; then
+            echo "the planted GPL header passed, so the scan is not catching copyleft"
+            exit 1
+          fi
+      - name: Scan the repository
+        run: >
+          scancode --license --copyright --package --info --ignore "*/.git/*"
+          --ignore "*license_policy.py" --ignore "*/workflows/license-scan.yml"
+          --processes 2 --timeout 120 --json-pp scancode.json .
+      - name: Apply the policy
+        run: python3 .github/scripts/license_policy.py scancode.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: scancode
+          path: scancode.json
+          if-no-files-found: ignore
