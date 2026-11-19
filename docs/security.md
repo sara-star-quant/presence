@@ -9,7 +9,7 @@
 | T1 | A bug in a hook crashes Claude Code | All hook entry points wrapped in `safe_main`: any exception is logged and the hook exits 0. Claude Code never sees a failure. |
 | T2 | A bug in a hook leaks private data to stdout (which becomes context Claude sees) | Hooks emit only structured `additionalContext` text. No raw env, no raw file contents, no auth headers. |
 | T3 | Concurrent Claude sessions race on state files | Atomic writes (write-temp + rename); `fcntl.flock` on JSONL appends. Drain operations hold an exclusive lock. |
-| T4 | Logged shell commands contain secrets (e.g. `git commit -m "TOKEN=..."`) | Every command stored in events/telemetry passes through `redact.py` before being written. Standard preset catches well-known token shapes; Zero-Trust preset is aggressive. |
+| T4 | Logged shell commands contain secrets (e.g. `git commit -m "TOKEN=..."`) | Every command stored in events/telemetry passes through `redact.py` before being written. Standard preset catches well-known token shapes plus the common command-line shapes: secret-named variables and flags, credentials inside a URL, `mysql -p` and `sshpass -p`. It matches known shapes only and cannot promise to catch every secret; Zero-Trust preset is aggressive. |
 | T5 | A malicious git repo's commit messages are stored verbatim | Same: messages pass through redaction before being written to telemetry. |
 | T6 | State directory readable by other users on the machine | `~/.claude/presence/` is created with `0o700`; files written `0o600`. Drift is re-tightened automatically at every SessionStart and on demand via `/presence-doctor --fix`. |
 | T7 | A tampered plugin executes hooks | `MANIFEST.lock` ships with each release. `/presence-doctor` verifies it on demand in v0.1. SessionStart fail-closed on mismatch shipped in v0.2 (active under any preset with `integrity.fail_closed=true`; default in `zerotrust`). |
@@ -32,7 +32,7 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 | T1 hooks never crash the host | `tests/test_hardening.py::test_run_hook_fallback_is_guarded` |
 | T2, T5, T9, T11 | design property |
 | T3 concurrent writers do not corrupt state | `tests/test_audit.py::test_concurrent_appends_chain_safely`, `tests/test_common.py::test_atomic_write_overwrites` |
-| T4 secrets redacted before storage | `tests/test_redact.py::test_standard_known_token_shapes` |
+| T4 secrets redacted before storage | `tests/test_redact.py::test_standard_known_token_shapes`, `tests/test_redact.py::test_secrets_in_command_shapes_are_redacted` |
 | T6 perms re-tightened at SessionStart | `tests/test_hardening.py::test_reverify_state_perms_retightens` |
 | T7 plugin tamper and extra files fail closed | `tests/test_hardening.py::test_extra_file_fails_integrity`, `tests/test_hardening.py::test_integrity_gate_blocks_on_extra` |
 | T8 egress blocked under zerotrust, payload redacted | `tests/test_notify.py::test_zerotrust_egress_block_wins_even_if_notify_is_enabled`, `tests/test_notify.py::test_final_excerpt_is_redacted_before_dispatch` |

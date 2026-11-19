@@ -61,13 +61,22 @@ _STANDARD_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 # Value can be bare (alphanumeric+symbols) or quoted (single/double).
 _SECRET_KEY_HINT = re.compile(
     r"""(?ix)\b(
-      (?:[A-Z][A-Z0-9_]*_)?(?:SECRET|TOKEN|PASSWORD|PASSWD|PWD|API[_-]?KEY|ACCESS[_-]?KEY|
-      PRIVATE[_-]?KEY|AUTH|CREDENTIALS?|SESSION[_-]?KEY)
+      (?:[A-Z][A-Z0-9_]*_)?(?:SECRET[_-]?KEY|CLIENT[_-]?SECRET|SECRET|TOKEN|PASSPHRASE|PASSWORD|PASSWD|PASS|PWD|
+      API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|AUTH|CREDENTIALS?|SESSION[_-]?KEY)
     )\s*[:=]\s*
     (?:"[^"]{1,}"|'[^']{1,}'|[A-Za-z0-9._\-+/=!@\#$%^&*~]{1,})
     """,
     re.VERBOSE,
 )
+
+# Command-line shapes where a secret has no recognisable prefix: a value after a secret-named flag
+# (--password x), credentials inside a URL (scheme://user:pw@host), and the two tools that take the secret
+# attached to -p (mysql) or after it (sshpass). A bare -p is left alone: mkdir -p and git -p are not secrets.
+_FLAG_SECRET = re.compile(
+    r"(?i)(--?(?:token|password|passwd|passphrase|secret|api-?key|access-?key|auth)\s+)(?!-|\[REDACTED)[^\s'\"`;|&]+")
+_URL_CREDENTIAL = re.compile(r"(\b[a-z][a-z0-9+.-]{0,30}://[^/\s:@'\"]+:)[^/\s@'\"]+(@)")
+_MYSQL_P = re.compile(r"(\b(?:mysql|mysqldump|mysqladmin|mariadb)\b[^|;&\n]{0,300}?\s-p)(?!\s|\[REDACTED)[^\s'\"`;|&]+")
+_SSHPASS_P = re.compile(r"(\bsshpass\s+-p\s*)(?!\[REDACTED)[^\s'\"`;|&]+")
 
 # Aggressive extras
 _HEX_BLOB = re.compile(r"\b[0-9a-fA-F]{32,}\b")
@@ -281,6 +290,10 @@ def redact_text(text: str, level: str = "standard", profiles: list[str] | None =
         for kind, pat in _STANDARD_PATTERNS:
             out = _replace_with_kind(out, pat, kind)
         out = _SECRET_KEY_HINT.sub(lambda m: f"{m.group(1)}={REDACTION.format(kind='env-secret')}", out)
+        out = _FLAG_SECRET.sub(lambda m: m.group(1) + REDACTION.format(kind="flag-secret"), out)
+        out = _URL_CREDENTIAL.sub(lambda m: m.group(1) + REDACTION.format(kind="url-credential") + m.group(2), out)
+        out = _MYSQL_P.sub(lambda m: m.group(1) + REDACTION.format(kind="flag-secret"), out)
+        out = _SSHPASS_P.sub(lambda m: m.group(1) + REDACTION.format(kind="flag-secret"), out)
         if level == "aggressive":
             out = _replace_with_kind(out, _HEX_BLOB, "hex-blob")
             out = _replace_with_kind(out, _B64_BLOB, "b64-blob")
