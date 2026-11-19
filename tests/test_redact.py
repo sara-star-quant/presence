@@ -88,3 +88,72 @@ def test_invalid_pattern_does_not_raise():
     weird = "🦀" + "ghp_" + "a" * 36 + "💥"
     out = redact_text(weird)
     assert "ghp_" not in out or REDACTION.format(kind="github-pat") in out
+
+
+# --- shapes a command line carries that no token prefix gives away -----------------------------
+# Values are runtime-joined so the literal assignments never sit in source for a secret scanner.
+
+@pytest.mark.parametrize(
+    "raw, secret",
+    [
+        ("export " + "SECRET_" + "KEY=abc123def456", "abc123def456"),
+        ("DJANGO_" + "SECRET_" + "KEY=abc123def456 ./manage.py", "abc123def456"),
+        ("DB_" + "PASS=hunter2hunter2 psql", "hunter2hunter2"),
+        ("PASS" + "PHRASE=correcthorse", "correcthorse"),
+        ("CLIENT_" + "SECRET=zzz999yyy", "zzz999yyy"),
+        ("curl --to" + "ken abcdef123456 https://x.example", "abcdef123456"),
+        ("tool --pass" + "word hunter2hunter2 --verbose", "hunter2hunter2"),
+        ("deploy --api-" + "key k9k9k9k9 now", "k9k9k9k9"),
+        ("run --sec" + "ret s3cr3tvalue", "s3cr3tvalue"),
+        ("git clone https://user:" + "pw12345@host.example/r.git", "pw12345"),
+        ("psql postgres://app:" + "Sup3rS3cret@db.example:5432/x", "Sup3rS3cret"),
+        ("mysql -u root -p" + "hunter2hunter2 db", "hunter2hunter2"),
+        ("ssh" + "pass -p hunter2hunter2 ssh h", "hunter2hunter2"),
+    ],
+)
+def test_secrets_in_command_shapes_are_redacted(raw, secret):
+    out = redact_command(raw)
+    assert secret not in out, out
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "mkdir -p /tmp/x",
+        "mkdir -pv /tmp/x",
+        "ls -pl",
+        "ls -p",
+        "git -p log",
+        "BYPASS_CACHE=1 make",
+        "compass=north",
+        "passenger=3",
+        "tool --token-count 5",
+        "tool --password-file /etc/pw",
+        "tool --secret-name prod",
+        "git clone https://github.com/a/b.git",
+        "scp user@host:path .",
+        "mysql -u root db",
+        "tool --api-key",
+        "tool --password --verbose",
+    ],
+)
+def test_ordinary_commands_are_left_alone(raw):
+    assert redact_command(raw) == raw
+
+
+def test_the_flag_and_the_scheme_stay_readable():
+    out = redact_command("deploy --pass" + "word hunter2hunter2 --verbose")
+    assert "--password" in out and "--verbose" in out
+    url = redact_command("git clone https://user:" + "pw12345@host.example/r.git")
+    assert url.startswith("git clone https://user:") and url.endswith("@host.example/r.git")
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    ["mysql " * 40_000, "a-" * 100_000, "--password " * 20_000, "x://" * 50_000, "http://u:" * 30_000, "sshpass -p " * 20_000],
+)
+def test_the_new_patterns_stay_fast_on_hostile_text(hostile):
+    import time
+    start = time.monotonic()
+    redact_command(hostile)
+    assert time.monotonic() - start < 1.0
