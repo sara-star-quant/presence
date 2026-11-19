@@ -47,7 +47,7 @@
     "lib/telemetry.py": "a3a620515ffab3b3c1fda9476710fef6f291166c9a64f5659dad2b55ff084929",
     "lib/unlock.py": "b51f0cd97695a4a67adb2194b660c1604245c2af1c1cc2b9de6fc7516c11259f",
     "lib/update_check.py": "0c57d01efb6a58be672f4bdcbfc8ef971ccceb70c22d3ab71f51e3cba3436d3f",
-    "lib/verify.py": "97267653901d5d03b6e6b5d29137b5348b64ea83a859c5cc0814de645f5e1f32",
+    "lib/verify.py": "8d1e7e9ce467686b8546296e4b897b0ebee4991ba6ae7524eb75481ecf62b50f",
     "lib/warnings_log.py": "d75179dfd72cc53f6a0d6f274e2c84f500545ed931ce5a4478d884e445933086",
     "lib/worktree.py": "209778898cb88d579a2afda26c0e73c14a97e24fdd389d325bab473659ee9396",
     "presets/_schema.json": "116378c43979099e8231fccc9759577d01050012395ba564467d89d914dff89d",

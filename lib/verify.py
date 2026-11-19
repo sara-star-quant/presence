@@ -85,6 +85,8 @@ def scan_events(events, since_ts: int, tree_view: dict | None = None) -> dict:
         elif kind in ("test_pass", "build_pass"):
             last_pass = max(last_pass, ts)
             passed_since_edit = True
+        elif kind in ("test_fail", "build_fail"):
+            passed_since_edit = False  # the latest run is red: an earlier pass no longer stands
     has_edit = last_edit > 0
     verified = last_edit == 0 or passed_since_edit
     if tree_view is not None:

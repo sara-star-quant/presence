@@ -102,6 +102,10 @@ def test_classify_empty_command():
         (["edit", "test_pass", "edit"], False),
         (["edit", "test_fail"], False),
         (["edit", "build_pass"], True),
+        (["edit", "test_pass", "test_fail"], False),  # the latest run failed: the earlier pass no longer stands
+        (["edit", "test_pass", "build_fail"], False),
+        (["edit", "test_fail", "test_pass"], True),  # red, fixed, green
+        (["edit", "test_pass", "test_fail", "edit", "test_pass"], True),
     ],
 )
 def test_verified_since_edit_follows_event_order(isolated_state, fake_repo, kinds, verified):
@@ -111,6 +115,23 @@ def test_verified_since_edit_follows_event_order(isolated_state, fake_repo, kind
     for kind in kinds:
         append_event({"kind": kind}, cwd=str(fake_repo))
     assert scan_recent(str(fake_repo))["verified_since_edit"] is verified
+
+
+def test_a_failed_run_after_a_pass_is_unverified_even_when_the_tree_has_no_recorded_pass():
+    """worktree.record_fail clears the recorded pass tree, so the verdict falls back to event order:
+    an edit, a pass and then a red run must not read as verified."""
+    from verify import scan_events
+
+    events = [{"kind": "edit", "ts": 1}, {"kind": "test_pass", "ts": 2}, {"kind": "test_fail", "ts": 3}]
+    view = {"code_changed": True, "verified_exact": None}
+    assert scan_events(events, 0, view)["verified_since_edit"] is False
+
+
+def test_a_pass_on_exactly_this_tree_still_verifies_after_an_older_failure():
+    from verify import scan_events
+
+    events = [{"kind": "edit", "ts": 1}, {"kind": "test_fail", "ts": 2}, {"kind": "edit", "ts": 3}, {"kind": "test_pass", "ts": 4}]
+    assert scan_events(events, 0, {"code_changed": True, "verified_exact": True})["verified_since_edit"] is True
 
 
 # --- runner output as evidence when the exit status is not reliable ---------------------------
