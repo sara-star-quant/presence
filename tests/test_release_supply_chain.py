@@ -26,6 +26,40 @@ def test_every_action_is_pinned_to_a_commit_sha():
     assert not unpinned, "pin by 40-char commit SHA (keep the tag in a trailing comment):\n" + "\n".join(unpinned)
 
 
+
+def _top_level_permissions(text: str) -> list[str]:
+    """Lines of the workflow-level `permissions:` block (not any job's)."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("permissions:"):
+            if line.strip() != "permissions:":
+                return [line.split(":", 1)[1].split("#", 1)[0].strip()]  # inline form, e.g. "permissions: read-all"
+            block = []
+            for nxt in lines[i + 1:]:
+                if nxt.strip() and not nxt.startswith(" "):
+                    break
+                code = nxt.split("#", 1)[0].strip()
+                if code:
+                    block.append(code)
+            return block
+    return []
+
+
+@pytest.mark.parametrize("wf", WORKFLOWS, ids=lambda p: p.name)
+def test_no_workflow_grants_write_access_at_the_top_level(wf):
+    """Write scopes belong to the one job that needs them, so a build job that compiles tag code and runs
+    third-party actions never holds a token that can write."""
+    granted = [line for line in _top_level_permissions(wf.read_text()) if "write" in line]
+    assert not granted, f"{wf.name}: move to the job that needs it: {granted}"
+
+
+def test_the_release_job_still_holds_the_scopes_it_publishes_with():
+    text = (ROOT / ".github/workflows/release.yml").read_text()
+    job = text[text.index("\n  release:"):]
+    for scope in ("contents: write", "id-token: write", "attestations: write"):
+        assert scope in job, scope
+
+
 def _installer_assets() -> set[str]:
     return set(re.findall(r'asset="(presence-client-[\w-]+)"', INSTALL_SH.read_text()))
 
