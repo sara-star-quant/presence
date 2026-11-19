@@ -25,7 +25,7 @@
     "lib/bugreport.py": "6d1f518382e33e032dedff37a4007c7dcc1d7a196100431d86f1d48c36f049fd",
     "lib/ci_evidence.py": "e5d8c5288f5c089c5064a59ca5cfaee6edc7be986e0c00a4917b411a7f941d7b",
     "lib/cli.py": "ecaa3a763c2b200aeedd5e1291eb6c4ee8450e06fae0c35c1af71a50cd65aa1b",
-    "lib/cmdparse.py": "30f4562a191ad3a854e66d41cf6760a8e8c959761d4717ff4f024f3f773df1e3",
+    "lib/cmdparse.py": "be1ee40bd5e8cfca931a7d80253086859cc114d7e192d1cdbf9d11b597be17ac",
     "lib/crypto.py": "48ac069751b5d842861b80df22e061cfceebf87e2214b3fe44972b724294b439",
     "lib/daemon.py": "1a10225c2497b6572ce708fe3b25fab1b5185e7329e080cba5b6adbbbbef1a50",
     "lib/doctor.py": "db759b42cc4f8ce113b10d4c7eaaf19eae40835098aea0eeb381e2d3eff721c4",
