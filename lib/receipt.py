@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -33,6 +34,21 @@ MAX_CMD = 500
 SIG_NAMESPACE = "presence-receipt"
 MAX_SIG = 2048
 _KINDS = {"test_pass", "build_pass"}
+
+# The in-toto Statement form of a receipt (docs/receipts.md). The type URI is an identifier that signed
+# data may carry, so it never changes once published.
+STATEMENT_TYPE = "https://in-toto.io/Statement/v1"
+PREDICATE_TYPE = "https://github.com/sara-star-quant/presence/blob/main/docs/receipts.md#as-an-in-toto-statement"
+_OID = {40: "sha1", 64: "sha256"}
+_HEX = re.compile(r"[0-9a-f]+\Z")
+# What settles a verdict and who writes it, in words a reviewer can check against the receipt.
+CLAIM_CARD = {
+    "policy": "A commit is verified when a passing test or build command ran on exactly this git tree after the last change.",
+    "scope": "The commit's working tree and the commands the hooks saw run on it; nothing about the machine, the environment or the test output.",
+    "records": "The hooks' record of passing commands, each tied to the git tree it ran on, kept in this receipt's evidence list.",
+    "writer": "The presence hooks on the machine that ran the agent, not the agent. Unsigned, anyone who can write to the repo can write one; a pinned SSH signature or a CI attestation says who vouches.",
+    "rule": "verified only when verified_since_edit is true and at least one passing command is recorded; otherwise unverified or no_evidence.",
+}
 
 
 def receipts_path() -> Path:
@@ -76,6 +92,37 @@ def _well_formed(note: dict) -> bool:
             for e in ev
         )
     )
+
+
+def _oid_digest(oid: object) -> dict:
+    """A git object id as an in-toto digest, keyed by the repository's real hash format."""
+    if not isinstance(oid, str) or _OID.get(len(oid)) is None or not _HEX.match(oid):
+        raise ValueError(f"not a git object id: {safe_text(oid)!r}")
+    return {_OID[len(oid)]: oid}
+
+
+def to_statement(note: dict) -> dict:
+    """The receipt as an in-toto Statement (v1): the tree and the commit as subjects, the claim card and
+    the evidence as the predicate. Pure: no signing and no I/O. It adds no hash of test output, no
+    executable and nothing about the machine, so a reader learns exactly what the receipt already says."""
+    return {
+        "_type": STATEMENT_TYPE,
+        "subject": [
+            {"name": "git-tree", "digest": _oid_digest(note.get("tree"))},
+            {"name": "git-commit", "digest": _oid_digest(note.get("commit"))},
+        ],
+        "predicateType": PREDICATE_TYPE,
+        "predicate": {
+            **CLAIM_CARD,
+            "verified_since_edit": bool(note.get("verified_since_edit")),
+            "exact": bool(note.get("exact", False)),
+            "evidence": [{"kind": e.get("kind"), "cmd": e.get("cmd"), "ts": e.get("ts")}
+                         for e in (note.get("evidence") or [])[:MAX_EVIDENCE]],
+            "tool": note.get("tool"),
+            "ts": note.get("ts"),
+            "receipt_digest": note.get("digest"),
+        },
+    }
 
 
 def _git(cwd, *args: str) -> str:

@@ -47,13 +47,15 @@ def run_mcp() -> None:
     mcp_server.main()
 
 
-def run_receipt(rev: str, attach: bool, sign_key: str | None = None) -> int:
+def run_receipt(rev: str, attach: bool, sign_key: str | None = None, statement: bool = False) -> int:
     import json
     import os
 
     import receipt
     try:
         r = receipt.attach(os.getcwd(), rev, sign_key) if attach else receipt.find(os.getcwd(), rev)
+        if statement:
+            r = receipt.to_statement(r)
     except (LookupError, ValueError) as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
@@ -108,6 +110,7 @@ def main() -> None:
     rc.add_argument("rev", nargs="?", default="HEAD")
     rc.add_argument("--attach", action="store_true", help="also write it into the git note refs/notes/presence")
     rc.add_argument("--sign-key", help="sign the note with this SSH key (implies --attach); a .pub path signs via ssh-agent")
+    rc.add_argument("--statement", action="store_true", help="print the receipt as an in-toto Statement instead of the raw note")
 
     vr = sub.add_parser("verify-receipt", help="check the receipt note on a commit (needs only the repo)")
     vr.add_argument("rev", nargs="?", default="HEAD")
@@ -124,7 +127,7 @@ def main() -> None:
     elif args.command == "mcp":
         run_mcp()
     elif args.command == "receipt":
-        sys.exit(run_receipt(args.rev, args.attach or bool(args.sign_key), args.sign_key))
+        sys.exit(run_receipt(args.rev, args.attach or bool(args.sign_key), args.sign_key, args.statement))
     elif args.command == "verify-evidence":
         sys.exit(run_verify_evidence(args.rev, args.repo))
     elif args.command == "verify-receipt":
