@@ -91,6 +91,17 @@ Cost: about 0.1 s for a few thousand files, paid once per session start, per pas
 
 Work that arrives from elsewhere. A pull, merge, checkout or clean rebase changes the tree without the agent writing anything, and asking for test evidence about a teammate's change teaches people to ignore the warning. When a turn shows changed code, the gate reads the newest 200 HEAD log entries once and treats the change as arrived only if the working copy is clean, the previous judged turn's tree matches exactly one entry, and every later entry is a pull, merge, checkout or clean rebase. Anything else (an expired log, a hand-resolved conflict, an amend, a reset, an ambiguous round trip between branches) behaves as before, so the rule can only quiet the gate, never make it louder. The tradeoffs: a checkout of a branch holding earlier untested agent work is quiet, because the claim concerns the turn's own work; the HEAD log is not authenticated, so an agent that forges it can hide a commit ([security.md](security.md)); and the commit and push gate keeps its session baseline, so it still warns after a pull. The read costs about 30 ms and runs only on turns where code changed. A quieted claim leaves a confidence row with `verified: null` and `incoming: true` so it can be counted.
 
+## Related work
+
+Checking an agent's claim against evidence is an active research area, and presence borrows ideas from it without implementing any one paper. Four 2026 papers are the nearest neighbours:
+
+- [Looping Is Not Reliability](https://arxiv.org/abs/2607.24604) (Gao, Yang and Yang, AgenticDev '26) shows that a stale test trace can revive a fixed bug, and binds evidence to the exact code state. The tree check applies the same principle to a real working copy, outside the agent's loop.
+- [ECLoop](https://arxiv.org/abs/2607.28815) (Xu, Li, Wang and others) holds an agent's edits back until it has observed the evidence a task needs. presence checks after the fact, at the claim and at the commit, so it needs no control over the agent's scaffold.
+- [Auditable Claims about AI Agents](https://arxiv.org/abs/2610.07459) (Zhao, Li, Li and others) argues that a claim is checkable only when it names its policy, its scope, the records that settle it and who writes them. Receipts and the audit chain follow that shape, and the hooks write the records, not the agent.
+- [Confidence Reasoning Graphs](https://arxiv.org/abs/2610.07948) (King, Bayat, Bussotti and others) estimates confidence by splitting a claim into sub-claims grounded in trajectory evidence, and warns that calibration alone can hide poor discrimination. presence uses fixed rules and no model call, so a verdict is reproducible offline, and it reports a flagged rate, not a probability.
+
+What presence adds is a deterministic gate that runs inside the host through hooks, hashes the working copy without storing content, and works with any agent. It is a tool for real repositories, not a research benchmark, and none of these papers evaluates it.
+
 ## Customization
 
 `~/.claude/presence/settings.json`:
