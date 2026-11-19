@@ -16,7 +16,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write   # required for gh release create + asset upload
+  contents: read   # the build jobs only check out; the release job below holds the write scopes
 
 jobs:
   build-rust:
