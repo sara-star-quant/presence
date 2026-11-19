@@ -117,7 +117,8 @@ def main() -> None:
     # One pass over peek_events to learn both edit + test recency. The Stop
     # hook used to scan the same file twice (last_edit, then last_pass).
     sid = inp.get("session_id")
-    view = tree_view(cwd, str(sid), judge=True) if sid else None
+    hold = (cfg.get("confidence") or {}).get("stop_action") == "block"
+    view = tree_view(cwd, str(sid), judge=True, hold=hold) if sid else None
     recent = scan_recent(cwd, window_seconds=1800, tree_view=view)
     if not recent["has_recent_edit"]:
         if view and view.get("incoming"):

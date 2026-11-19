@@ -197,6 +197,79 @@ def test_a_turn_with_no_new_code_is_not_flagged_for_an_edit_already_judged(hook_
     assert _warnings(state).count("unverified_success_claim") == 2
 
 
+
+def test_in_block_mode_unverified_code_stays_flagged_until_a_run_covers_it(hook_runner, capsys, tmp_path):
+    """A claim that was weighed and found unverified must not become invisible: repeating "done" on the
+    continuation is logged, and the next turn is blocked again, until a run covers exactly this tree."""
+    import subprocess
+
+    import worktree
+    run, state, repo = hook_runner
+    (repo / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "seed"], cwd=repo, check=True)
+    worktree.ensure_base(repo, "s1")
+    t = tmp_path / "t.jsonl"
+    _write_transcript(t, "I fixed it, it works.")
+    payload = {"cwd": str(repo), "transcript_path": str(t), "session_id": "s1"}
+    block = {"preset": "solo-dev", "overrides": {"confidence.stop_action": "block"}}
+    (repo / "a.py").write_text("x = 2\n")
+    run("hook_stop", payload, settings=block)
+    assert '"decision":"block"' in capsys.readouterr().out
+    run("hook_stop", {**payload, "stop_hook_active": True}, settings=block)  # the continuation says "done" again
+    assert capsys.readouterr().out.strip() == ""  # never blocks twice in a row
+    assert [r["verified"] for r in _confidence(state)] == [False, False]  # but the repeat is on record
+    run("hook_stop", payload, settings=block)  # a later turn, still no run
+    assert '"decision":"block"' in capsys.readouterr().out
+    worktree.record_pass(repo, "s1")
+    run("hook_stop", payload, settings=block)  # now a run covered this tree
+    assert capsys.readouterr().out.strip() == ""
+    assert _confidence(state)[-1]["verified"] is True
+
+
+
+def test_in_block_mode_a_verified_edit_is_not_asked_about_again_after_a_docs_change(hook_runner, capsys, tmp_path):
+    import subprocess
+
+    import worktree
+    run, state, repo = hook_runner
+    (repo / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "seed"], cwd=repo, check=True)
+    worktree.ensure_base(repo, "s1")
+    t = tmp_path / "t.jsonl"
+    _write_transcript(t, "I fixed it, it works.")
+    payload = {"cwd": str(repo), "transcript_path": str(t), "session_id": "s1"}
+    block = {"preset": "solo-dev", "overrides": {"confidence.stop_action": "block"}}
+    (repo / "a.py").write_text("x = 2\n")
+    worktree.record_pass(repo, "s1")
+    run("hook_stop", payload, settings=block)  # verified claim: the baseline moves on
+    capsys.readouterr()
+    (repo / "NOTES.md").write_text("what changed\n")
+    run("hook_stop", payload, settings=block)  # only docs changed since
+    assert capsys.readouterr().out.strip() == ""
+    assert all(r["verified"] is True for r in _confidence(state))
+
+
+def test_without_block_mode_a_judged_edit_is_not_asked_about_again(hook_runner, tmp_path):
+    """Pinned: the quieter presets keep their one-flag-per-edit behaviour."""
+    import subprocess
+
+    import worktree
+    run, state, repo = hook_runner
+    (repo / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "seed"], cwd=repo, check=True)
+    worktree.ensure_base(repo, "s1")
+    t = tmp_path / "t.jsonl"
+    _write_transcript(t, "I fixed it, it works.")
+    payload = {"cwd": str(repo), "transcript_path": str(t), "session_id": "s1"}
+    (repo / "a.py").write_text("x = 2\n")
+    run("hook_stop", payload)
+    run("hook_stop", payload)
+    assert len(_confidence(state)) == 1
+
+
 def _clone_remote(repo, tmp_path):
     import subprocess
     up = tmp_path / "upstream"

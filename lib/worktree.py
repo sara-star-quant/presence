@@ -217,7 +217,7 @@ def record_fail(cwd, session_id: str) -> None:
         _save(cwd, {**state, "verified": None})
 
 
-def view(cwd, session_id: str, judge: bool = False) -> dict | None:
+def view(cwd, session_id: str, judge: bool = False, hold: bool = False) -> dict | None:
     """What the gate needs: did code change since the session started, and did the last passing
     run cover exactly this tree (True, False, or None when no pass was recorded). None overall
     when there is no baseline or the working copy cannot be read.
@@ -225,7 +225,11 @@ def view(cwd, session_id: str, judge: bool = False) -> dict | None:
     With judge set (the Stop hook, which has just weighed a claim) the working copy becomes the
     baseline for the next judged turn, so a later turn that touches no code is not asked for
     evidence about an edit already weighed. Without it the baseline stays the session start,
-    which is what the commit gate needs: unverified code stays unverified until a run covers it."""
+    which is what the commit gate needs: unverified code stays unverified until a run covers it.
+
+    With hold set as well (the strict presets) a weighed turn that is still unverified does not become
+    the baseline either, so the same code keeps being asked about until a run covers exactly this tree:
+    repeating "done" on the continuation is on record, and the next turn is blocked again."""
     state = _load(cwd)
     if state.get("session") != session_id or not state.get("base_tree") or state.get("slow"):
         return None
@@ -237,7 +241,7 @@ def view(cwd, session_id: str, judge: bool = False) -> dict | None:
     verified = state.get("verified")
     exact = None if verified is None else verified == snap["tree"]
     if judge:
-        _save(cwd, {**_load(cwd), "turn_tree": snap["tree"], "turn_diff": now})
+        incoming = False
         if "turn_tree" in state:
             turn = _code_changed(now, state.get("turn_diff"), snap["tree"], state["turn_tree"])
             incoming = turn and _arrived(cwd, state["turn_tree"], snap["tree"])
@@ -245,8 +249,10 @@ def view(cwd, session_id: str, judge: bool = False) -> dict | None:
                 turn = False
             # Code changed earlier and a run covered exactly this tree: still a verified claim worth recording.
             changed = turn or (changed and exact is True)
-            if incoming:
-                return {"code_changed": changed, "verified_exact": exact, "incoming": True}
+        if not (hold and changed and exact is not True):
+            _save(cwd, {**_load(cwd), "turn_tree": snap["tree"], "turn_diff": now})
+        if incoming:
+            return {"code_changed": changed, "verified_exact": exact, "incoming": True}
     return {"code_changed": changed, "verified_exact": exact}
 
 
