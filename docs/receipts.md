@@ -46,6 +46,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/lib/cli.py" verify-evidence HEAD --repo sara-star
 
 The subject is rebuilt from the tree, so there is nothing to download, and the tree (not the commit hash) is what links this to a receipt: a rebase merge changes the hash and keeps the tree. The verifier insists on the repository's own `ci.yml`, on `refs/heads/main`, on GitHub-hosted runners; without those pins a writer could attest anything from a workflow of their own. What it cannot cover: whoever may merge to main controls what main's workflow does, and an admin merge skips review. It needs network and `gh`.
 
+## As an in-toto Statement
+
+`receipt --statement` prints the receipt as an [in-toto Statement](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md) (v1). The envelope is the one in-toto tooling parses; the predicate type is presence's own, so a tool still needs a policy of its own to act on it. The git tree and the commit are the subjects. The predicate holds a claim card (the policy, the scope, the records that settle the claim, who writes them, and the decision rule) next to the verdict and the evidence commands.
+
+It adds nothing the receipt did not already say: no hash of test output, no executable and nothing about the machine. It is not signed by itself and it is not a DSSE envelope. The SSH signature and pinned signers work on the note as before, and the CI attestation above is the one signed with standard tooling. An unsigned Statement proves no more than an unsigned note, so read the forging table first. The predicate type is `https://github.com/sara-star-quant/presence/blob/main/docs/receipts.md#as-an-in-toto-statement`; it is an identifier and stays fixed.
+
 ## What it does not prove
 
 - **It is the working copy's tree, not a record of edits.** Each passing run records the git tree of the working copy it ran on (tracked changes and untracked files, minus ignored ones), and a receipt is `exact` when that tree is the commit's tree. Edits made by a shell command, an MCP tool or a subagent therefore count. A file the tests saw but the commit left out, or an ignored file the tests depended on, makes the tree differ, so the receipt says unverified.
