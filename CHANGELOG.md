@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.14.0
+
+A false "done" is now harder to slip past the gate.
+
+If you run a strict preset or the commit gate you may see more warnings after updating, and there is nothing to configure: a failing test or build run now clears an earlier pass, block mode keeps asking about unverified code until a run covers it, and git commands behind a path, `env`, `command`, `time` or `bash -c` are now seen by the commit gate and the commit telemetry. Redaction also covers secret-named variables and flags, URL credentials, `mysql -p` and `sshpass -p` in the commands and messages presence stores.
+
+- Tradeoff: a flaky red run now asks for a fresh green run, and block-mode users are asked again on later turns until the code is tested or the claim is hedged. The default presets keep one flag per edit.
+- Limit: redaction matches known shapes, not every secret, and records already written are not rewritten. The command parser does not follow `sudo`, `xargs` or deeper nesting.
+- New: `receipt --statement` prints a receipt as an in-toto Statement. The envelope is standard, the predicate type is ours, and it is not signed by itself. The release workflow's build jobs no longer hold write access.
+- Cost: no extra git calls on the hook path.
+
 ## v0.13.1
 
 Pulling a teammate's work no longer trips the confidence gate.
