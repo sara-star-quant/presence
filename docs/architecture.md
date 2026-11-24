@@ -81,6 +81,8 @@ Stop
   |       - log to confidence.jsonl
   |       - if confidence.stop_action == "block": emit {"decision":"block","reason":...}
   |       - else: warn(unverified_success_claim) and let SessionStart surface it
+  |       - if confidence.stop_action == "warn": also leave one fixed line (lib/notice.py) that the next
+  |         UserPromptSubmit puts in the agent's context, once; "silent" (the default) leaves nothing
   `-- update last_seen for next session
 ```
 

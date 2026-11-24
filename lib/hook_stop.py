@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from _common import emit, hook_input, integrity_blocked, safe_main, settings
+from notice import queue_notice
 from telemetry import record_confidence
 from verify import has_unhedged_success_claim, scan_recent
 from warnings_log import warn
@@ -139,6 +140,8 @@ def main() -> None:
     # stop_hook_active: the host already continued once because of a Stop hook. Blocking
     # again could loop forever, so the second pass only logs.
     if stop_action != "block" or inp.get("stop_hook_active"):
+        if stop_action == "warn":
+            queue_notice(cwd, sid)  # the next prompt tells the agent, once
         # Logged to confidence.jsonl above; SessionStart's counter surfacer will mention it.
         warn("unverified_success_claim", "asserted success without test/build evidence", excerpt=final[:120])
         return

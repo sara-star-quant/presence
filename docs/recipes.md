@@ -43,6 +43,19 @@ The integrity check, audit chain, redaction, and gates all stay on; only at-rest
 
 Valid values: `"off"`, `"warn"`, `"ask"`, `"block"`. The Stop hook still surfaces unverified-claim warnings under any setting; this only affects PreToolUse(Bash) on `git commit` / `git push`.
 
+## I want the agent to hear about an unverified claim in the same session
+
+```json
+{
+  "preset": "solo-dev",
+  "overrides": {
+    "confidence.stop_action": "warn"
+  }
+}
+```
+
+When a final message claims success and no passing test or build ran since the last edit, the next prompt carries one fixed line saying so, once, and nothing is blocked. The line never repeats the claim. The default, `"silent"`, only records the claim; `"block"` re-prompts the agent before it stops.
+
 ## I want telemetry but no PR check
 
 The optional `gh pr` outcome check makes one network call to GitHub's API. Disable it without disabling the rest of telemetry:
