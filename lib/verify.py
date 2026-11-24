@@ -176,6 +176,75 @@ def _command_start(words: list[str]) -> list[str]:
     return [os.path.basename(rest[0]), *rest[1:]] if rest else rest
 
 
+def _split_clauses(cmd: str) -> list[tuple[list[str], str | None, str | None]] | None:
+    """Clauses of a one-line command as (words, separator before, separator after), or None when the
+    command is multi-line, too big to judge, or does not tokenise."""
+    if "\n" in cmd.strip() or len(cmd) > MAX_COMMAND_CHARS:
+        return None
+    try:
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        tokens = list(lex)
+    except ValueError:
+        return None
+    clauses: list[tuple[list[str], str | None, str | None]] = []
+    cur: list[str] = []
+    before: str | None = None
+    for tok in tokens:
+        if tok in ("(", ")"):
+            continue  # a subshell does not change which clause runs or what its status says
+        if tok in _SEPARATORS:
+            clauses.append((cur, before, tok))
+            cur, before = [], tok
+        else:
+            cur.append(tok)
+    clauses.append((cur, before, None))
+    return clauses
+
+
+# Clauses that may sit between a test and the commit it guards without touching what was tested.
+_TREE_NEUTRAL_PROGS = {"cd", "echo", "printf", "true", ":", "pwd", "ls", "cat", "test", "["}
+_TREE_NEUTRAL_GIT = ("add", "status", "diff", "log")
+
+
+def _leaves_tree_alone(words: list[str]) -> bool:
+    start = _command_start(words)
+    if not start:
+        return True
+    if start[0] in _TREE_NEUTRAL_PROGS:
+        return True
+    if start[0] == "git":
+        from cmdparse import matches_subcommand
+        text = shlex.join(words)
+        return any(matches_subcommand(text, prog="git", sub=sub) for sub in _TREE_NEUTRAL_GIT)
+    return False
+
+
+def run_guards_target(cmd: str, is_target) -> bool:
+    """True iff ``cmd`` runs a test or build and then a target clause (git commit or push) linked only by
+    ``&&``: the target runs only when the run exited 0, so asking for evidence first is a false alarm.
+    ``;``, ``||``, a pipe, a background ``&``, a run that comes after the target, a run that may be
+    skipped (``false || pytest && ...``) and info-only runs do not count. Anything between the run and the
+    target that could change the tested files (``sed -i``, a script, ``make fmt``, ``git stash pop``) ends the
+    guard: only cd, echo, git add, status, diff and log and the like may sit there."""
+    clauses = _split_clauses(cmd)
+    if clauses is None:
+        return False
+    for t, (words, _, _) in enumerate(clauses):
+        if not words or not is_target(shlex.join(words)):
+            continue
+        j = t
+        while j > 0 and clauses[j][1] == "&&":
+            j -= 1
+            start = _command_start(clauses[j][0])
+            if (start and not _INFO_ONLY.intersection(start) and clauses[j][1] in (None, ";", "&&")
+                    and any(p.match(" ".join(start)) for p in _TEST_PATTERNS + _BUILD_PATTERNS)):
+                return True
+            if not _leaves_tree_alone(clauses[j][0]):
+                break  # something between the run and the target may have changed what was tested
+    return False
+
+
 def _find_run(cmd: str, patterns: list[re.Pattern], need_status: bool = True) -> list[str] | None:
     """True iff ``cmd`` runs one of ``patterns`` *and* its exit status describes that run.
 
@@ -185,24 +254,9 @@ def _find_run(cmd: str, patterns: list[re.Pattern], need_status: bool = True) ->
     by ``;`` or ``&`` and more work. A chain of ``&&`` is fine: exit 0 means every link
     passed. Multi-line commands are skipped; heredocs make clause splitting a guess.
     """
-    if "\n" in cmd.strip() or len(cmd) > MAX_COMMAND_CHARS:
+    clauses = _split_clauses(cmd)
+    if clauses is None:
         return None
-    try:
-        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
-        lex.whitespace_split = True
-        tokens = list(lex)
-    except ValueError:
-        return None
-    clauses: list[tuple[list[str], str | None, str | None]] = []  # words, separator before, after
-    cur: list[str] = []
-    before: str | None = None
-    for tok in tokens:
-        if tok in _SEPARATORS:
-            clauses.append((cur, before, tok))
-            cur, before = [], tok
-        else:
-            cur.append(tok)
-    clauses.append((cur, before, None))
     for i, (words, sep_before, _) in enumerate(clauses):
         if need_status and sep_before not in (None, ";", "&&"):
             continue
