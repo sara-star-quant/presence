@@ -5,6 +5,7 @@ import os
 
 from _common import emit_context, hook_input, integrity_blocked, safe_main, settings
 from events import drain_events, summarize_events
+from notice import take_notice
 from worktree import ensure_base
 
 
@@ -19,16 +20,20 @@ def main() -> None:
     if inp.get("session_id") and (cfg.get("confidence") or {}).get("enabled", True):
         ensure_base(cwd, str(inp["session_id"]))
 
-    if not (cfg.get("events") or {}).get("enabled", True):
-        return
+    parts: list[str] = []
+    # stop_action "warn": the line an unverified claim left behind, told to the agent once (lib/notice.py).
+    if (cfg.get("confidence") or {}).get("enabled", True):
+        notice = take_notice(cwd, inp.get("session_id"))
+        if notice:
+            parts.append(notice)
 
-    events = drain_events(cwd)
-    digest = summarize_events(events)
-    if digest:
-        emit_context(
-            "UserPromptSubmit",
-            "=== presence: events since last turn ===\n" + digest,
-        )
+    if (cfg.get("events") or {}).get("enabled", True):
+        digest = summarize_events(drain_events(cwd))
+        if digest:
+            parts.append("=== presence: events since last turn ===\n" + digest)
+
+    if parts:
+        emit_context("UserPromptSubmit", "\n\n".join(parts))
 
 
 if __name__ == "__main__":
