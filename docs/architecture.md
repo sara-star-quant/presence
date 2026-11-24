@@ -68,6 +68,7 @@ SessionStart
   PreToolUse(Bash)
     `-- if cmd parses as `git commit` or `git push`:
          |-- check: any test_pass/build_pass since the most recent edit?
+         |       (a test or build chained before the commit with && counts, if only cd, echo, git add or the like sits between: the commit only runs if it passed)
          `-- if no, behavior depends on confidence.commit_gate:
               - "off"   : do nothing
               - "warn"  : emit additionalContext advisory; allow

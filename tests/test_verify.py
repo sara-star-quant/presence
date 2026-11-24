@@ -306,3 +306,8 @@ def test_a_huge_command_is_not_parsed_for_a_test_run():
     start = time.monotonic()
     assert classify_command("pytest " + ";" * 300_000, 0, "20 passed in 1s\n") is None
     assert time.monotonic() - start < 1.0
+
+
+def test_a_run_inside_parentheses_is_still_a_run():
+    assert classify_command("(pytest -q)", 0) == "test_pass"
+    assert classify_command("(cd repo && pytest -q)", 1) == "test_fail"

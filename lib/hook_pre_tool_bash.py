@@ -12,7 +12,7 @@ import os
 
 from _common import emit, emit_context, hook_input, integrity_blocked, now_ts, safe_main, settings
 from cmdparse import is_git_commit, is_git_push
-from verify import scan_recent
+from verify import run_guards_target, scan_recent
 from worktree import view as tree_view
 
 
@@ -50,6 +50,8 @@ def main() -> None:
     evidence_present, last_edit_ts = _evidence_after_edit(cwd, str(sid) if sid else None)
     if evidence_present:
         return
+    if run_guards_target(cmd, lambda clause: is_git_commit(clause) or is_git_push(clause)):
+        return  # test && git commit: the commit only runs if the test passed
 
     msg = (
         "presence: about to commit/push without verification.\n"
