@@ -39,7 +39,7 @@ The first runs found real bugs, all fixed in v0.11.1 ([changelog](../CHANGELOG.m
 
 Every PR and every push to main runs:
 
-- the test suite on Python 3.12, 3.13, and 3.14, on Linux x86_64, Linux arm64, and macOS arm64
+- the test suite on Python 3.12, 3.13, and 3.14 on Linux x86_64 and Linux arm64, and on Python 3.13 on macOS arm64 (one Python there keeps the macOS queue exposure small)
 - `ruff`, `bandit`, `shellcheck`, and an ASCII check that rejects non-ASCII outside the intentional test fixtures
 - statement coverage with an 80% gate
 - a check that `MANIFEST.lock` matches a fresh regeneration
