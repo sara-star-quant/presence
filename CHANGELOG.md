@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.14.1
+
+The commit gate now sees commits it used to miss.
+
+If you use the commit gate you may see it fire on commits it used to miss, and there is nothing to configure: `git add .; git commit -m x` and `pytest&&git commit` were not recognised when the separator touched a word, so both the gate and the commit telemetry skipped them. A test run in which no test ran no longer counts as a pass, and `pytest && git commit` is no longer gated as if nothing had been tested.
+
+- New: `confidence.stop_action: warn` now does something. An unverified claim leaves one fixed line for the agent at its next prompt, once, and nothing is blocked. The default stays silent.
+- Tradeoff: a commit chained after a test passes the gate only when nothing that could change the tested files sits between them; `sed -i`, a script or `make fmt` keeps the gate on.
+- Limit: commands over 32 KiB are not parsed, and `sudo`, `xargs` and deeper nesting are not followed.
+- Cost: no extra git calls on the hook path.
+
 ## v0.14.0
 
 A false "done" is now harder to slip past the gate.
