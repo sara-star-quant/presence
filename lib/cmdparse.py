@@ -17,13 +17,23 @@ from __future__ import annotations
 import os
 import shlex
 
-_PIPELINE_SEPARATORS = {";", "&&", "||", "|", "&"}
+# A command longer than this is not parsed: a shell lexer is a character loop in Python, and a hook that
+# hangs on a hostile command is worse than a gate that misses one.
+MAX_COMMAND_CHARS = 32_768
+_PIPELINE_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")"}
 _ASSIGN_TOKEN = lambda t: "=" in t and t.split("=", 1)[0].replace("_", "").isalnum() and t.split("=", 1)[0][:1].isalpha()  # noqa: E731
 
 
 def _tokenize(cmd: str) -> list[str] | None:
+    """Words and operators. Operators are split off even when glued to a word (``add .;git commit``,
+    ``a&&b``, ``(git commit)``); quoted text stays one word."""
+    if len(cmd) > MAX_COMMAND_CHARS:
+        return None
     try:
-        return shlex.split(cmd, comments=True, posix=True)
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        lex.commenters = "#"
+        return list(lex)
     except ValueError:
         return None
 
