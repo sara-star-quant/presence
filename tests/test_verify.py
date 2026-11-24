@@ -245,3 +245,10 @@ def test_without_a_tree_view_the_event_logic_is_unchanged():
     from verify import scan_events
     assert scan_events([{"kind": "edit", "ts": 5}], 0)["verified_since_edit"] is False
     assert scan_events([{"kind": "edit", "ts": 5}, {"kind": "test_pass", "ts": 6}], 0, None)["verified_since_edit"] is True
+
+
+def test_a_huge_command_is_not_parsed_for_a_test_run():
+    import time
+    start = time.monotonic()
+    assert classify_command("pytest " + ";" * 300_000, 0, "20 passed in 1s\n") is None
+    assert time.monotonic() - start < 1.0

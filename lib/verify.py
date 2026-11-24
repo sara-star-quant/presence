@@ -6,6 +6,7 @@ import re
 import shlex
 
 from _common import now_ts
+from cmdparse import MAX_COMMAND_CHARS
 from events import peek_events
 
 SUCCESS_CLAIMS = [
@@ -184,7 +185,7 @@ def _find_run(cmd: str, patterns: list[re.Pattern], need_status: bool = True) ->
     by ``;`` or ``&`` and more work. A chain of ``&&`` is fine: exit 0 means every link
     passed. Multi-line commands are skipped; heredocs make clause splitting a guess.
     """
-    if "\n" in cmd.strip():
+    if "\n" in cmd.strip() or len(cmd) > MAX_COMMAND_CHARS:
         return None
     try:
         lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)

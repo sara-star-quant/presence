@@ -138,3 +138,66 @@ def test_the_repo_and_cd_targets_are_found_behind_the_same_wrappers():
     assert extract_git_C_target("env GIT_AUTHOR_NAME=a git -C /tmp/r commit") == "/tmp/r"
     assert extract_git_C_target("bash -c 'git -C /tmp/r commit'") == "/tmp/r"
     assert extract_cd_target("bash -c 'cd /tmp/r && git commit'") == "/tmp/r"
+
+
+# --- separators glued to the words around them ------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "git add .; git commit -m x",
+        "git add .&&git commit -m x",
+        "pytest;git commit -m x",
+        "git add . ;git commit -m x",
+        "(git commit -m x)",
+        "(cd repo && git commit -m x)",
+        "git commit -m 'a; b'; echo done",
+        "true||git commit -m x",
+        "git commit -m x>/dev/null",
+        "git commit -m x 2>&1 | tail -3",
+    ],
+)
+def test_a_commit_next_to_a_glued_separator_is_still_a_commit(cmd):
+    assert is_git_commit(cmd) is True
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "echo 'git commit;'; ls",
+        "git commit-tree abc;ls",
+        "grep 'git commit' f;echo done",
+        "echo git\\; commit",
+        "ls;echo 'a && git commit'",
+        "git status;git log",
+        "git status # && git commit -m x",  # the commit sits in a comment
+        "echo ok #;git commit -m x",
+    ],
+)
+def test_a_glued_separator_does_not_invent_a_commit(cmd):
+    assert is_git_commit(cmd) is False
+
+
+@pytest.mark.parametrize("cmd", ["git add .;git push", "pytest&&git push origin main", "(git push)"])
+def test_a_push_next_to_a_glued_separator_is_still_a_push(cmd):
+    assert is_git_push(cmd) is True
+
+
+def test_a_pr_create_after_a_glued_separator_is_still_one():
+    assert is_gh_pr_create("git push;gh pr create --fill") is True
+
+
+@pytest.mark.parametrize("hostile", [";" * 200_000, "(" * 200_000, "a&&" * 100_000, "git commit -m x;" * 20_000])
+def test_a_hostile_command_is_parsed_in_bounded_time(hostile):
+    import time
+    start = time.monotonic()
+    is_git_commit(hostile)
+    is_git_push(hostile)
+    assert time.monotonic() - start < 2.0
+
+
+def test_the_size_limit_leaves_a_long_but_ordinary_command_alone_and_skips_a_huge_one():
+    from cmdparse import MAX_COMMAND_CHARS
+    long_but_fine = "git commit -m " + "a" * (MAX_COMMAND_CHARS - 100)
+    assert is_git_commit(long_but_fine) is True
+    assert is_git_commit("git commit -m " + "a" * (MAX_COMMAND_CHARS + 1)) is False  # too big to judge: no gate
