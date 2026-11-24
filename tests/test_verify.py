@@ -299,3 +299,10 @@ def test_a_marker_in_a_huge_log_cannot_make_the_check_slow():
     start = time.monotonic()
     classify_command("npm test", 0, hostile)
     assert time.monotonic() - start < 1.0
+
+
+def test_a_huge_command_is_not_parsed_for_a_test_run():
+    import time
+    start = time.monotonic()
+    assert classify_command("pytest " + ";" * 300_000, 0, "20 passed in 1s\n") is None
+    assert time.monotonic() - start < 1.0
