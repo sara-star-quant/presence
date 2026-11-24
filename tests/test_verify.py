@@ -245,3 +245,57 @@ def test_without_a_tree_view_the_event_logic_is_unchanged():
     from verify import scan_events
     assert scan_events([{"kind": "edit", "ts": 5}], 0)["verified_since_edit"] is False
     assert scan_events([{"kind": "edit", "ts": 5}, {"kind": "test_pass", "ts": 6}], 0, None)["verified_since_edit"] is True
+
+
+# --- a run in which no test ran is not evidence --------------------------------------------------
+
+NOTHING_RAN = [
+    ("go test ./...", "?   \tpkg/a\t[no test files]\n?   \tpkg/b\t[no test files]\n"),
+    ("go test -run Nope ./...", "testing: warning: no tests to run\nPASS\nok  \tpkg\t0.002s [no tests to run]\n"),
+    ("cargo test", "running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured\n"),
+    ("cargo test --no-run", "   Compiling x v0.1.0\n    Finished test profile\n"),
+    ("npx jest --passWithNoTests", "No tests found, exiting with code 0\n"),
+    ("npm test", "No tests found, exiting with code 0\n"),
+    ("rspec", "Finished in 0.001 seconds\n0 examples, 0 failures\n"),
+    ("mocha", "\n  0 passing (2ms)\n"),
+    ("vendor/bin/phpunit", "No tests executed!\n"),
+    ("go test -list . ./...", "TestA\nok  \tpkg\t0.01s\n"),
+    ("npx jest --listTests", "/repo/a.test.js\n"),
+]
+
+
+@pytest.mark.parametrize(("cmd", "output"), NOTHING_RAN)
+def test_a_run_in_which_nothing_ran_is_not_a_pass(cmd, output):
+    assert classify_command(cmd, 0, output) is None
+
+
+REALLY_RAN = [
+    ("go test ./...", "ok  \tpkg/a\t0.2s\n?   \tpkg/b\t[no test files]\n"),
+    ("cargo test", "running 3 tests\ntest result: ok. 3 passed; 0 failed; 0 ignored\n"),
+    ("pytest -q", "....................\n20 passed in 2.00s\n"),
+    ("npm test", "Tests:       5 passed, 5 total\n"),
+    ("mocha", "\n  12 passing (40ms)\n"),
+    ("rspec", "3 examples, 0 failures\n"),
+    ("go test ./...", ""),  # no output to read: the exit status stays the evidence
+    ("pytest", "warning: no tests found for plugin x\n20 passed in 1.00s\n"),  # the words in a log do not undo a count
+    ("go test ./...", "ok  \tpkg/a\t0.2s\nok  \tpkg/b\t0.1s [no tests to run]\n"),
+    ("go test ./...", "ok  \tpkg/a\t(cached)\n?   \tpkg/b\t[no test files]\n"),
+    ("go test ./...", "ok  \tpkg/a\t0.2s (cached)\n?   \tpkg/b\t[no test files]\n"),
+]
+
+
+@pytest.mark.parametrize(("cmd", "output"), REALLY_RAN)
+def test_a_real_run_still_passes(cmd, output):
+    assert classify_command(cmd, 0, output) == "test_pass"
+
+
+def test_a_failing_run_with_nothing_to_read_is_still_a_failure():
+    assert classify_command("go test ./...", 1, "?   \tpkg/a\t[no test files]\n") == "test_fail"
+
+
+def test_a_marker_in_a_huge_log_cannot_make_the_check_slow():
+    import time
+    hostile = ("No tests found " * 200_000) + "\n"
+    start = time.monotonic()
+    classify_command("npm test", 0, hostile)
+    assert time.monotonic() - start < 1.0
