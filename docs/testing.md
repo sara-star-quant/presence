@@ -65,6 +65,10 @@ python3 -m venv .venv
 
 [CONTRIBUTING.md](../CONTRIBUTING.md) has the full development setup.
 
+## What counts as a passing run
+
+A command counts when a known test or build tool is in command position, the shell reports its exit status, and a test actually ran. A run that exits 0 without running one is ignored, neither a pass nor a failure: `go test` with no test files, `cargo test` with zero tests or `--no-run`, `jest --passWithNoTests`, an empty rspec or mocha run, a list-only run. A count of tests that did run always wins over words in the log, and output that cannot be read leaves the exit status as the evidence.
+
 ## Replaying the confidence gate
 
 `python3 bench/gate_replay.py ~/.claude/projects` runs the gate's own functions over your past sessions. Definitions are in the script header and fixed in advance: an outcome is the first test or build run after a claim and before any later edit, and no rate prints for a group with fewer than 30 resolved turns.

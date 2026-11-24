@@ -149,7 +149,7 @@ _BUILD_PATTERNS = [
 _SEPARATORS = {";", "&&", "||", "|", "&"}
 _WRAPPERS = {"time", "env", "nice", "nohup", "command", "npx", "bunx"}
 _RUN_WRAPPERS = {"uv", "poetry", "pipenv", "pdm", "hatch"}  # `<tool> run <cmd>`
-_INFO_ONLY = {"--version", "--help", "-h", "--collect-only", "--co", "--dry-run"}
+_INFO_ONLY = {"--version", "--help", "-h", "--collect-only", "--co", "--dry-run", "--no-run", "--listTests", "--list-tests", "-list", "--list"}
 
 
 def _command_start(words: list[str]) -> list[str]:
@@ -226,6 +226,22 @@ _JEST = re.compile(r"(?m)^[ \t]*Tests:?[ \t]+(.*)$")
 _SUMMARY_TOOLS = {"pytest": "pytest", "cargo": "cargo", "go": "go", "jest": "jest", "vitest": "jest"}
 
 
+# A run that exits 0 without running a test is not evidence: go test with no test files, cargo test with zero
+# tests, jest --passWithNoTests, an empty rspec or mocha run. Words in a log do not decide it: any count of
+# tests that did run wins. Single pass over the output tail, no nested repetition.
+_NOTHING_RAN = re.compile(
+    r"(?im)no tests? found|no test files found|no tests executed|no tests to run|no tests ran|running 0 tests"
+    r"|^[ \t]*0 examples, 0 failures|^[ \t]*0 passing\b|\[no test files\]")
+_SOMETHING_RAN = re.compile(
+    r"(?m)\b[1-9]\d* (?:passed|passing|examples?)\b|^ok[ \t]+\S+[ \t]+(?:[\d.]+s|\(cached\))(?:[ \t]*\(cached\))?[ \t]*$"
+    r"|test result: ok\. [1-9]\d* passed")
+
+
+def _nothing_ran(output: str) -> bool:
+    tail = output[-_TAIL_BYTES:]
+    return bool(_NOTHING_RAN.search(tail)) and not _SOMETHING_RAN.search(tail)
+
+
 def _summary_verdict(output: str, start: list[str]) -> str | None:
     """``pass`` or ``fail`` from the runner's own closing summary, else None. Only the tail of
     the output is read, and only tools whose summary format is known."""
@@ -273,6 +289,8 @@ def classify_command(cmd: str | None, exit_code, output: str | None = None) -> s
         return None
     is_test = _runs(cmd, _TEST_PATTERNS)
     is_build = _runs(cmd, _BUILD_PATTERNS)
+    if is_test and code == 0 and output and _nothing_ran(output):
+        return None  # exit 0, but no test ran: neither a pass nor a failure
     if is_test or is_build:
         kind = "test" if is_test else "build"
         return f"{kind}_{'pass' if code == 0 else 'fail'}"
