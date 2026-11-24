@@ -8,7 +8,7 @@
 - **License**: Apache-2.0
 - **Runtime**: Python 3.12+ (3.12 / 3.13 / 3.14 all in CI)
 - **Platforms**: macOS arm64, Linux x86_64 and arm64 (CI matrix); Windows via WSL2, native Windows unsupported.
-- **Tests**: 1045 passing across the Python matrix.
+- **Tests**: 1147 passing across the Python matrix.
 - **Evidence**: signed git-note receipts and CI-attested test runs, checkable without presence (docs/receipts.md, experimental).
 - **Cold hook startup**: 80 ms median, 87 ms p95 (macOS arm64, Python 3.14.4, n=50).
 - **SessionStart populated**: 108 ms median (10 KB model + 100 events + 50 claims, n=50).
