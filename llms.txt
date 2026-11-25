@@ -8,7 +8,7 @@
 - **License**: Apache-2.0
 - **Runtime**: Python 3.12+ (3.12 / 3.13 / 3.14 all in CI)
 - **Platforms**: macOS arm64, Linux x86_64 and arm64 (CI matrix); Windows via WSL2, native Windows unsupported.
-- **Tests**: 1147 passing in CI (Linux x86_64 and arm64 on Python 3.12 to 3.14, macOS on Python 3.13).
+- **Tests**: 1206 passing in CI (Linux x86_64 and arm64 on Python 3.12 to 3.14, macOS on Python 3.13).
 - **Evidence**: signed git-note receipts and CI-attested test runs, checkable without presence (docs/receipts.md, experimental).
 - **Cold hook startup**: 82 ms median with the default stdlib path, 8.9 ms with the optional Rust client (macOS arm64, Python 3.14.4; `bench/cold_startup.py`).
 - **SessionStart populated**: 112 ms median (10 KB model + 100 events + 50 claims; 9.1 ms with the Rust client).

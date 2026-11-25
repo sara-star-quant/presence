@@ -4,15 +4,15 @@ An honest gap analysis. 1.0 is a promise to people who depend on presence that t
 
 ## Where we are
 
-Facts as of v0.14.1 (2026-11-25):
+Facts as of v0.15.0 (2026-11-25):
 
 | Signal | Value |
 |---|---|
 | Age | first commit 2026-04-26, about seven months |
-| Releases | 37 tags; v0.9.0, v0.9.1, v0.9.2 and v0.10.0 all shipped on the same day |
-| Contributors | one author (170 commits on main), one contributor on GitHub, bus factor 1 |
+| Releases | 38 tags; v0.9.0, v0.9.1, v0.9.2 and v0.10.0 all shipped on the same day |
+| Contributors | one author (181 commits on main), one contributor on GitHub, bus factor 1 |
 | Outside signal | 9 stars, 0 forks, two open issues (#9 native Windows, #123 directory listing), no user-filed bugs |
-| Tests | 1147 passing, 85% statement coverage (gate: 80%) |
+| Tests | 1206 passing, 85% statement coverage (gate: 80%) |
 | Platforms in CI | Linux (x86_64 and arm64, Python 3.12 to 3.14) and macOS (Python 3.13); no Windows |
 
 What the numbers say: the code is well tested against itself, and almost nothing has tested it against anyone else. A frozen contract is only worth freezing once real use has shown where it is wrong. Today every design decision has been validated by the one person who made it.
