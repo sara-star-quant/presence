@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.15.0
+
+Zerotrust can be chosen at install and fails closed.
+
+If you run zerotrust, nothing needs configuring, but run `/presence-doctor` once: a record that cannot be encrypted is now dropped instead of written in plain text, with an error that the next SessionStart reports, and the `AGENTS.md` adapter writes nothing into your repo under that preset. In every preset, what Claude appends to the project model is now redacted before it reaches disk, so a pasted token no longer sits in `~/.claude/presence`.
+
+- New: `./install.sh --preset zerotrust` (or `PRESENCE_PRESET`) activates a preset before the plugin is registered and refuses zerotrust unless encryption can work; `--require-attestation` refuses a downloaded binary whose build attestation does not verify.
+- Tradeoff: a zerotrust install with broken encryption now keeps less history instead of plain-text history, and the gate falls back to the tree state it can still read.
+- Limit: `model.md` is still plain text under zerotrust, and redaction matches known secret shapes, not every secret.
+- Cost: no extra git calls on the hook path.
+
 ## v0.14.1
 
 The commit gate now sees commits it used to miss.
