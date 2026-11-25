@@ -97,6 +97,17 @@ class AgentsMdAdapter(Adapter):
     def emit_context(self, event_name: str, text: str) -> None:
         if event_name != "SessionStart" or not text:
             return
+        from _common import settings
+        if (settings().get("settings") or {}).get("immutable"):
+            # A preset that assumes compromise (zerotrust) must not copy the model, digest and events into the
+            # repo working tree, where they can be committed. Say so where /presence-doctor looks; never the text.
+            from warnings_log import warn_once
+            warn_once(
+                "agents_md_refused",
+                "the active preset assumes compromise, so the AGENTS.md adapter did not write the project context into the repo",
+                fix="use a preset without settings.immutable if you want AGENTS.md refreshed",
+            )
+            return
         target = _target_path()
         try:
             existing = target.read_text(encoding="utf-8") if target.exists() else ""
