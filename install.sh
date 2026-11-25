@@ -11,6 +11,7 @@
 # Usage:
 #   ./install.sh                       # install or refresh (idempotent)
 #   ./install.sh --bootstrap           # also install Python 3.13 via uv if missing/old (opt-in network)
+#   ./install.sh --preset zerotrust    # activate a preset during install, before any hook can run
 #   ./install.sh --download-ext --require-attestation   # refuse a binary whose build attestation does not verify
 #   ./install.sh --verify              # full pre-Claude-Code health check; exits 0 if ready
 #   ./install.sh --verify --json       # same as --verify but emits a JSON blob for CI/scripting
@@ -29,6 +30,8 @@ STATE_DIR="${PRESENCE_STATE:-$CLAUDE_HOME/presence}"
 # Flags parsed from the CLI; consulted by install() and verify().
 BOOTSTRAP=0
 VERIFY_JSON=0
+PRESET_REQUEST="${PRESENCE_PRESET:-}"   # --preset NAME (or PRESENCE_PRESET): activate it during install
+PRESET_FLAG=0
 REQUIRE_ATTESTATION="${PRESENCE_REQUIRE_ATTESTATION:-0}"   # --require-attestation: a binary that cannot be proven built by our release workflow is refused
 
 SETTINGS_FILE="$CLAUDE_HOME/settings.json"
@@ -656,6 +659,39 @@ download_ext() {
   ok "presence-client downloaded: $target"
 }
 
+# Activate a preset during install, before the plugin is registered, so no hook ever runs under another one.
+# Fails closed: an unknown name, a locked zerotrust install, or a zerotrust request on a machine where encryption
+# cannot work (it would silently write plain text) stops the install with nothing registered.
+apply_preset() {
+  local name="$1" py_bin
+  case "$name" in
+    ""|*[!A-Za-z0-9_.-]*|.|..) die "--preset takes a plain preset name (solo-dev, team-oss, enterprise-strict, zerotrust), got: '$name'" ;;
+  esac
+  py_bin="$(command -v python3 2>/dev/null || true)"
+  if [ -z "$py_bin" ] || ! "$py_bin" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)' >/dev/null 2>&1; then
+    die "--preset needs python3 3.12 or newer to write the preset; install it (or use --bootstrap) and rerun"
+  fi
+  if [ "$name" = "zerotrust" ]; then
+    if ! PYTHONPATH="$SCRIPT_DIR/lib" "$py_bin" -c 'import sys; from crypto import is_available; sys.exit(0 if is_available() else 1)' >/dev/null 2>&1; then
+      die "zerotrust needs the cryptography library and an OS keychain tool (macOS security, Linux secret-tool); without them presence would keep state in plain text. Run: pip install --user cryptography, then rerun"
+    fi
+  fi
+  if [ -d "$STATE_DIR" ] && [ -n "$(find "$STATE_DIR" -type f \( -name '*.jsonl' -o -name 'model.md' \) 2>/dev/null | head -n 1)" ]; then
+    warn "existing state in $STATE_DIR was written under the previous preset and stays as it is (plain lines stay plain); run /presence-reset --crypto after install to start clean"
+  fi
+  if ! PYTHONPATH="$SCRIPT_DIR/lib" PRESENCE_STATE="$STATE_DIR" "$py_bin" -c '
+import sys
+from presets import use_preset
+r = use_preset(sys.argv[1])
+if not r.ok:
+    sys.stderr.write((r.error or "unknown error") + "\n")
+    sys.exit(1)
+' "$name"; then
+    die "could not activate preset '$name'"
+  fi
+  ok "preset $name is active"
+}
+
 install() {
   info "presence installer"
   info "plugin source: $SCRIPT_DIR"
@@ -674,6 +710,8 @@ install() {
 
   # Sanity: are we in the right directory?
   [ -f "$SCRIPT_DIR/.claude-plugin/plugin.json" ] || die "expected $SCRIPT_DIR/.claude-plugin/plugin.json; is this the presence repo root?"
+
+  [ -n "$PRESET_REQUEST" ] && apply_preset "$PRESET_REQUEST"
 
   # Create plugins directory
   mkdir -p "$PLUGINS_DIR"
@@ -769,6 +807,7 @@ for arg in "$@"; do
       snapshot) SNAPSHOT_PATH="$arg" ;;
       restore)  RESTORE_PATH="$arg" ;;
       passenv)  PASSPHRASE_ARGS+=(--passphrase-env "$arg") ;;
+      preset)   [ -n "$arg" ] || die "--preset needs a preset name"; PRESET_REQUEST="$arg"; PRESET_FLAG=1 ;;
     esac
     expect_path_for=""
     continue
@@ -780,6 +819,7 @@ for arg in "$@"; do
     --overwrite)    RESTORE_OVERWRITE="--overwrite" ;;
     --passphrase-env)    expect_path_for="passenv" ;;
     --passphrase-prompt) PASSPHRASE_ARGS+=(--passphrase-prompt) ;;
+    --preset)       expect_path_for="preset" ;;
     --build-ext)    SUBCOMMAND="build_ext" ;;
     --download-ext) SUBCOMMAND="download_ext" ;;
     --snapshot)
@@ -796,7 +836,11 @@ for arg in "$@"; do
     *) die "unknown argument: $arg (try --help)" ;;
   esac
 done
+[ "$expect_path_for" = "preset" ] && die "--preset needs a preset name"
 [ -z "$SUBCOMMAND" ] && SUBCOMMAND="install"
+if [ "$PRESET_FLAG" = "1" ] && [ "$SUBCOMMAND" != "install" ]; then
+  die "--preset applies to install only (got $SUBCOMMAND)"
+fi
 
 case "$SUBCOMMAND" in
   install)               install ;;
@@ -836,6 +880,9 @@ Usage:
   ./install.sh --download-ext --require-attestation
                                         also refuse the binary unless gh verifies its build
                                         attestation (needs gh signed in; default only warns)
+  ./install.sh --preset <name>          activate a preset during install, before any hook can run
+                                        (solo-dev, team-oss, enterprise-strict, zerotrust; zerotrust
+                                        is refused unless encryption can work; PRESENCE_PRESET works too)
   ./install.sh --snapshot <out>         back up state for cross-machine portability
                                         (zerotrust state needs --passphrase-env VAR or
                                         --passphrase-prompt, which seals the archive)
