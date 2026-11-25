@@ -107,7 +107,7 @@ or `~/.claude/plugins/presence/install.sh --uninstall` for a local install. Stat
 
 Full threat model: [`docs/security.md`](docs/security.md), T1 to T18, each pinned by a named test.
 
-- **Local only.** No analytics, no remote telemetry. Default presets make no outbound calls; the opt-in ones (`gh` PR status, release check, webhook notifier, `--bootstrap`, `--download-ext`) are off by default and forced off under `zerotrust`.
+- **Local only.** No analytics, no remote telemetry. The default preset (`solo-dev`) makes no outbound calls. The opt-in ones (`gh` PR status, which `team-oss` turns on, release check, webhook notifier, `--bootstrap`, `--download-ext`) are off unless enabled and forced off under `zerotrust`.
 - **Secrets are redacted before anything is written** to events or telemetry. Composable profiles for EU PII, US PII, and PCI-DSS are in [`presets/redaction/`](presets/redaction/); [`docs/compliance.md`](docs/compliance.md) states what that does and does not cover.
 - **State is private to your user.** Directory `0700`, files `0600`, re-tightened every SessionStart.
 - **Zero-Trust preset.** AES-GCM at rest with a keychain-held key, a hash-chained audit log, and fail-closed integrity checks: a broken chain or a tampered plugin keeps the hooks inert rather than running on state it cannot trust. Details in [`docs/zerotrust.md`](docs/zerotrust.md).

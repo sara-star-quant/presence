@@ -67,7 +67,7 @@ Then in any Claude Code session: `/presence-status` to confirm.
 
 - For developers using Claude Code who want session continuity, this plugin is install-once and applies to every project.
 - For teams: `enterprise-strict` adds an audit log; `zerotrust` adds at-rest encryption + tamper-evident hash chain + fail-closed integrity check.
-- For privacy-sensitive contexts: state is local-only. The optional outbound features (`gh` PR status, release check, webhook notifier, `--bootstrap`, `--download-ext`) are off by default, and `zerotrust` forces them off.
+- For privacy-sensitive contexts: state is local-only. The default preset (`solo-dev`) makes no outbound calls. The optional outbound features (`gh` PR status, which `team-oss` turns on, the release check, the webhook notifier, `--bootstrap`, `--download-ext`) are opt-in, and `zerotrust` forces them off.
 - For regulated workloads (EU GDPR, US PII, PCI cardholder data): `zerotrust` preset + opt-in `redact.profiles` (`pii-eu`, `pii-us`, `pci-dss`) ship in `presets/redaction/`. See `docs/compliance.md`. Note: presence has no formal certification; profile names describe data classes, not compliance frameworks.
 
 ## What is NOT this project
