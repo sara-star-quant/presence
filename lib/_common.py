@@ -307,13 +307,18 @@ def atomic_write(path: str | os.PathLike[str], content: str, mode: int = 0o600) 
 
 
 def append_jsonl(path: str | os.PathLike[str], obj: dict, mode: int = 0o600) -> None:
-    """Append a JSON object as a single line. Encrypts the line if the active preset
-    requests encryption AND ``crypto`` is available; otherwise writes plain.
+    """Append a JSON object as a single line. Encrypts the line if the active preset requests
+    encryption; if it does and encryption is unavailable the record is dropped and the refusal is
+    logged, never written in plain text. Presets that do not request encryption write plain.
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     plain = _dumps(obj)
-    line = _maybe_encrypt(plain) + "\n"
+    encoded = _maybe_encrypt(plain)
+    if encoded is None:
+        _refuse_plain_write()
+        return
+    line = encoded + "\n"
     with open(p, "a", encoding="utf-8") as f:
         unlock = _flock(f.fileno(), exclusive=True)
         try:
@@ -326,18 +331,51 @@ def append_jsonl(path: str | os.PathLike[str], obj: dict, mode: int = 0o600) -> 
         pass
 
 
-def _maybe_encrypt(plain_json_line: str) -> str:
-    """Encrypt the line iff the active preset wants encryption AND key is available.
-    Otherwise return the plain line unchanged. Best-effort; on any failure, returns plain.
+def _maybe_encrypt(plain_json_line: str) -> str | None:
+    """The line to write: encrypted when the active preset wants encryption, unchanged when it does not.
+    None when the preset requires encryption and it cannot be done (no library, no keychain, no key, or the
+    encryption itself failed): the caller must not write the record, never fall back to plain text.
     """
     enabled, key = _encryption_write_state()
-    if not enabled or key is None:
+    if not enabled:
         return plain_json_line
+    if key is None:
+        return None
     try:
         from crypto import encrypt_line
         return encrypt_line(plain_json_line.encode("utf-8"), key)
-    except Exception:  # noqa: BLE001  never let encryption failure break a write
-        return plain_json_line
+    except Exception:  # noqa: BLE001  never let encryption failure break a hook, and never write plain instead
+        return None
+
+
+_REFUSAL_LOGGED = False
+
+
+def _refuse_plain_write() -> None:
+    """Say, at most once an hour, that a record was dropped because encryption is required and unavailable.
+    Never includes the record itself."""
+    global _REFUSAL_LOGGED
+    if _REFUSAL_LOGGED:
+        return
+    _REFUSAL_LOGGED = True
+    try:
+        # Hooks are short-lived processes, so the per-process flag alone would add an error to the count on every
+        # hook. A marker file limits the report to once an hour across processes; it is also what lets it come back.
+        marker = logs_dir() / "encryption_refused"
+        if marker.exists() and time.time() - marker.stat().st_mtime < 3600:
+            return
+        marker.touch()
+        os.utime(marker, None)
+        log_path = logs_dir() / "errors.log"
+        _rotate_if_large(log_path, max_bytes=1_000_000)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%dT%H:%M:%S')}] {sys.argv[0]}\npresence: the active preset requires "
+                    "encryption at rest but encryption is unavailable, so records are not written instead of "
+                    "being written in plain text. Run /presence-doctor, then install the cryptography library "
+                    "and an OS keychain tool.\n\n")
+        _bump_counter("error")
+    except OSError:
+        pass
 
 
 # Per-process caches. Hooks are short-lived so a process-local cache is safe.
@@ -360,7 +398,8 @@ def _encryption_write_state() -> tuple[bool, bytes | None]:
     """Return (wants_encrypt, key_or_None) for the write path.
 
     Returns (False, None) without ever invoking the keychain when the active
-    preset has no storage section flagged ``encrypted``.
+    preset has no storage section flagged ``encrypted``. (True, None) means the preset
+    requires encryption and it cannot be done: writers must not fall back to plain text.
     """
     global _WRITE_STATE_CACHE
     if _WRITE_STATE_CACHE is not None:
@@ -381,20 +420,20 @@ def _encryption_write_state() -> tuple[bool, bytes | None]:
         from warnings_log import warn_once
         warn_once(
             "crypto_lib_missing",
-            "preset wants encryption but `cryptography` is not installed; falling back to plain",
+            "preset wants encryption but `cryptography` is not installed; its records will not be written",
             fix="pip install --user cryptography",
         )
-        _WRITE_STATE_CACHE = (False, None)
+        _WRITE_STATE_CACHE = (True, None)
         return _WRITE_STATE_CACHE
 
     if not is_available():
         from warnings_log import warn_once
         warn_once(
             "crypto_keychain_missing",
-            "preset wants encryption but no OS keychain backend (security/secret-tool) found",
+            "preset wants encryption but no OS keychain backend (security/secret-tool) found; its records will not be written",
             fix="on macOS the keychain is built in; on Linux install secret-tool (apt install libsecret-tools)",
         )
-        _WRITE_STATE_CACHE = (False, None)
+        _WRITE_STATE_CACHE = (True, None)
         return _WRITE_STATE_CACHE
 
     key = get_or_create_key()
@@ -402,10 +441,10 @@ def _encryption_write_state() -> tuple[bool, bytes | None]:
         from warnings_log import warn_once
         warn_once(
             "crypto_key_failed",
-            "could not retrieve or create the data key from the keychain",
+            "could not retrieve or create the data key from the keychain; records will not be written",
             fix="run /presence-reset --crypto to rotate the data key",
         )
-        _WRITE_STATE_CACHE = (False, None)
+        _WRITE_STATE_CACHE = (True, None)
         return _WRITE_STATE_CACHE
 
     _WRITE_STATE_CACHE = (True, key)
