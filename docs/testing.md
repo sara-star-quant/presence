@@ -69,6 +69,10 @@ python3 -m venv .venv
 
 A command counts when a known test or build tool is in command position, the shell reports its exit status, and a test actually ran. A run that exits 0 without running one is ignored, neither a pass nor a failure: `go test` with no test files, `cargo test` with zero tests or `--no-run`, `jest --passWithNoTests`, an empty rspec or mocha run, a list-only run. A count of tests that did run always wins over words in the log, and output that cannot be read leaves the exit status as the evidence.
 
+## Repositories with no runner
+
+The gate can only be satisfied by a test or build tool it recognises (pytest, jest, vitest, `go test`, `cargo test`, rspec, mocha, phpunit, `mix test`, `rake test`, `npm`, `yarn` or `pnpm` `test`, and the common build commands). In a repository with no marker of one of them (a pytest config or `tests/` folder, a `package.json` with a test or build script, `go.mod`, `Cargo.toml`, a `Makefile` with a `build:` target and so on, looked for in the repository root, the working directory and one level below) no claim can ever be verified, so the gate does not judge it: the Stop hook records the claim with `verified: null` and `reason: no_runner`, and the commit gate lets the commit through instead of blocking every commit for good. The cost is that a strict preset does not gate such a repository; the check reads marker files only and never runs anything.
+
 ## Replaying the confidence gate
 
 `python3 bench/gate_replay.py ~/.claude/projects` runs the gate's own functions over your past sessions. Definitions are in the script header and fixed in advance: an outcome is the first test or build run after a claim and before any later edit, and no rate prints for a group with fewer than 30 resolved turns.

@@ -41,7 +41,10 @@ def fake_repo(tmp_path, monkeypatch):
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
     subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "--allow-empty", "-m", "init", "-q"], cwd=repo, check=True)
+    # A repository the gate can verify claims in: it only judges where a recognised runner could produce evidence.
+    (repo / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    subprocess.run(["git", "add", "pytest.ini"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=repo, check=True)
     monkeypatch.chdir(repo)
     return repo
 

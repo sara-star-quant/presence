@@ -8,6 +8,7 @@ from pathlib import Path
 from _common import emit, hook_input, integrity_blocked, safe_main, settings
 from notice import queue_notice
 from telemetry import record_confidence
+from testinfra import can_be_verified
 from verify import has_unhedged_success_claim, scan_recent
 from warnings_log import warn
 from worktree import view as tree_view
@@ -129,6 +130,11 @@ def main() -> None:
         return
 
     verified = recent["verified_since_edit"]
+    if not verified and not can_be_verified(cwd):
+        # No runner the gate recognises lives in this repository, so no claim here can ever be verified; flagging
+        # it would only nag. Leave a trace (verified is None: not judged) so it can still be counted.
+        record_confidence("unhedged_success", None, final_excerpt=final[:200], basis="tree" if view else "events", reason="no_runner")
+        return
     record_confidence("unhedged_success", verified, final_excerpt=final[:200], basis="tree" if view else "events")
 
     if verified:

@@ -29,7 +29,7 @@ Each control below is shipped in v0.2.
 | State at rest | plain JSONL/MD | the JSONL state files (events, claims, outcomes, confidence, receipts) are AES-GCM encrypted per line (12-byte nonce + tag), data key wrapped in OS keychain (macOS `security`, Linux `secret-tool`); mixed plain+encrypted files supported per-line. If encryption cannot work (library, keychain or key missing) a record is not written at all, never written in plain text, and SessionStart reports a hook error. The project model `model.md` and the hash-only tree state are not encrypted |
 | Logged commands | standard redaction | aggressive redaction (32+ hex blob, 40+ b64 blob, any uppercase env-style assignment) |
 | Network egress | optional `gh` PR check, release-freshness check, webhook notifier available | all disabled -- release-freshness check and webhook notifier via `network.egress_allowed: false` (wins regardless of the feature's own toggle); `gh` PR check via its own `telemetry.gh_pr_check` flag |
-| Commit/push gate | warn or off | hard block until verified test/build evidence exists |
+| Commit/push gate | warn or off | hard block until verified test/build evidence exists, in a repository with a runner the gate recognises (without one no evidence is possible, so it does not block) |
 | Stop-hook gate | silent (logged to `confidence.jsonl`) | hard block (re-prompts the model on unhedged success without evidence) |
 | Audit log | not produced | hash-chained append-only log at `~/.claude/presence/audit.jsonl`: edits, deletions and reordering by anyone who cannot also rewrite the log are detectable (a process running as you can still recompute it) |
 | Transcript reads | up to 256 KiB | 256 KiB cap + path must be under `~/.claude/projects/` |
