@@ -194,3 +194,72 @@ def test_download_keeps_an_existing_client_when_verification_fails(clone, tmp_pa
     (rel / _host_asset()).write_bytes(b"evil-bytes")
     assert _download(clone, rel).returncode != 0
     assert existing.read_bytes() == b"known-good"
+
+
+# --- build provenance: an opt-in switch that refuses an install it cannot verify -------------------------
+
+def _fake_gh(tmp_path, exit_code=0):
+    """A stand-in gh that logs its arguments and exits with a chosen status."""
+    gh = tmp_path / "fakegh"
+    log = tmp_path / "gh.log"
+    gh.write_text('#!/bin/sh\necho "$@" >> "' + str(log) + '"\nexit ' + str(exit_code) + "\n")
+    gh.chmod(0o755)
+    return gh, log
+
+
+def _download_with(clone, rel, extra_env=None, args=()):
+    env = {**os.environ, "CLAUDE_HOME": str(clone.parent / "home"), "PRESENCE_RELEASE_BASE": rel.as_uri(), **(extra_env or {})}
+    return subprocess.run(["bash", str(clone / "install.sh"), "--download-ext", *args],
+                          capture_output=True, text=True, check=False, env=env, cwd=clone)
+
+
+@needs_asset
+def test_without_the_switch_a_mirror_install_never_calls_gh(clone, tmp_path):
+    gh, log = _fake_gh(tmp_path)
+    r = _download_with(clone, _release(tmp_path), {"PRESENCE_GH": str(gh)})
+    assert r.returncode == 0, r.stderr
+    assert not log.exists()
+
+
+@needs_asset
+@pytest.mark.parametrize("how", ["env", "flag"])
+def test_the_switch_verifies_the_attestation_pinned_to_the_release_workflow(clone, tmp_path, how):
+    gh, log = _fake_gh(tmp_path)
+    env = {"PRESENCE_GH": str(gh), **({"PRESENCE_REQUIRE_ATTESTATION": "1"} if how == "env" else {})}
+    r = _download_with(clone, _release(tmp_path), env, args=("--require-attestation",) if how == "flag" else ())
+    assert r.returncode == 0, r.stderr
+    called = log.read_text()
+    assert "attestation verify" in called and "--repo sara-star-quant/presence" in called
+    assert "--signer-workflow sara-star-quant/presence/.github/workflows/release.yml" in called
+    assert "attestation verified" in r.stdout
+    assert (clone / "lib" / "presence-client").exists()
+
+
+@needs_asset
+def test_the_switch_refuses_a_binary_whose_attestation_does_not_verify(clone, tmp_path):
+    gh, _ = _fake_gh(tmp_path, exit_code=1)
+    r = _download_with(clone, _release(tmp_path), {"PRESENCE_GH": str(gh), "PRESENCE_REQUIRE_ATTESTATION": "1"})
+    assert r.returncode != 0 and "attestation" in r.stderr
+    assert not (clone / "lib" / "presence-client").exists()
+
+
+@needs_asset
+def test_the_switch_refuses_when_gh_is_not_there_to_verify(clone, tmp_path):
+    r = _download_with(clone, _release(tmp_path), {"PRESENCE_GH": str(tmp_path / "no-such-gh"), "PRESENCE_REQUIRE_ATTESTATION": "1"})
+    assert r.returncode != 0 and "gh" in r.stderr
+    assert not (clone / "lib" / "presence-client").exists()
+
+
+@needs_asset
+def test_a_checksum_mismatch_still_fails_before_the_attestation_is_asked(clone, tmp_path):
+    gh, log = _fake_gh(tmp_path)
+    rel = _release(tmp_path)
+    (rel / _host_asset()).write_bytes(b"evil-bytes")
+    r = _download_with(clone, rel, {"PRESENCE_GH": str(gh), "PRESENCE_REQUIRE_ATTESTATION": "1"})
+    assert r.returncode != 0 and "checksum mismatch" in r.stderr
+    assert not log.exists()
+
+
+def test_the_default_warning_names_the_switch():
+    text = INSTALL_SH.read_text()
+    assert "--require-attestation" in text and "PRESENCE_REQUIRE_ATTESTATION" in text

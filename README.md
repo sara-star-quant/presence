@@ -144,7 +144,7 @@ Custom presets: drop `<name>.json` in `~/.claude/presence/presets/` and switch t
 | Aggregate session (77 fires) | 6.4 s | **770 ms** | n=10 / n=5, `bench/aggregate_session.py` |
 | Install + first /presence-status | 245 ms total | 245 ms total | n=25, `bench/install_to_working.py` |
 
-The Rust client is optional: `./install.sh --build-ext` compiles it locally (needs a Rust toolchain at install time), `--download-ext` fetches a checksum-verified pre-built binary matching your checkout. Without it, hooks run on the stdlib-only path. Runtime dependencies: none by default, `cryptography` only for Zero-Trust at-rest encryption. All measurements: macOS arm64, Python 3.14.4. Reproduce with `python3 bench/<name>.py --runs N` ([`bench/README.md`](bench/README.md)); version-by-version history in [`bench/HISTORY.md`](bench/HISTORY.md).
+The Rust client is optional: `./install.sh --build-ext` compiles it locally (needs a Rust toolchain at install time), `--download-ext` fetches a checksum-verified pre-built binary matching your checkout (add `--require-attestation` to refuse it unless `gh` also verifies its build attestation). Without it, hooks run on the stdlib-only path. Runtime dependencies: none by default, `cryptography` only for Zero-Trust at-rest encryption. All measurements: macOS arm64, Python 3.14.4. Reproduce with `python3 bench/<name>.py --runs N` ([`bench/README.md`](bench/README.md)); version-by-version history in [`bench/HISTORY.md`](bench/HISTORY.md).
 
 Surface: 4 presets, 6 hooks, 7 slash commands, 3 skills, 1 subagent, 1 MCP server, 1 cross-tool adapter, 3 redaction profiles.
 

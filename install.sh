@@ -11,6 +11,7 @@
 # Usage:
 #   ./install.sh                       # install or refresh (idempotent)
 #   ./install.sh --bootstrap           # also install Python 3.13 via uv if missing/old (opt-in network)
+#   ./install.sh --download-ext --require-attestation   # refuse a binary whose build attestation does not verify
 #   ./install.sh --verify              # full pre-Claude-Code health check; exits 0 if ready
 #   ./install.sh --verify --json       # same as --verify but emits a JSON blob for CI/scripting
 #   ./install.sh --update              # git pull + re-install (refuses if dirty)
@@ -28,6 +29,7 @@ STATE_DIR="${PRESENCE_STATE:-$CLAUDE_HOME/presence}"
 # Flags parsed from the CLI; consulted by install() and verify().
 BOOTSTRAP=0
 VERIFY_JSON=0
+REQUIRE_ATTESTATION="${PRESENCE_REQUIRE_ATTESTATION:-0}"   # --require-attestation: a binary that cannot be proven built by our release workflow is refused
 
 SETTINGS_FILE="$CLAUDE_HOME/settings.json"
 PLUGIN_KEY="presence"
@@ -626,12 +628,25 @@ download_ext() {
   fi
   ok "checksum verified"
 
-  # Build provenance: only when gh is available and we are talking to GitHub itself.
-  if [ -z "${PRESENCE_RELEASE_BASE:-}" ] && command -v gh >/dev/null 2>&1; then
-    if gh attestation verify "$tmp/$asset" --repo "$repo" >/dev/null 2>&1; then
+  # Build provenance, pinned to our release workflow. By default this is best effort: it runs when gh is
+  # available and we are talking to GitHub itself, and a failure only warns. With --require-attestation
+  # (or PRESENCE_REQUIRE_ATTESTATION=1) it always runs, also through a mirror, and anything short of a
+  # verified attestation refuses the install. PRESENCE_GH names a gh binary outside PATH.
+  local gh_cmd="${PRESENCE_GH:-gh}"
+  local verify_build=("$gh_cmd" attestation verify "$tmp/$asset" --repo "$repo" --signer-workflow "$repo/.github/workflows/release.yml")
+  if [ "$REQUIRE_ATTESTATION" = "1" ]; then
+    command -v "$gh_cmd" >/dev/null 2>&1 || { rm -rf "$tmp"; die "--require-attestation needs the GitHub CLI (gh) to verify the build; install gh or drop the flag"; }
+    if "${verify_build[@]}" >/dev/null 2>&1; then
       ok "build provenance attestation verified"
     else
-      warn "could not verify a build attestation (older release, or gh is not signed in)"
+      rm -rf "$tmp"
+      die "the build attestation for $asset did not verify (is gh signed in, and does this release carry build attestations?); refusing to install"
+    fi
+  elif [ -z "${PRESENCE_RELEASE_BASE:-}" ] && command -v "$gh_cmd" >/dev/null 2>&1; then
+    if "${verify_build[@]}" >/dev/null 2>&1; then
+      ok "build provenance attestation verified"
+    else
+      warn "could not verify a build attestation (older release, or gh is not signed in); rerun with --require-attestation to refuse an install that cannot be verified"
     fi
   fi
 
@@ -760,6 +775,7 @@ for arg in "$@"; do
   fi
   case "$arg" in
     --bootstrap)    BOOTSTRAP=1 ;;
+    --require-attestation) REQUIRE_ATTESTATION=1 ;;
     --json)         VERIFY_JSON=1 ;;
     --overwrite)    RESTORE_OVERWRITE="--overwrite" ;;
     --passphrase-env)    expect_path_for="passenv" ;;
@@ -817,6 +833,9 @@ Usage:
   ./install.sh --download-ext           download a pre-built Rust client binary from
                                         the latest GitHub Release (faster path; no Rust
                                         toolchain needed; macOS arm64/x86_64 + Linux x86_64)
+  ./install.sh --download-ext --require-attestation
+                                        also refuse the binary unless gh verifies its build
+                                        attestation (needs gh signed in; default only warns)
   ./install.sh --snapshot <out>         back up state for cross-machine portability
                                         (zerotrust state needs --passphrase-env VAR or
                                         --passphrase-prompt, which seals the archive)
