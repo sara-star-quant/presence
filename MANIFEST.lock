@@ -38,7 +38,7 @@
     "lib/hook_user_prompt_submit.py": "ac9827e55a8c641e14fd03085749fa22496aabad359e1d66533fad84121ee166",
     "lib/integrity.py": "614a12891d8a8756491f3548dfab74c54dd23f9ef2a40a0a4cbcbe646fc9a0ad",
     "lib/mcp_server.py": "964c00681411018061360d9a6c507bdc6eb76d60e4545527ce5c6d8f63781f77",
-    "lib/model.py": "3236cddc8c6f24aec8fece40ac5fbaf7c586f499f11a8bcccad499044dd10dce",
+    "lib/model.py": "332bb4207d0fba3fd911c76d8160fa408264f18449664fc2a10f7ffc77f5c953",
     "lib/notice.py": "ccbbf5dbe54b01e1aef600ce85749c54b09d9536325e998883ab44e6597a3b98",
     "lib/notify.py": "bdb3105241b44a4cb30437b8ea2084c8562a57f87075430a908e97d1978f857d",
     "lib/presets.py": "831bdcc324a244ca1061b69aee9d95fff15dbd708110eae1d6fcfd8c870fffed",
@@ -61,6 +61,6 @@
     "presets/zerotrust.json": "0851f90d8782a9acc52da3d23332b52b6e25df49844e438994686848a8db282b",
     "skills/confidence-gate/SKILL.md": "e3a0a791e1d2ad6d23d91f447df00c92144a2c0e9bf8ec13960e477e1335db9b",
     "skills/outcome-check/SKILL.md": "89e10d49b0b6facf04e33bdd47a8fc4765fea4c1249ede83823bacfbffff509c",
-    "skills/project-model/SKILL.md": "3a7353a0e6a37ce82582975eff79f1d696991c43a0e7373fe5451476da024345"
+    "skills/project-model/SKILL.md": "7a62f21ac74a31da3f396bf847058ac77fa5443c6bc587895862862d0b83161f"
   }
 }

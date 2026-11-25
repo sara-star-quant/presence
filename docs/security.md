@@ -32,7 +32,7 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 | T1 hooks never crash the host | `tests/test_hardening.py::test_run_hook_fallback_is_guarded` |
 | T2, T5, T9, T11 | design property |
 | T3 concurrent writers do not corrupt state | `tests/test_audit.py::test_concurrent_appends_chain_safely`, `tests/test_common.py::test_atomic_write_overwrites` |
-| T4 secrets redacted before storage | `tests/test_redact.py::test_standard_known_token_shapes`, `tests/test_redact.py::test_secrets_in_command_shapes_are_redacted` |
+| T4 secrets redacted before storage | `tests/test_redact.py::test_standard_known_token_shapes`, `tests/test_redact.py::test_secrets_in_command_shapes_are_redacted`, `tests/test_model_redaction.py::test_a_secret_in_an_observation_never_reaches_the_file` |
 | T6 perms re-tightened at SessionStart | `tests/test_hardening.py::test_reverify_state_perms_retightens` |
 | Zero-Trust never falls back to plain text when encryption is unavailable | `tests/test_zerotrust_fail_closed.py::test_a_record_that_cannot_be_encrypted_is_not_written` |
 | T7 plugin tamper and extra files fail closed | `tests/test_hardening.py::test_extra_file_fails_integrity`, `tests/test_hardening.py::test_integrity_gate_blocks_on_extra` |
