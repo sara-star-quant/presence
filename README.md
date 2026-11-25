@@ -48,6 +48,8 @@ curl -fsSL https://raw.githubusercontent.com/sara-star-quant/presence/main/insta
 
 Restart Claude Code and run `/presence-status`.
 
+To start under a stricter preset, choose it at install time so no hook ever runs under the default: `./install.sh --preset zerotrust` (or `curl ... | bash -s -- --preset zerotrust`). `zerotrust` is refused unless encryption can work, and the flag never changes an install that is already locked ([`docs/zerotrust.md`](docs/zerotrust.md)).
+
 The installer is idempotent and makes no outbound network calls beyond fetching itself. It checks for Python 3.12+, symlinks the plugin into `~/.claude/plugins/presence`, creates `~/.claude/presence/` with `0700` perms, generates `MANIFEST.lock`, and pre-compiles `lib/`. Without Python 3.12+ it warns and continues; presence stays inactive until one is on `PATH`. Add `-s -- --bootstrap` to install Python 3.13 through [uv](https://github.com/astral-sh/uv) (one call to astral.sh, opt-in).
 
 `--verify` checks the symlink, plugin registration in `settings.json`, perms, Python, the `MANIFEST.lock` integrity, and fires all 6 hooks against the real `lib/` tree. Exit 0 means ready; `FAIL` lines say what is missing; `--verify --json` is machine-readable. From inside Claude Code, `/presence-status` shows the active preset and store sizes (`--zerotrust` for that preset's checklist), and `/presence-doctor` runs the full diagnostic. `/presence-doctor --fix` repairs recoverable problems: perm drift, a missing manifest, a stale `.integrity-blocked` marker.

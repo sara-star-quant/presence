@@ -35,6 +35,6 @@ Parse the user's argument (`$ARGUMENTS`) to determine the action:
   ```
   Replace `<NAME>` with the user's chosen name. If activation fails because the preset doesn't exist, list the available ones (using the script above) and ask the user to pick one via AskUserQuestion. If it fails due to a parse error, surface the parse error verbatim. Do not silently fall back to a different preset.
 
-- If switching to `zerotrust`: warn the user that hard commit gates will activate and that v0.2 features (encryption, audit log) are not yet shipped. Confirm via AskUserQuestion before activating.
+- If switching to `zerotrust`: warn the user that hard commit gates and an immutable settings lock will activate, that encryption needs the `cryptography` library and an OS keychain (run `/presence-doctor` to check), and that anything already written stays in plain text until `/presence-reset --crypto`. Confirm via AskUserQuestion before activating.
 
 The available built-in presets are: `solo-dev` (default), `team-oss`, `enterprise-strict`, `zerotrust`. Custom presets can be added under `~/.claude/presence/presets/<name>.json`.

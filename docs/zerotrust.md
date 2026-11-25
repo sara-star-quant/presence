@@ -2,11 +2,20 @@
 
 The `zerotrust` preset is for environments where you want `presence` to behave as if the plugin, the local user account, and the workspace are all potentially compromised.
 
-It is **opt-in**. Everything below is off by default. Activate with:
+It is **opt-in**. Everything below is off by default. The safest way to start is to choose it at install time, so that no hook ever runs under the default preset and nothing is written in plain text first:
+
+```
+./install.sh --preset zerotrust
+# or, with the one-liner: curl -fsSL .../install.sh | bash -s -- --preset zerotrust
+```
+
+The installer refuses `zerotrust` unless the `cryptography` library and an OS keychain tool (macOS `security`, Linux `secret-tool`) are present, because without them state would silently stay in plain text; install `cryptography` (`pip install --user cryptography`) and rerun. It also refuses to change a locked zerotrust install, and it tells you if earlier plain state exists (`/presence-reset --crypto` starts clean). To switch an existing install instead:
 
 ```
 /presence-preset use zerotrust
 ```
+
+Switching later leaves anything already written in plain text where it is.
 
 ## What it adds
 
