@@ -35,6 +35,7 @@ A claim is only as good as the test that fails when it breaks. This table lists 
 | T4 secrets redacted before storage | `tests/test_redact.py::test_standard_known_token_shapes`, `tests/test_redact.py::test_secrets_in_command_shapes_are_redacted`, `tests/test_model_redaction.py::test_a_secret_in_an_observation_never_reaches_the_file` |
 | T6 perms re-tightened at SessionStart | `tests/test_hardening.py::test_reverify_state_perms_retightens` |
 | Zero-Trust never falls back to plain text when encryption is unavailable | `tests/test_zerotrust_fail_closed.py::test_a_record_that_cannot_be_encrypted_is_not_written` |
+| Zero-Trust never writes project context into the repo through the AGENTS.md adapter | `tests/test_agents_md_zerotrust.py::test_zerotrust_writes_nothing_into_the_repo` |
 | T7 plugin tamper and extra files fail closed | `tests/test_hardening.py::test_extra_file_fails_integrity`, `tests/test_hardening.py::test_integrity_gate_blocks_on_extra` |
 | T8 egress blocked under zerotrust, payload redacted | `tests/test_notify.py::test_zerotrust_egress_block_wins_even_if_notify_is_enabled`, `tests/test_notify.py::test_final_excerpt_is_redacted_before_dispatch` |
 | T13 downloads pinned to https, missing checksums fail closed | `tests/test_release_supply_chain.py::test_install_pins_https_for_every_github_download`, `tests/test_release_supply_chain.py::test_download_without_sums_refuses_to_install` |

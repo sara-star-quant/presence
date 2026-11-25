@@ -76,6 +76,10 @@ Only on Claude Code's `SessionStart` event. Other hooks (`UserPromptSubmit`, `Po
 
 If you want manual control, run `/presence-status` (no auto-refresh) or `/presence-doctor` (diagnostic only). Neither writes to AGENTS.md.
 
+## Not under zerotrust
+
+The section carries your project model, the telemetry digest and recent events into the working tree, where they can be committed. A preset that assumes compromise therefore never writes it: under `zerotrust` (any preset with `settings.immutable`) the adapter does nothing and records `agents_md_refused` for `/presence-doctor`. To use the adapter, run a preset without that lock.
+
 ## Should I commit AGENTS.md?
 
 That's a workflow choice, not a presence opinion:
