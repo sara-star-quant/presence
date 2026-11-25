@@ -28,10 +28,10 @@ These are the axes that actually differ. Rows are the candidate setups; cells ar
 
 | | presence | Obsidian + hosted MCP | Obsidian + local MCP | Vault-with-manual-capture |
 |---|---|---|---|---|
-| **Backend service in request path** | None | Hosted MCP host | Local MCP process | None |
+| **Backend service in request path** | None (the optional local daemon only speeds hooks up; the hook path works without it) | Hosted MCP host | Local MCP process | None |
 | **Failure mode when service is down** | N/A -- no service | Tool error mid-conversation | Tool error if process not running | None |
 | **Capture model** | Auto via PostToolUse hooks | Depends on the MCP server's tools | Depends on the server | Manual: user writes notes |
-| **Default network egress** | Zero in v0.5.x; opt-in GitHub release check at v0.6.0+ (off by default; forced off under zerotrust) | Every tool call hits the MCP host | None to MCP, but MCP server may make its own | None |
+| **Default network egress** | None by default; the opt-in features (GitHub release check, `gh` PR status, webhook, installer downloads) are off unless enabled and forced off under zerotrust | Every tool call hits the MCP host | None to MCP, but MCP server may make its own | None |
 | **State location** | `~/.claude/presence/` local files | Depends on host | Vault folder (local) | Vault folder (local) |
 | **UI for browsing the captured memory** | None (headless) | Typically none | Typically none | Obsidian itself (rich) |
 | **Multi-device sync** | Out of scope | Depends on vault sync | Depends on vault sync | Depends on vault sync |
@@ -40,9 +40,9 @@ These are the axes that actually differ. Rows are the candidate setups; cells ar
 ## Where presence shines
 
 - **No service in the request path.** Hooks run inside Claude Code itself; there is no presence backend to go down. This is the load-bearing claim. Compare to a hosted MCP host -- when it is degraded, Claude sees tool errors mid-conversation.
-- **Fail-open everywhere.** Every hook is wrapped by `safe_main` (`lib/_common.py`). Any internal failure logs to `~/.claude/presence/logs/errors.log`, increments an error counter that the next SessionStart surfaces, and exits 0 so Claude Code never sees a presence-induced error. Even when presence itself breaks, your conversation continues.
+- **Fail-open by default, fail-closed under zerotrust.** Every hook is wrapped by `safe_main` (`lib/_common.py`). Any internal failure logs to `~/.claude/presence/logs/errors.log`, increments an error counter that the next SessionStart surfaces, and exits 0 so Claude Code never sees a presence-induced error. Even when presence itself breaks, your conversation continues. The tradeoff is that a broken gate stops gating without interrupting you, so the error counter and `/presence-doctor` are how you find out; the `zerotrust` preset instead blocks on a failed integrity check.
 - **Subprocess fallback for the Rust ext.** When the compiled `presence_ext` wheel is missing or stale, `lib/telemetry.py::get_head_commit` and `lib/crypto.py` fall through to plain `git`/`subprocess` paths. Slower, identical behavior. The v0.6.0 doctor cross-check warns once when the wheel is stale; it never blocks.
-- **Stdlib-only Python core.** The runtime path has no pip dependencies. `cryptography` is opt-in for the zerotrust at-rest encryption. No MCP server, no daemon, no socket.
+- **Stdlib-only Python core.** The runtime path has no pip dependencies. `cryptography` is opt-in for the zerotrust at-rest encryption. The core path needs no MCP server, no daemon and no socket; the read-only MCP server ([mcp.md](mcp.md)) and the optional Rust client with its local daemon are separate, opt-in pieces.
 - **Auto-capture beats manual-capture for reliability of *what you actually did.*** A manual notes flow only contains what the user remembered to write down. presence's `model.md` and `events.jsonl` accumulate from PostToolUse hooks regardless of whether the user thinks to record anything. This is a coverage win that is independent of the reliability axis above.
 
 See [security.md](security.md) for the threat model and [zerotrust.md](zerotrust.md) for the encrypted-at-rest opt-in.

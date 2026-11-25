@@ -16,7 +16,7 @@ A map of what lives where. New users start with the [README](../README.md); this
 
 ## Security and compliance
 
-- **[security.md](security.md)** - threat model (T1 to T12), the test that pins each claim, and what is explicitly out of scope. Read this before relying on the Zero-Trust properties for anything serious.
+- **[security.md](security.md)** - threat model (T1 to T18), the test that pins each claim, and what is explicitly out of scope. Read this before relying on the Zero-Trust properties for anything serious.
 - **[zerotrust.md](zerotrust.md)** - the opt-in `zerotrust` preset: AES-GCM at rest, hash-chained audit log, fail-closed integrity, settings immutability, and moving state between machines.
 - **[receipts.md](receipts.md)** - experimental: git-note receipts of what ran before a commit, optional SSH signatures, CI-attested test runs, and what none of them prove.
 - **[compliance.md](compliance.md)** - honest scope for regulated workloads: what presence does, what it does not, the composable redaction profiles, and why no compliance-framework presets ship.

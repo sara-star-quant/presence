@@ -105,7 +105,7 @@ Local technical primitives that exist today (v0.5.0+):
 
 ## Pointers
 
-- `docs/security.md`: T1-T12 threat model.
+- `docs/security.md`: T1-T18 threat model.
 - `docs/zerotrust.md`: zerotrust preset internals.
 - `presets/redaction/README.md`: how to author custom profiles.
 - `lib/integrity.py --audit-verify`: walk the audit chain.
