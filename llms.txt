@@ -1,6 +1,6 @@
 # presence
 
-> A Claude Code plugin that turns every coding session into part of a continuum: living per-repo project model, outcome telemetry (commit/revert tracking), inter-turn event digest, and a calibrated-confidence gate that catches "fixed", "done", "works" claims unbacked by actual test/build evidence. Stdlib-only Python runtime; one optional dep (`cryptography`) used only by the Zero-Trust preset. State is fully local under `~/.claude/presence/`; zero network egress in default presets.
+> A Claude Code plugin that checks an agent's "fixed", "done", "works" claims against test and build evidence tied to the exact git working tree (deterministic, local, no model judge), and keeps a per-repo project model, outcome telemetry (commit/revert tracking) and an inter-turn event digest so the next session starts where the last left off. Stdlib-only Python runtime; one optional dep (`cryptography`) used only by the Zero-Trust preset. State is fully local under `~/.claude/presence/`; zero network egress in default presets.
 
 ## Quick facts
 
@@ -19,10 +19,10 @@
 
 Four behaviors, all active globally with one install:
 
-1. **Living project model.** Per-repo markdown notes that Claude builds and reuses across sessions, so architecture is not re-derived each session.
+1. **Calibrated confidence.** Stop hook checks unhedged success claims against test or build evidence tied to the exact git tree; the default presets only record a claim (`stop_action: silent`), `warn` tells the agent once at its next prompt, and the strict presets block. An optional gate covers `git commit` and `git push`, and a commit can carry a receipt of what ran.
 2. **Outcome telemetry.** Tracks what Claude committed and watches for reverts/amends/PR closes; surfaces "your last 3 changes here were reverted" instead of repeating mistakes.
 3. **Event digest.** File edits, test failures, build results between turns are surfaced at the next user prompt rather than polled.
-4. **Calibrated confidence.** Stop hook checks unhedged success claims against test or build evidence tied to the exact git tree; the default presets only record a claim (`stop_action: silent`), `warn` tells the agent once at its next prompt, and the strict presets block.
+4. **Living project model.** Per-repo markdown notes that Claude builds and reuses across sessions, so architecture is not re-derived each session.
 
 ## Install (one liner)
 

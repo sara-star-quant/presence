@@ -7,18 +7,20 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](.github/workflows/ci.yml)
 [![Fuzzing](https://img.shields.io/badge/fuzzing-hypothesis%20%2B%20ClusterFuzzLite-success)](fuzz)
 
-**Every Claude Code session starts cold. presence makes the next one start where the last one left off.**
+**When Claude Code says "done", presence checks whether a test or build actually ran on that code.**
 
-A Claude Code plugin that keeps a local, per-repo memory of what Claude learned and what happened to its changes. Read-only projections (an MCP server and an AGENTS.md adapter) let other MCP-aware and AGENTS.md-aware tools read the same context.
+A Claude Code plugin that compares an agent's success claims with test and build evidence tied to the exact state of your git working tree, and keeps a local, per-repo memory so the next session starts where the last one left off. The check is deterministic and local: no model judges the claim, by default nothing leaves your machine, and no file content is stored. Read-only projections (an MCP server and an AGENTS.md adapter) let other MCP-aware and AGENTS.md-aware tools read the same context.
 
 ![presence repo architecture](diagrams/presence-repo.svg)
 
 One install, no per-project setup, four additions to Claude Code:
 
-1. **Living project model.** Claude builds and reuses notes about each repo it touches, instead of re-deriving the architecture every session.
+1. **Calibrated confidence.** The Stop hook checks whether a success claim ("fixed", "done", "works") is backed by a passing test or build since the last change to the code, judged against the working tree so edits made by a shell command or a checkout count too. An optional gate does the same for `git commit` and `git push`, and a commit can carry a receipt of what ran before it ([`docs/receipts.md`](docs/receipts.md)).
 2. **Outcome telemetry.** Tracks what Claude committed, then watches for reverts, amends, and PR closes. Later sessions see "your last 3 changes here were reverted within 24h".
 3. **Event digest.** File changes, test failures, and build results that happened between turns surface at the next prompt.
-4. **Calibrated confidence.** The Stop hook checks whether success claims ("fixed", "done", "works") are backed by verification (tests run, build green) since the change, and warns when they are not. An optional hard gate covers `git commit` and `git push`.
+4. **Living project model.** Claude builds and reuses notes about each repo it touches, instead of re-deriving the architecture every session.
+
+What you see by default: the default preset (`solo-dev`) only records an unverified claim, so a fresh install shows no claim warnings until you choose a stricter setting. `team-oss` warns at `git commit`, `stop_action: warn` tells the agent once at its next prompt, the strict presets (`enterprise-strict`, `zerotrust`) ask the agent to run the tests or hedge the claim before it stops, and [`docs/recipes.md`](docs/recipes.md) shows how to switch.
 
 State lives in `~/.claude/presence/`, local only.
 
