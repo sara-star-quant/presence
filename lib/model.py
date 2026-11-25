@@ -4,7 +4,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from _common import _flock, atomic_write, project_dir
+from _common import _flock, atomic_write, project_dir, settings
+from redact import redact_text
 
 MODEL_HEADER = """# Project model: maintained by presence
 
@@ -45,7 +46,18 @@ def read_model(cwd=None, max_chars: int | None = None) -> str:
     return text
 
 
+def _redacted(text: str) -> str:
+    """The observation as the preset's redaction sees it. The model is the one store whose content Claude
+    chooses, so a pasted token must not reach disk; the level and profiles are the preset's, as for events."""
+    r = settings().get("redact") or {}
+    if not r.get("enabled", True):
+        return text
+    profiles = [str(x) for x in (r.get("profiles") or []) if isinstance(x, str)]
+    return redact_text(text, level=r.get("level") or "standard", profiles=profiles)
+
+
 def append_observation(text: str, cwd=None) -> None:
+    text = _redacted(text)
     p = model_path(cwd)
     if not p.exists():
         atomic_write(p, MODEL_HEADER)

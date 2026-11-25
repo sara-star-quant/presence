@@ -63,7 +63,7 @@ The model is compressed periodically by the `model-curator` subagent (invoke via
 
 ## What NOT to put in the model
 
-- Secrets, tokens, API keys. These are redacted by `presence` when logged elsewhere, but in `model.md` you control the content directly: just don't paste them.
+- Secrets, tokens, API keys. `presence` redacts known secret shapes (tokens, secret-named variables and flags, URL credentials) from what you append, at the preset's redaction level, but redaction only knows shapes: just don't paste them.
 - Long code dumps (write the *insight*, not the code).
 - Personal opinions about teammates or the codebase.
 - Anything that would embarrass you if leaked. The file lives outside the repo by default but is plain text on disk.
