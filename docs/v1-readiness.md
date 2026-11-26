@@ -12,7 +12,7 @@ Facts as of v0.16.0 (2026-11-26):
 | Releases | 39 tags; v0.9.0, v0.9.1, v0.9.2 and v0.10.0 all shipped on the same day |
 | Contributors | one author (191 commits on main), one contributor on GitHub, bus factor 1 |
 | Outside signal | 9 stars, 0 forks, two open issues (#9 native Windows, #123 directory listing), no user-filed bugs |
-| Tests | 1331 passing, 85% statement coverage (gate: 80%) |
+| Tests | over 1,300 passing, 85% statement coverage (gate: 80%) |
 | Platforms in CI | Linux (x86_64 and arm64, Python 3.12 to 3.14) and macOS (Python 3.13); no Windows |
 
 What the numbers say: the code is well tested against itself, and almost nothing has tested it against anyone else. A frozen contract is only worth freezing once real use has shown where it is wrong. Today every design decision has been validated by the one person who made it.
