@@ -57,11 +57,16 @@ def test_the_entry_keeps_its_heading_and_the_header_survives(model):
     assert text.startswith("# Project model") and "\n## 20" in text
 
 
-def test_zerotrust_uses_the_aggressive_level(model):
+def test_zerotrust_uses_the_aggressive_level(model, monkeypatch):
+    import crypto
+    key = b"k" * 32  # zerotrust encrypts the model, so give it a key; the check is on the text after decryption
+    monkeypatch.setattr(crypto, "is_available", lambda: True)
+    monkeypatch.setattr(crypto, "get_or_create_key", lambda: key)
+    monkeypatch.setattr(crypto, "_backend_ops", lambda: ((lambda: key), None, None))
     m = model({"preset": "zerotrust"})
     blob = "a" * 64
     m.append_observation(f"checksum {blob} noted", model.repo)
-    assert blob not in m.model_path(model.repo).read_text(encoding="utf-8")
+    assert "checksum" in m.read_model(model.repo) and blob not in m.read_model(model.repo)
 
 
 def test_the_standard_level_leaves_a_long_hex_word_alone(model):
