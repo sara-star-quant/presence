@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.docs_facts
+
 ROOT = Path(__file__).resolve().parent.parent
 # `unlock` is a feature name (/presence-unlock), so it is not in the list.
 TELLS = [
