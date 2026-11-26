@@ -175,6 +175,16 @@ jobs:
               f.write(f"title<<EOF\n{title}\nEOF\n")
           PY
 
+      - name: Pin file links in the release notes to the tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          # The release page is not the repository: a relative link goes nowhere there. Pin each to this tag's file.
+          previous=$(git tag --sort=-v:refname | grep -A1 -Fx "$TAG_NAME" | sed -n 2p || true)
+          python3 .github/scripts/release_notes.py "$REPO" "$TAG_NAME" "$previous" < /tmp/release-notes.md > /tmp/release-notes.pinned.md
+          mv /tmp/release-notes.pinned.md /tmp/release-notes.md
+
       - name: Verify release notes are ASCII-only with no em-dash / en-dash
         run: |
           if LC_ALL=C grep -nP '[^\x00-\x7F]' /tmp/release-notes.md; then
