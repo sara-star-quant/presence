@@ -2,6 +2,8 @@ name: License scan
 
 on:
   pull_request:
+    # it scans code files only, so a documentation-only change has nothing for it to find
+    paths-ignore: ["**/*.md", "docs/**", "llms.txt", "diagrams/**"]
   push:
     branches: [main]
 

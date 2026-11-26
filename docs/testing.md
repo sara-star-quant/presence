@@ -46,6 +46,8 @@ Every PR and every push to main runs:
 - the two latency gates above, and a wheel build for the Rust client
 - CodeQL and ClusterFuzzLite
 
+A pull request that changes only documentation (README, `docs/`, the changelog, `llms.txt`, diagrams) runs the docs checks and nothing else: the ASCII check and the tests marked `docs_facts`, about a minute. Everything else, and every push to main, runs the full set. `.github/scripts/ci_gate.py` decides, fails toward the full run, and its `CI result` job is the one check the ruleset requires: it fails if a code change skipped any job.
+
 GitHub cancels a job that waits too long for a macOS runner, which turns the run red and skips the CI attestation. `.github/workflows/rerun-cancelled.yml` re-runs the run once when that is the only problem; a failing job, a job someone cancelled while it ran, and a second attempt are never retried.
 
 ## Not covered

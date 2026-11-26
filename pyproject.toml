@@ -79,6 +79,7 @@ skips = ["B603", "B607", "B110", "B404"]
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
 filterwarnings = ["error"]
+markers = ["docs_facts: tests that read the documents and compare them with the code; a documentation-only pull request runs only these"]
 
 [tool.coverage.run]
 # Statement coverage of the runtime source, measured in-process so the number is

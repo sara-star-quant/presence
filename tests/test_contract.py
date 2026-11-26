@@ -9,6 +9,10 @@ import importlib
 import json
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.docs_facts
+
 ROOT = Path(__file__).resolve().parent.parent
 FROZEN = json.loads((Path(__file__).parent / "contract_snapshot.json").read_text())
 

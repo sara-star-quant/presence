@@ -11,7 +11,8 @@ run="$1" attempt="$2" repo="$3"
 jobs=$(gh api "repos/$repo/actions/runs/$run/jobs?per_page=100" --jq '.jobs')
 count() { jq "[.[] | select($1)] | length" <<<"$jobs"; }
 
-failed=$(count '.conclusion == "failure" or .conclusion == "timed_out"')
+# "CI result" fails whenever any job did, so it is not evidence of a second problem
+failed=$(count '.name != "CI result" and (.conclusion == "failure" or .conclusion == "timed_out")')
 queued=$(count '.conclusion == "cancelled" and ((.runner_name // "") == "")')
 stopped=$(count '.conclusion == "cancelled" and ((.runner_name // "") != "")')
 

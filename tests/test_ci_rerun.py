@@ -45,6 +45,11 @@ def test_jobs_that_never_got_a_runner_are_rerun_once(run_script):
     assert run_script([OK, QUEUED, QUEUED]) == "run rerun 123 --failed --repo acme/widget"
 
 
+def test_the_gate_job_failing_is_not_a_second_problem(run_script):
+    gate = {"name": "CI result", "conclusion": "failure", "runner_name": "GitHub Actions 3"}
+    assert run_script([OK, QUEUED, gate]) == "run rerun 123 --failed --repo acme/widget"
+
+
 def test_a_real_failure_is_never_retried_even_next_to_a_queue_cancellation(run_script):
     assert run_script([OK, RED, QUEUED]) is None
 

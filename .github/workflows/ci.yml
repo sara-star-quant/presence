@@ -8,7 +8,47 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: classify the change
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.c.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: c
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: python3 .github/scripts/ci_gate.py classify
+
+  docs:
+    # A documentation-only pull request runs this and nothing else heavy. The facts tests read the documents
+    # and compare them with the code; the ascii check is the same one the full run applies.
+    name: docs checks
+    needs: changes
+    if: needs.changes.outputs.code != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Reject non-ASCII outside the intentional unicode test fixtures
+        run: |
+          if git grep -nP '[^\x00-\x7F]' -- ':!tests/test_model.py' ':!tests/test_redact.py' ':!tests/test_crypto.py'; then
+            echo "::error::non-ASCII characters found above"
+            exit 1
+          fi
+      - name: Install pytest (collection imports every test module, so the fuzz and zerotrust deps come too)
+        run: pip install --upgrade pip && pip install pytest cryptography hypothesis pyyaml
+      - name: Documentation facts
+        run: PYTHONPATH=lib pytest -q -m docs_facts
+
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: test (py${{ matrix.python }} / ${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -29,11 +69,13 @@ jobs:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
       - name: Install pytest + cryptography + hypothesis (zerotrust optional dep, fuzz tests)
-        run: pip install --upgrade pip && pip install pytest cryptography hypothesis
+        run: pip install --upgrade pip && pip install pytest cryptography hypothesis pyyaml
       - name: Run tests
         run: PYTHONPATH=lib pytest -q
 
   shellcheck:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
@@ -44,6 +86,8 @@ jobs:
           shellcheck install.sh
 
   ascii:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: ascii check (unicode)
     runs-on: ubuntu-latest
     steps:
@@ -60,6 +104,8 @@ jobs:
           fi
 
   ruff:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: ruff (python lint)
     runs-on: ubuntu-latest
     steps:
@@ -73,6 +119,8 @@ jobs:
         run: ruff check lib tests bench
 
   bandit:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: bandit (python security scan)
     runs-on: ubuntu-latest
     steps:
@@ -86,6 +134,8 @@ jobs:
         run: bandit -c pyproject.toml -r lib
 
   coverage:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: coverage (statement)
     runs-on: ubuntu-latest
     steps:
@@ -94,7 +144,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install pytest + cryptography + coverage
-        run: pip install --upgrade pip && pip install pytest cryptography coverage hypothesis
+        run: pip install --upgrade pip && pip install pytest cryptography coverage hypothesis pyyaml
       - name: Run tests under coverage
         # In-process measurement (deterministic). The hooks are unit-tested
         # in-process; daemon.py is omitted (see pyproject [tool.coverage.run])
@@ -104,6 +154,8 @@ jobs:
         run: coverage report --fail-under=80
 
   manifest-integrity:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: regenerate MANIFEST.lock
     runs-on: ubuntu-latest
     steps:
@@ -121,6 +173,8 @@ jobs:
           fi
 
   bench:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: bench (perf regression gate)
     runs-on: ubuntu-latest
     # Single matrix cell to keep cost down. macOS bench numbers vary too much
@@ -178,6 +232,8 @@ jobs:
     # (which excludes pyo3); this job compiles the wheel via maturin and smoke-
     # tests it. PR #17 (pyo3 0.21 -> 0.24, broken Bound API) green-lit on every
     # other job; this is the gate that would have caught it.
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: wheel build (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -224,6 +280,19 @@ jobs:
           assert head is None or 'sha' in head, f'unexpected get_head_commit shape: {head}'
           print('wheel smoke-test ok')
           "
+
+  ci-result:
+    # The one check the ruleset requires. A skipped job is fine for a documentation change and a failure for a
+    # code change (ci_gate.py result), so a routing bug cannot let code merge without its tests.
+    name: CI result
+    needs: [changes, docs, test, shellcheck, ascii, ruff, bandit, coverage, manifest-integrity, bench, wheel-build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 .github/scripts/ci_gate.py result
 
   attest-tests:
     # Independent evidence for receipts: after every required job passed on the pushed commit,

@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.docs_facts
+
 ROOT = Path(__file__).resolve().parent.parent
 PRESETS = ["solo-dev", "team-oss", "enterprise-strict", "zerotrust"]
 

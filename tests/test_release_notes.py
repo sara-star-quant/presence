@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.docs_facts
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / ".github" / "scripts"))
 import release_notes as rn  # noqa: E402
