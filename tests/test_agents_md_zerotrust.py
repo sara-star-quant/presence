@@ -63,3 +63,41 @@ def test_a_preset_the_user_writes_without_the_lock_may_still_use_it(adapter, iso
     a, target = adapter({"preset": "mine"})
     a.emit_context("SessionStart", "my own choice")
     assert "my own choice" in target.read_text(encoding="utf-8")
+
+
+# --- the repository is hostile input: AGENTS.md may not be what it looks like ----------------------------------
+
+
+def test_an_agents_md_that_points_outside_the_repository_is_not_written_through(adapter, tmp_path):
+    a, target = adapter({"preset": "solo-dev"})
+    victim = tmp_path / "outside" / "important.txt"
+    victim.parent.mkdir()
+    victim.write_text("keep me\n", encoding="utf-8")
+    target.symlink_to(victim)
+    a.emit_context("SessionStart", "model text")
+    assert victim.read_text(encoding="utf-8") == "keep me\n"
+
+
+def test_an_agents_md_that_links_to_another_file_in_the_repository_still_works(adapter, fake_repo):
+    a, target = adapter({"preset": "solo-dev"})
+    real = fake_repo / "CLAUDE.md"
+    real.write_text("# notes\n", encoding="utf-8")
+    target.symlink_to(real)
+    a.emit_context("SessionStart", "model text")
+    assert "model text" in real.read_text(encoding="utf-8")
+
+
+def test_an_agents_md_that_is_a_named_pipe_does_not_hang_the_hook(adapter):
+    import os
+    import signal
+    a, target = adapter({"preset": "solo-dev"})
+    os.mkfifo(target)
+
+    def stuck(*_):
+        raise TimeoutError("the adapter blocked on a named pipe")
+    signal.signal(signal.SIGALRM, stuck)
+    signal.alarm(5)
+    try:
+        a.emit_context("SessionStart", "model text")
+    finally:
+        signal.alarm(0)

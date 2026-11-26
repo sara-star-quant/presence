@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 from testinfra import can_be_verified
@@ -139,3 +141,16 @@ def test_an_oversized_package_json_is_still_bounded(tmp_path):
     start = time.monotonic()
     assert can_be_verified(tmp_path) is False
     assert time.monotonic() - start < 2.0
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+@pytest.mark.parametrize("name", ["Makefile", "pyproject.toml", "setup.cfg", "package.json"])
+def test_a_marker_that_is_a_named_pipe_does_not_hang_the_check(tmp_path, name):
+    """The repository is hostile input: reading a FIFO named like a marker would block the hook for good."""
+    import subprocess
+    import sys
+    os.mkfifo(tmp_path / name)
+    code = "import sys; sys.path.insert(0, sys.argv[1]); from testinfra import can_be_verified; print(can_be_verified(sys.argv[2]))"
+    lib = str(Path(__file__).resolve().parent.parent / "lib")
+    out = subprocess.run([sys.executable, "-c", code, lib, str(tmp_path)], capture_output=True, text=True, timeout=10, check=False)
+    assert out.stdout.strip() == "False"

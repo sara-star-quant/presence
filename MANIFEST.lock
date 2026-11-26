@@ -46,7 +46,7 @@
     "lib/redact.py": "b77325edec1722fb28149e72a377e47326278961ebf5090203d7628a36e4c295",
     "lib/snapshot.py": "a7f9fa5dd66ddd2f3d85117890c67e202663facbafcb9f29621f43d1726ec078",
     "lib/telemetry.py": "a3a620515ffab3b3c1fda9476710fef6f291166c9a64f5659dad2b55ff084929",
-    "lib/testinfra.py": "8f6e52b1a22c9180d06f3375be7918b707c99ff6b55603b6284290ecdcb6dd61",
+    "lib/testinfra.py": "39f5b3a3df93fb2db8cfd23b8bbab0c2df76774f9ef4f4d88479f5d5a539b201",
     "lib/unlock.py": "b51f0cd97695a4a67adb2194b660c1604245c2af1c1cc2b9de6fc7516c11259f",
     "lib/update_check.py": "0c57d01efb6a58be672f4bdcbfc8ef971ccceb70c22d3ab71f51e3cba3436d3f",
     "lib/verify.py": "2d95e96f8f74b7e603b930e39a48ee259fd733b7bccc5108cd7c1216ae14f72c",
