@@ -50,6 +50,18 @@ def _target_path() -> Path:
     return _project_root() / filename
 
 
+def _safe_target(target: Path) -> bool:
+    """The repository is untrusted input: a link out of it would make the write land in someone else's file, and a
+    named pipe would block the hook. A missing file is fine (it gets created); a link within the repository is fine."""
+    if not (target.exists() or target.is_symlink()):
+        return True
+    try:
+        real = target.resolve(strict=True)
+        return real.is_file() and real.is_relative_to(_project_root().resolve())
+    except (OSError, RuntimeError):
+        return False
+
+
 def _build_section(text: str) -> str:
     """Wrap ``text`` in the presence-managed section markers."""
     return (
@@ -109,6 +121,14 @@ class AgentsMdAdapter(Adapter):
             )
             return
         target = _target_path()
+        if not _safe_target(target):
+            from warnings_log import warn_once
+            warn_once(
+                "agents_md_unsafe_target",
+                "the AGENTS.md adapter did not write: the target is a link out of the repository or not a regular file",
+                fix="make AGENTS.md a regular file in the repository, or unset PRESENCE_HOST=agents_md",
+            )
+            return
         try:
             existing = target.read_text(encoding="utf-8") if target.exists() else ""
         except OSError:

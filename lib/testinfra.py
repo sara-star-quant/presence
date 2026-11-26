@@ -26,6 +26,8 @@ _JS_RUNNERS = ("jest", "vitest", "mocha")
 
 
 def _text(p: Path, limit: int = _READ) -> str:
+    if not p.is_file():  # a named pipe or device named like a marker would block the read for good
+        return ""
     try:
         with open(p, encoding="utf-8", errors="replace") as f:
             return f.read(limit)
