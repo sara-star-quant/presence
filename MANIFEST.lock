@@ -5,8 +5,8 @@
     ".claude-plugin/plugin.json": "d9add9d0253b17f9313647a152c95ff7864a2674012fbdd0fdeaa29735188b28",
     "agents/model-curator.md": "d8592c163b3d33933b319f61d415b5598832d24f91fd00e3c2c99d75c3b908bd",
     "commands/presence-bugreport.md": "dfa35b61dfcf30f0f268fb0c8fed6dbd92f7da058fca34f07b9beab8a52ddf79",
-    "commands/presence-curate.md": "2cd013c03324318e7a989b8059a23e753d051cd4386fb54e55ba98e1f2d88f26",
-    "commands/presence-doctor.md": "db9aad34f6cc8169caa6f78ce389e70b22ba951d07e8ed42d67b89c1d7bab933",
+    "commands/presence-curate.md": "0cb3437af4db71c0940c714b9f4c9a727f4b36846feb2bb8bed9cf77ad3c11b1",
+    "commands/presence-doctor.md": "379f262f0e34ac161bcd7b323103e615879f277f4f6d9edddb677298eab49fed",
     "commands/presence-preset.md": "13ff2478dcbef5318a0744ea0054d248263a6e2721aef57bdda69f36041bbb6d",
     "commands/presence-reset.md": "a6424c1ad620dc2e04c8bfb881ff6930d53624d7882327015e9eae15d3bfddd9",
     "commands/presence-status.md": "639ee3567b8ce59320dfaf6fbe27fff9de6089f74928c79feb3b8fb84380c352",
@@ -62,6 +62,6 @@
     "presets/zerotrust.json": "0851f90d8782a9acc52da3d23332b52b6e25df49844e438994686848a8db282b",
     "skills/confidence-gate/SKILL.md": "a2dc1ec4c45ed1792a2d967b439235f5306df9ddfa22f8d3566efcbc756adcc0",
     "skills/outcome-check/SKILL.md": "89e10d49b0b6facf04e33bdd47a8fc4765fea4c1249ede83823bacfbffff509c",
-    "skills/project-model/SKILL.md": "9d3434f4194d8f42f6de2897a4618adcf6d9059cf631a9de73b5a7722e2c6d79"
+    "skills/project-model/SKILL.md": "b36f5171f493ebc13f9b11d6fd64b226fa564ddbb89733133a7a95b820b10232"
   }
 }

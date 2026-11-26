@@ -9,7 +9,7 @@ Run the presence diagnostic report and display its output verbatim. Then, if the
 PRESENCE_ROOT="${CLAUDE_PLUGIN_ROOT:-$(realpath ~/.claude/plugins/presence 2>/dev/null || echo .)}"
 PYTHONPATH="$PRESENCE_ROOT/lib" python3 "$PRESENCE_ROOT/lib/doctor.py" --cwd "$PWD"
 # Pass --fix to auto-correct recoverable issues (perm drift, missing manifest,
-# stale .integrity-blocked marker). Never modifies settings.json or lib/ files.
+# leftover .integrity-blocked marker). Never modifies settings.json or lib/ files.
 ```
 
 After showing the output:

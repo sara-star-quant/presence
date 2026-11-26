@@ -52,7 +52,7 @@ See: [zerotrust.md](zerotrust.md), `lib/audit.py`.
 
 ## Pinned Python (`.python_bin`)
 
-A marker file at `~/.claude/presence/.python_bin` containing the absolute path of a specific Python interpreter that hooks should use. Written by `install.sh --bootstrap` when uv installs a Python. Honored by `hooks/scripts/_common.sh` so hooks use the bootstrapped interpreter even when the user's PATH still points at an older `python3`. Falls through to PATH lookup when absent or stale.
+A marker file at `~/.claude/presence/.python_bin` containing the absolute path of a specific Python interpreter that hooks should use. Written by `install.sh --bootstrap` when uv installs a Python. Honored by `hooks/scripts/_common.sh` so hooks use the bootstrapped interpreter even when the user's PATH still points at an older `python3`. Falls through to PATH lookup when absent or out of date.
 
 See: [../install.sh](../install.sh), `hooks/scripts/_common.sh`.
 
