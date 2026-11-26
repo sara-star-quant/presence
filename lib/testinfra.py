@@ -32,6 +32,11 @@ def _text(p: Path) -> str:
         return ""
 
 
+def _mapping(value) -> dict:
+    """A field of an untrusted package.json as a dict, or an empty one: the file may hold any JSON."""
+    return value if isinstance(value, dict) else {}
+
+
 def _has_runner(d: Path) -> bool:
     if any((d / name).exists() for name in _FILES) or any((d / name).is_dir() for name in _TEST_DIRS):
         return True
@@ -53,7 +58,7 @@ def _has_runner(d: Path) -> bool:
             return True
         if scripts.get("build"):
             return True
-        deps = {**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})} if isinstance(data, dict) else {}
+        deps = {**_mapping(data.get("dependencies")), **_mapping(data.get("devDependencies"))}
         return any(name in deps for name in _JS_RUNNERS)
     return False
 
