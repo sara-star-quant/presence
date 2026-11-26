@@ -6,7 +6,7 @@ The bar to add an item here is: someone asked, the maintainer thought about it, 
 
 ## Road to v1.0
 
-**Status**: far from it. 0.x continues (0.11 to 0.14, then a release candidate) until the gaps in [v1-readiness.md](v1-readiness.md) are closed or explicitly accepted. 1.0 is a stability promise, not a milestone counter.
+**Status**: far from it. 0.x continues (now at 0.16, then a release candidate) until the gaps in [v1-readiness.md](v1-readiness.md) are closed or explicitly accepted. 1.0 is a stability promise, not a milestone counter.
 
 The code-level pieces are in place: the contract is frozen and enforced by `tests/test_contract.py` ([contract.md](contract.md)), the Zero-Trust gates fail closed, coverage gates at 80%, and each threat names a pinning test. What is missing is mostly outside the code: real-world validation, a host compatibility matrix, platform and artifact coverage, upgrade-path tests, an external security look, and a second maintainer. See [v1-readiness.md](v1-readiness.md) for the evidence and exit criteria per gap.
 
@@ -26,7 +26,7 @@ The code-level pieces are in place: the contract is frozen and enforced by `test
 6. **Link edits to tests (superseded).** A pass is now evidence for a tree, and a receipt names the exact tree it covered, so most of what this meant is done. Which tests ran against which files stays open and is low priority.
 7. **Wider observation (shipped).** The gate and receipts look at the working copy's tree, so edits through a shell, MCP tools, subagents and checkouts count. Open: ignored files, and repositories too big to hash within the budget.
 8. **Measured gate accuracy (tool shipped, no rate yet).** `bench/gate_replay.py` replays session transcripts with pre-set definitions. On one maintainer's history there are too few resolved code turns to report a false "done" rate, so none is claimed. A local ledger keeps turns past transcript cleanup and a blind labelling flow checks the outcome proxy against a human; the labelled sample is the next input. presence collects nothing: each developer runs the replay on their own history and publishes what they choose.
-9. **The live host in CI.** Each Claude Code version is tested only when someone re-runs the live suite; only 2.1.325 and 2.1.327 are covered.
+9. **The live host in CI.** Each Claude Code version is tested only when someone re-runs the live suite; only 2.1.325 and 2.1.327 (payloads) and 2.1.329 (live suite) are covered.
 
 **Decision criterion**: build 4 only when someone outside the project asks for receipts they can check; until then 1 to 3 are the work, because they decide whether the claim holds at all.
 

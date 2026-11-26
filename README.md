@@ -119,7 +119,7 @@ Custom presets: drop `<name>.json` in `~/.claude/presence/presets/` and switch t
 
 ## Security model
 
-Full threat model: [`docs/security.md`](docs/security.md), T1 to T18, each pinned by a named test.
+Full threat model: [`docs/security.md`](docs/security.md), T1 to T21, each pinned by a named test.
 
 - **Local only.** No analytics, no remote telemetry. The default preset (`solo-dev`) makes no outbound calls. The opt-in ones (`gh` PR status, which `team-oss` turns on, release check, webhook notifier, `--bootstrap`, `--download-ext`) are off unless enabled and forced off under `zerotrust`.
 - **Secrets are redacted before anything is written** to events or telemetry. Composable profiles for EU PII, US PII, and PCI-DSS are in [`presets/redaction/`](presets/redaction/); [`docs/compliance.md`](docs/compliance.md) states what that does and does not cover.

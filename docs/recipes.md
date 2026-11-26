@@ -56,15 +56,15 @@ Valid values: `"off"`, `"warn"`, `"ask"`, `"block"`. The Stop hook still surface
 
 When a final message claims success and no passing test or build ran since the last edit, the next prompt carries one fixed line saying so, once, and nothing is blocked. The line never repeats the claim. The default, `"silent"`, only records the claim; `"block"` re-prompts the agent before it stops.
 
-## I want telemetry but no PR check
+## I want the outcome log but no PR check
 
-The optional `gh pr` outcome check makes one network call to GitHub's API. Disable it without disabling the rest of telemetry:
+The `gh pr` outcome check makes one network call to GitHub's API. Disable it without disabling the rest of the outcome log (the `telemetry` setting):
 
 ```json
 {
   "preset": "team-oss",
   "overrides": {
-    "telemetry.pr_check": false
+    "telemetry.gh_pr_check": false
   }
 }
 ```

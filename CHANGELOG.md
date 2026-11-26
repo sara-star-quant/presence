@@ -7,7 +7,7 @@ The gate skips what it cannot verify; zerotrust encrypts the model.
 If you use [zerotrust](docs/zerotrust.md), the project model is now encrypted per entry and is no longer hand-editable: read it with `python3 lib/cli.py model show` and replace it with `model replace` (`/presence-curate` does both for you). If you run a strict preset, a repository with no test or build tool the gate recognises is no longer gated, because no claim there can be verified. Nothing needs configuring.
 
 - New: zerotrust writes each model entry encrypted and refuses to write one it cannot encrypt; MCP, the curate hint and sealed snapshots read it as text, and `/presence-reset --crypto` drops the encrypted entries.
-- Fixed: a hostile repository can no longer stall or crash the hooks, see the [threat model](docs/security.md) (a named pipe named like a marker file, an `AGENTS.md` that links out of the repo, a malformed or oversized `package.json`).
+- Fixed: a hostile repository can no longer stall or crash the hooks, see the [threat model](docs/security.md) (a named pipe named like a marker file, a malformed or oversized `package.json`). The opt-in AGENTS.md adapter also stops writing through an `AGENTS.md` that links out of the repository; that one affected v0.4.2 to v0.15.0, only with `PRESENCE_HOST=agents_md`.
 - New: the [gate replay](docs/testing.md#replaying-the-confidence-gate) splits code claims by whether the repository has a runner, so its fire rate is measured where the gate can be satisfied.
 - Limit: the model still reaches Claude's context in plain text, and the tree state and audit chain stay plain.
 

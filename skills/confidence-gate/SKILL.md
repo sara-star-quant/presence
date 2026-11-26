@@ -44,4 +44,6 @@ The gate intensity is set by the active preset (see `/presence-preset`):
 | `enterprise-strict` | block (refuses commit until verified) | block (re-prompts on unverified success) |
 | `zerotrust` | block | block |
 
-The Stop-hook detection always runs as long as `confidence.enabled` is true (default). Only the *response* to a detection (silent log vs hard block) varies by preset.
+The Stop-hook detection always runs as long as `confidence.enabled` is true (default). Only the *response* to a detection (silent log, a one-line notice with `stop_action: warn`, or a hard block) varies by preset.
+
+The gate only judges a repository where a test or build could satisfy it. In a folder with no recognised runner (no test config, test files, or build script) it leaves the claim alone, so there is nothing to hedge there.
