@@ -12,6 +12,6 @@ PRESENCE_ROOT="${CLAUDE_PLUGIN_ROOT:-$(realpath ~/.claude/plugins/presence 2>/de
 python3 "$PRESENCE_ROOT/lib/cli.py" model show
 ```
 
-Use the Task tool with `subagent_type=model-curator` to compress duplicate and stale entries into a tight set of architecture facts and conventions. The curator preserves the header and the most recent entries verbatim, and may rewrite anything older into a consolidated section.
+Use the Task tool with `subagent_type=model-curator` to compress duplicate and out-of-date entries into a tight set of architecture facts and conventions. The curator preserves the header and the most recent entries verbatim, and may rewrite anything older into a consolidated section.
 
 Report back to the user with the size before and after and a one-line summary of what was kept.

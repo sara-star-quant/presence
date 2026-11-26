@@ -33,7 +33,7 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 ### 1. No real-world validation
 
 - **Evidence**: no external bug reports, no forks, one contributor. The new fail-closed audit gate and sealed snapshot format are days old.
-- **Why it blocks**: fail-closed behavior makes hooks go inert on a false positive. Only real machines (odd filesystems, restored backups, clock skew, crashed sessions mid-append) find those. We found one such bug ourselves (stale `audit.head` after restore) only because we were reading the code.
+- **Why it blocks**: fail-closed behavior makes hooks go inert on a false positive. Only real machines (odd filesystems, restored backups, clock skew, crashed sessions mid-append) find those. We found one such bug ourselves (an out-of-date `audit.head` after restore) only because we were reading the code.
 - **Exit criterion (proposed)**: at least 8 weeks since the last change to the contract surface, at least a handful of installs the maintainer does not control, and every issue they file triaged. Without a feedback channel there is nothing to wait for, so add one: an issue template for "it went inert" reports and a documented way to ask for help.
 
 ### 2. Host compatibility (fixtures in place; live host not in CI)
@@ -70,7 +70,7 @@ Each gap lists the evidence, why it blocks, and an exit criterion. Thresholds ma
 
 - **Evidence**: the Rust extension (`ext/src/crypto.rs`) only reads and writes the data key in the OS keychain. The AES-GCM line format lives in Python alone, so there is no second cipher to diverge. What can diverge is the keychain entry: service, account, attribute names and hex encoding.
 - **Why it matters**: if the two backends disagree, a key written with the extension installed becomes invisible without it, and Zero-Trust state turns unreadable.
-- **Guard**: `tests/test_crypto_backend_parity.py` reads the Rust source and fails on any drift in those four values, and fails if line encryption ever appears in Rust. A live keychain round trip across both backends stays manual, because CI runners have no keychain.
+- **Guard**: `tests/test_crypto_backend_parity.py` reads the Rust source and fails on any change to those four values, and fails if line encryption ever appears in Rust. A live keychain round trip across both backends stays manual, because CI runners have no keychain.
 
 ### 8. Governance and bus factor
 

@@ -5,7 +5,7 @@ description: When working in a codebase you've touched before, consult and updat
 
 # Project model: read and write
 
-`presence` injects the contents of `model.md` into your context at the start of each session. Treat it as a trusted-but-stale set of notes. The previous you wrote them, but the code may have changed since.
+`presence` injects the contents of `model.md` into your context at the start of each session. Treat it as a trusted set of notes that may be out of date. The previous you wrote them, but the code may have changed since.
 
 ## When to read
 

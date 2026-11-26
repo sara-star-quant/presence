@@ -98,7 +98,7 @@ Work that arrives from elsewhere. A pull, merge, checkout or clean rebase change
 
 Checking an agent's claim against evidence is an active research area, and presence borrows ideas from it without implementing any one paper. Four 2026 papers are the nearest neighbours:
 
-- [Looping Is Not Reliability](https://arxiv.org/abs/2607.24604) (Gao, Yang and Yang, AgenticDev '26) shows that a stale test trace can revive a fixed bug, and binds evidence to the exact code state. The tree check applies the same principle to a real working copy, outside the agent's loop.
+- [Looping Is Not Reliability](https://arxiv.org/abs/2607.24604) (Gao, Yang and Yang, AgenticDev '26) shows that an out-of-date test trace can revive a fixed bug, and binds evidence to the exact code state. The tree check applies the same principle to a real working copy, outside the agent's loop.
 - [ECLoop](https://arxiv.org/abs/2607.28815) (Xu, Li, Wang and others) holds an agent's edits back until it has observed the evidence a task needs. presence checks after the fact, at the claim and at the commit, so it needs no control over the agent's scaffold.
 - [Auditable Claims about AI Agents](https://arxiv.org/abs/2610.07459) (Zhao, Li, Li and others) argues that a claim is checkable only when it names its policy, its scope, the records that settle it and who writes them. Receipts and the audit chain follow that shape, and the hooks write the records, not the agent.
 - [Confidence Reasoning Graphs](https://arxiv.org/abs/2610.07948) (King, Bayat, Bussotti and others) estimates confidence by splitting a claim into sub-claims grounded in trajectory evidence, and warns that calibration alone can hide poor discrimination. presence uses fixed rules and no model call, so a verdict is reproducible offline, and it reports a flagged rate, not a probability.
@@ -144,7 +144,7 @@ By default, every hook fire spawns a fresh `bash` -> `python3 hook_*.py` process
 2. `lib/daemon.py` is a warm Python process that pre-imports all 6 hook modules and dispatches by name on each socket message.
 3. The bash wrapper (`hooks/scripts/_common.sh::exec_hook`) prefers `lib/presence-client` when present; falls through to the classical Python exec when not.
 
-The daemon auto-spawns on first request, auto-exits after 5 min of idleness, auto-respawns on the next request. Socket is `0o600`. PID file at `~/.claude/presence/presence.pid` is used by the Rust client to clean up stale processes.
+The daemon auto-spawns on first request, auto-exits after 5 min of idleness, auto-respawns on the next request. Socket is `0o600`. PID file at `~/.claude/presence/presence.pid` is used by the Rust client to clean up leftover processes.
 
 Trade-off: cold-hook latency drops from ~80 ms to ~9 ms (-89%), but installing the fast path requires either `cargo` (`./install.sh --build-ext`) or a network call to GitHub Releases (`./install.sh --download-ext`). Both are opt-in. The default path is unchanged stdlib-only Python.
 

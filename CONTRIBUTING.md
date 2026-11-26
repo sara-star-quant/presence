@@ -110,3 +110,15 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). In short: b
 ## License
 
 By contributing, you agree your contributions are licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)). Sign off each commit with `git commit -s` to certify the [Developer Certificate of Origin](https://developercertificate.org/); the `Signed-off-by` line asserts you wrote the change or have the right to submit it under that license. CI checks the sign-off on every commit of a pull request (the maintainer and bots are exempt) and scans the code for copyleft licenses with ScanCode; a planted GPL header must fail that scan on every run, which proves it is looking.
+
+## Writing
+
+Commit messages, PR descriptions, docs and release notes state facts a reader can check: what was wrong, what changed, what it costs, what is still open.
+
+- Say the fact, not the adjective. Write `names a setting that does not exist`, not `stale`; `fails on a named pipe`, not `robust`.
+- No filler openers or transitions (`Moreover`, `Furthermore`, `In conclusion`, `It is important to note`), no template reversals (`It is not X, it is Y`), no forced upbeat endings.
+- No buzzwords: `leverage`, `seamless`, `robust`, `comprehensive`, `streamline`, `empower`, `cutting-edge`, `production-ready`, `game-changer`.
+- A PR description gives the reason, the tradeoff and the cost. It does not restate the diff.
+- Plain ASCII, active voice, one sentence per line break.
+
+`tests/test_prose_tells.py` fails on the document-level words above; the commit-msg hook in your own git setup can enforce the rest.
