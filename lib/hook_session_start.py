@@ -19,7 +19,7 @@ from _common import (
     settings,
 )
 from events import drain_events, summarize_events
-from model import model_path, read_model
+from model import model_chars, read_model
 from telemetry import async_scan_for_revert
 from warnings_log import read_warnings
 
@@ -124,11 +124,7 @@ async def gather_curate_hint(cwd: str, cfg: dict) -> str:
     if not (cfg.get("model") or {}).get("enabled", True):
         return ""
     threshold = int((cfg.get("model") or {}).get("curate_threshold", DEFAULT_CURATE_THRESHOLD_CHARS))
-    p = await asyncio.to_thread(model_path, cwd)
-    try:
-        size = await asyncio.to_thread(lambda: p.stat().st_size if p.exists() else 0)
-    except OSError:
-        return ""
+    size = await asyncio.to_thread(model_chars, cwd)
     if size <= threshold:
         return ""
     return (

@@ -8,8 +8,8 @@ re-encrypts the affected files under the destination machine's own key.
 
 Sealed layout: MAGIC(8) | scrypt log2 cost(1) | salt(16) | nonce(12) | AES-GCM
 ciphertext of the tar.gz, with everything before the ciphertext as AAD. Only
-`*.jsonl` files other than audit.jsonl ever hold encrypted lines (model.md and
-the audit chain are plain), and the sealed metadata lists which ones did.
+`*.jsonl` files other than audit.jsonl and the project model.md files (one envelope per entry) ever hold
+encrypted data, and the sealed metadata lists which ones did.
 
 Excluded from snapshots (per-machine cache only):
   .python_bin, .python_version_ok, .integrity-blocked, .unlock-*, logs/.warned-*
@@ -163,6 +163,40 @@ def _decrypt_log(rel: str, data: bytes, get_key) -> tuple[bytes, bool]:
     return "".join(out).encode("utf-8"), had
 
 
+def _is_model(rel: str) -> bool:
+    return rel.startswith("projects/") and rel.endswith("/model.md")
+
+
+def _decrypt_model(rel: str, data: bytes, get_key) -> tuple[bytes, bool]:
+    """The model with each encrypted entry (one envelope per line) replaced by its plaintext."""
+    from crypto import decrypt_line, is_encrypted_line
+
+    out, had = [], False
+    for line in data.decode("utf-8").splitlines(keepends=True):
+        if is_encrypted_line(line):
+            had = True
+            key = get_key()
+            plain = decrypt_line(line.strip(), key) if key else None
+            if plain is None:
+                raise SnapshotError(f"cannot decrypt an entry in {rel}: no data key, key mismatch or corruption")
+            out.append(plain.decode("utf-8"))
+        else:
+            out.append(line)
+    return "".join(out).encode("utf-8"), had
+
+
+def _encrypt_model(data: bytes, key: bytes) -> bytes:
+    """The header stays plain; each `## ` entry becomes one envelope line, as model.append_observation writes it."""
+    from crypto import encrypt_line
+
+    head, *chunks = data.decode("utf-8").split("\n## ")
+    parts = [head]
+    for chunk in chunks:
+        entry = "\n## " + chunk.rstrip("\n") + "\n"
+        parts.append(encrypt_line(entry.encode("utf-8"), key) + "\n")
+    return "".join(parts).encode("utf-8")
+
+
 def _encrypt_log(data: bytes, key: bytes) -> bytes:
     from crypto import encrypt_line
 
@@ -222,6 +256,10 @@ def _snapshot_sealed(out: Path, passphrase: str) -> Path:
         data = path.read_bytes()
         if _is_record_log(rel):
             data, had = _decrypt_log(rel, data, get_key)
+            if had:
+                encrypted_files.append(rel)
+        elif _is_model(rel):
+            data, had = _decrypt_model(rel, data, get_key)
             if had:
                 encrypted_files.append(rel)
         entries[rel] = data
@@ -439,7 +477,7 @@ def restore(in_path: str | Path, overwrite: bool = False, passphrase: str | None
             )
         for rel in reencrypt:
             try:
-                entries[rel] = _encrypt_log(entries[rel], key)
+                entries[rel] = (_encrypt_model if _is_model(rel) else _encrypt_log)(entries[rel], key)
             except UnicodeDecodeError as exc:
                 raise SnapshotError(f"{rel} is listed as encrypted state but is not valid text") from exc
 

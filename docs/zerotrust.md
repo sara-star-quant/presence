@@ -26,7 +26,7 @@ Each control below is shipped in v0.2.
 | Control | Standard presets | Zero-Trust preset |
 |---|---|---|
 | Plugin file integrity | not checked | SHA-256 manifest verified at SessionStart; on mismatch, all hooks remain inert for the rest of the session |
-| State at rest | plain JSONL/MD | the JSONL state files (events, claims, outcomes, confidence, receipts) are AES-GCM encrypted per line (12-byte nonce + tag), data key wrapped in OS keychain (macOS `security`, Linux `secret-tool`); mixed plain+encrypted files supported per-line. If encryption cannot work (library, keychain or key missing) a record is not written at all, never written in plain text, and SessionStart reports a hook error. The project model `model.md` and the hash-only tree state are not encrypted |
+| State at rest | plain JSONL/MD | the JSONL state files (events, claims, outcomes, confidence, receipts) are AES-GCM encrypted per line (12-byte nonce + tag), data key wrapped in OS keychain (macOS `security`, Linux `secret-tool`); mixed plain+encrypted files supported per-line. If encryption cannot work (library, keychain or key missing) a record is not written at all, never written in plain text, and SessionStart reports a hook error. The project model `model.md` is encrypted per entry the same way (the header stays plain), so it is no longer hand-editable: `python3 lib/cli.py model show` prints it and `model replace` swaps it from stdin, which is what `/presence-curate` uses. It still reaches the model's context in plain text, and an MCP client reads it as text. The hash-only tree state is not encrypted |
 | Logged commands | standard redaction | aggressive redaction (32+ hex blob, 40+ b64 blob, any uppercase env-style assignment) |
 | Network egress | optional `gh` PR check, release-freshness check, webhook notifier available | all disabled -- release-freshness check and webhook notifier via `network.egress_allowed: false` (wins regardless of the feature's own toggle); `gh` PR check via its own `telemetry.gh_pr_check` flag |
 | Commit/push gate | warn or off | hard block until verified test/build evidence exists, in a repository with a runner the gate recognises (without one no evidence is possible, so it does not block) |
@@ -44,7 +44,7 @@ Each control below is shipped in v0.2.
 pip install --user cryptography
 ```
 
-If `cryptography` is missing or the OS keychain backend is unavailable, presence falls back to plain text and writes a one-time warning to `~/.claude/presence/logs/warnings.log`. `/presence-doctor` and `/presence-status --zerotrust` surface the degradation.
+If `cryptography` is missing or the OS keychain backend is unavailable, presence writes nothing (records and model entries alike) instead of writing plain text, and reports it once an hour in `~/.claude/presence/logs/errors.log`. `/presence-doctor` and `/presence-status --zerotrust` surface the degradation.
 
 ## Threat model
 
@@ -198,4 +198,4 @@ If those costs are unacceptable for day-to-day work, use `enterprise-strict` ins
 /presence-preset use solo-dev
 ```
 
-Switching back leaves any encrypted state on disk. New writes go plain. Old encrypted lines stay readable as long as the keychain key is still present. To wipe: `/presence-reset --crypto` rotates the key and removes the encrypted state directories.
+Switching back leaves any encrypted state on disk. New writes go plain. Old encrypted lines stay readable as long as the keychain key is still present. To wipe: `/presence-reset --crypto` rotates the key and removes the encrypted state directories and the encrypted entries of every project model (plain entries stay).

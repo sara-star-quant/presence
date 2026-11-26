@@ -14,7 +14,7 @@ Available scopes:
 | `--telemetry` | Delete claims/outcomes/confidence (all projects) |
 | `--events` | Delete event log for the current repo |
 | `--warnings` | Clear warnings.log and one-shot warning markers |
-| `--crypto` | Rotate the AES-GCM data key in the OS keychain AND wipe all encrypted state files (telemetry, events). Plain state files untouched. |
+| `--crypto` | Rotate the AES-GCM data key in the OS keychain AND wipe all encrypted state (telemetry, events, and the encrypted entries of every project model). Plain state untouched. |
 | `--all` | Wipe **everything** under `~/.claude/presence/` (state only; plugin files untouched). Does NOT touch the keychain key. |
 
 **Always** confirm with the user before deleting via AskUserQuestion. Show them exactly what paths will be removed first.
@@ -75,6 +75,10 @@ for d in (telemetry_dir(), state_dir() / 'events'):
     if d.exists():
         shutil.rmtree(d)
         print(f'wiped: {d}')
+
+# Encrypted project-model entries go too (plain ones stay); they would read as unreadable after the rotation.
+from model import drop_encrypted_entries
+print(f'dropped {drop_encrypted_entries()} encrypted model entries')
 
 # Rotate the data key (existing ciphertext, if any survived, becomes unreadable)
 new_key = crypto.rotate_key()
