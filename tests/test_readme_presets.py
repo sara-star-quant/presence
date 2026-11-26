@@ -103,3 +103,45 @@ def test_every_relative_link_in_the_readme_points_at_something_that_exists():
         if target.startswith(("http://", "https://", "#", "mailto:")):
             continue
         assert (ROOT / target.split("#")[0]).exists(), f"README links to a path that does not exist: {target}"
+
+
+def test_the_threat_count_quoted_in_the_readme_and_the_index_is_the_real_one():
+    import re
+    threats = [int(m) for m in re.findall(r"^\| T(\d+) \|", (ROOT / "docs" / "security.md").read_text(encoding="utf-8"), re.MULTILINE)]
+    assert threats == list(range(1, max(threats) + 1)), "threat ids must be consecutive"
+    for doc in (_readme(), (ROOT / "docs" / "index.md").read_text(encoding="utf-8")):
+        assert f"T1 to T{max(threats)}" in doc
+
+
+def test_every_threat_has_a_row_in_the_pinning_table():
+    import re
+    text = (ROOT / "docs" / "security.md").read_text(encoding="utf-8")
+    pins = text.split("| Claim | Pinned by |", 1)[1]
+    for n in re.findall(r"^\| T(\d+) \|", text.split("## Which tests pin", 1)[0], re.MULTILINE):
+        assert re.search(rf"\bT{n}\b", pins), f"T{n} has no row in the pinning table"
+
+
+def _schema_keys() -> set[str]:
+    schema = json.loads((ROOT / "presets" / "_schema.json").read_text(encoding="utf-8"))
+    keys: set[str] = set()
+
+    def walk(node, prefix=""):
+        for k, v in node.items():
+            if k.startswith("$") or k in ("description", "type"):
+                continue
+            keys.add(prefix + k)
+            if isinstance(v, dict):
+                walk(v, prefix + k + ".")
+    walk(schema)
+    return keys
+
+
+def test_every_override_key_in_the_docs_is_a_real_setting():
+    """A recipe with a misspelt key does nothing, silently: the user thinks a network call is off and it is not."""
+    import re
+    keys = _schema_keys()
+    text = "".join((ROOT / "docs" / name).read_text(encoding="utf-8") for name in ("recipes.md", "architecture.md"))
+    found = re.findall(r'"([a-z_]+\.[a-z_.]+)":', text)
+    assert found, "no override keys found in the docs"
+    unknown = sorted({k for k in found if k not in keys})
+    assert not unknown, f"recipes use settings that do not exist: {unknown}"

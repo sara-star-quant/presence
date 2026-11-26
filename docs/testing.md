@@ -1,6 +1,6 @@
 # How presence is tested
 
-What runs, what each layer is meant to catch, and what is not covered. Numbers are from main after v0.11.1: 548 tests in `tests/`.
+What runs, what each layer is meant to catch, and what is not covered. Run `pytest` for the current count; CI shows it on every PR.
 
 ## Layers
 

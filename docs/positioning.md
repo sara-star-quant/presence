@@ -8,7 +8,7 @@ Short answer: they do different jobs, they compose well, and the reliability tra
 
 presence is a **headless context-continuity layer** for Claude Code. It runs as plugin hooks inside Claude Code itself, auto-captures what Claude actually did during a session (post-tool-use, post-edit, post-bash), and feeds a compact summary back into the next session via the SessionStart hook. There is no UI for browsing the captured state -- the surface is the next conversation.
 
-presence is not a knowledge vault, not a notes app, not a sync service. There is no editor, no graph view, no mobile client, no shared-team mode. The state lives in `~/.claude/presence/` as plain files (`model.md`, `events.jsonl`, telemetry JSONL, optional encrypted-at-rest under the zerotrust preset). See [architecture.md](architecture.md) for the data-flow diagram.
+presence is not a knowledge vault, not a notes app, not a sync service. There is no editor, no graph view, no mobile client, no shared-team mode. The state lives in `~/.claude/presence/` as plain files (`model.md`, `events.jsonl`, outcome-log JSONL, encrypted at rest under the zerotrust preset). See [architecture.md](architecture.md) for the data-flow diagram.
 
 ## How "Claude + Obsidian" usually works
 
@@ -56,7 +56,7 @@ See [security.md](security.md) for the threat model and [zerotrust.md](zerotrust
 
 ## They compose
 
-Nothing in presence prevents you from also using Obsidian. presence's `model.md` is a plain markdown file at `~/.claude/presence/<repo-id>/model.md`. If you want to surface it inside your vault, you can symlink or include it from a vault file -- your call, your vault, no presence-side feature involved.
+Nothing in presence prevents you from also using Obsidian. presence's `model.md` is a plain markdown file at `~/.claude/presence/<repo-id>/model.md` (encrypted per entry under zerotrust, where a vault cannot read it; use `lib/cli.py model show`). If you want to surface it inside your vault, you can symlink or include it from a vault file -- your call, your vault, no presence-side feature involved.
 
 This page intentionally stops short of recommending a specific integration. The doc establishes the comparison; the integration choice is yours and depends on how your vault is laid out.
 
