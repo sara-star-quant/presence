@@ -109,3 +109,33 @@ def test_a_malformed_package_json_is_judged_without_raising(tmp_path, package):
 def test_a_runner_dependency_still_counts_next_to_a_malformed_sibling_field(tmp_path):
     _w(tmp_path, "package.json", json.dumps({"dependencies": "x", "devDependencies": {"vitest": "^2"}}))
     assert can_be_verified(tmp_path) is True
+
+
+@pytest.mark.skipif(__import__("os").geteuid() == 0, reason="root can read a mode 000 directory")
+def test_a_directory_that_cannot_be_read_is_skipped_not_fatal(tmp_path):
+    """A root-owned data folder inside the repository must not make the check raise."""
+    import os
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    _w(locked, "package.json", json.dumps({"scripts": {"test": "jest"}}))
+    os.chmod(locked, 0)
+    try:
+        assert can_be_verified(tmp_path) is False
+        _w(tmp_path, "pytest.ini", "[pytest]\n")
+        assert can_be_verified(tmp_path) is True  # a readable marker elsewhere still counts
+    finally:
+        os.chmod(locked, 0o700)
+
+
+def test_a_large_package_json_is_not_cut_in_the_middle_and_misjudged(tmp_path):
+    big = {"scripts": {"test": "jest"}, "description": "x" * 300_000}
+    _w(tmp_path, "package.json", json.dumps(big))
+    assert can_be_verified(tmp_path) is True
+
+
+def test_an_oversized_package_json_is_still_bounded(tmp_path):
+    import time
+    _w(tmp_path, "package.json", "[" * 5_000_000)
+    start = time.monotonic()
+    assert can_be_verified(tmp_path) is False
+    assert time.monotonic() - start < 2.0
