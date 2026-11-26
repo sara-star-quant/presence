@@ -97,6 +97,24 @@ def run_verify_evidence(rev: str, repo: str) -> int:
     return 0 if res["status"] == "verified" else 1
 
 
+def run_model(action: str) -> int:
+    """`model show` prints the model as text; `model replace` swaps in the body on stdin (what the curator uses, so
+    an encrypted model is never edited as a file)."""
+    import os
+
+    from model import MAX_MODEL_CHARS, read_model, replace_model
+
+    cwd = os.getcwd()
+    if action == "show":
+        sys.stdout.write(read_model(cwd))
+        return 0
+    body = sys.stdin.read(MAX_MODEL_CHARS + 1)
+    if not replace_model(body, cwd):
+        sys.stderr.write("presence: the model was not replaced (empty, over the size cap, or encryption required and unavailable)\n")
+        return 1
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="presence: hook + MCP CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -120,12 +138,17 @@ def main() -> None:
     ve.add_argument("rev", nargs="?", default="HEAD")
     ve.add_argument("--repo", required=True, help="owner/name of the repository whose CI must have signed it")
 
+    mo = sub.add_parser("model", help="show the project model as text, or replace it from stdin")
+    mo.add_argument("action", choices=["show", "replace"])
+
     args = parser.parse_args()
 
     if args.command == "hook":
         run_hook(args.hook_name)
     elif args.command == "mcp":
         run_mcp()
+    elif args.command == "model":
+        sys.exit(run_model(args.action))
     elif args.command == "receipt":
         sys.exit(run_receipt(args.rev, args.attach or bool(args.sign_key), args.sign_key, args.statement))
     elif args.command == "verify-evidence":

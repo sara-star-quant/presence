@@ -82,11 +82,13 @@ def handle_resources_list(_params: dict) -> dict:
 
 
 def handle_resources_read(params: dict) -> dict:
-    from _common import project_dir, read_jsonl
+    from _common import read_jsonl
 
     uri = params.get("uri", "")
     if uri.endswith("/model"):
-        content = _read_file_safe(project_dir() / "model.md")
+        from model import read_model
+
+        content = read_model()
         return {"contents": [{"uri": uri, "mimeType": "text/markdown", "text": content}]}
     if uri.endswith("/telemetry"):
         claims = read_jsonl(claims_path())

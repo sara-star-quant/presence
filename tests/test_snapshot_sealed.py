@@ -327,3 +327,33 @@ def test_install_sh_forwards_passphrase_flags(tmp_path):
     assert (dst / "projects" / "abc" / "model.md").read_text() == "# hello\n"
     r = run(dst, "--restore", str(out), "--overwrite")
     assert r.returncode != 0 and "passphrase" in r.stderr
+
+
+def _encrypted_model(key: bytes) -> str:
+    header = "# Project model: maintained by presence\n\nnotes\n\n"
+    entries = ["\n## 2026-11-26 10:00\n\nthe billing service retries on 503\n", "\n## 2026-11-26 11:00\n\nsecond note\n"]
+    return header + "".join(crypto.encrypt_line(e.encode(), key) + "\n" for e in entries)
+
+
+def test_an_encrypted_project_model_travels_sealed_and_is_re_encrypted_for_the_destination(keychain, isolated_state, tmp_path):
+    _seed(isolated_state)
+    model = isolated_state / "projects" / "abc123def456" / "model.md"
+    model.write_text(_encrypted_model(KEY_A))
+    out = snapshot.snapshot(tmp_path / "s.snap", passphrase=PW)
+    assert b"billing" not in out.read_bytes()
+
+    keychain["key"] = KEY_B
+    snapshot.restore(out, overwrite=True, passphrase=PW)
+
+    raw = model.read_text()
+    assert "billing" not in raw and raw.startswith("# Project model: maintained by presence\n\nnotes\n\n")
+    entries = [crypto.decrypt_line(ln, KEY_B) for ln in raw.splitlines() if ln.startswith('{"_e"')]
+    assert entries == [b"\n## 2026-11-26 10:00\n\nthe billing service retries on 503\n", b"\n## 2026-11-26 11:00\n\nsecond note\n"]
+    assert all(crypto.decrypt_line(ln, KEY_A) is None for ln in raw.splitlines() if ln.startswith('{"_e"'))
+
+
+def test_a_model_encrypted_under_a_key_this_machine_lacks_aborts_the_snapshot(keychain, isolated_state, tmp_path):
+    _seed(isolated_state)
+    (isolated_state / "projects" / "abc123def456" / "model.md").write_text(_encrypted_model(KEY_B))
+    with pytest.raises(snapshot.SnapshotError, match="model.md"):
+        snapshot.snapshot(tmp_path / "s.snap", passphrase=PW)

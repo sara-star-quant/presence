@@ -8,7 +8,7 @@ Two read-only resources, one per repository the user has touched:
 
 | URI | Content | MIME type |
 |---|---|---|
-| `presence://<repo_id>/model` | The living `model.md` (Markdown) | `text/markdown` |
+| `presence://<repo_id>/model` | The living project model (Markdown), decrypted when the preset encrypts it | `text/markdown` |
 | `presence://<repo_id>/telemetry` | Recent commit / revert / verification claims (JSON array) | `application/json` |
 
 `<repo_id>` is the 12-char SHA-256 prefix presence uses to identify the current repo (same as `/presence-status` shows). The MCP server returns whichever repo's state matches the current working directory at the time the client sends the JSON-RPC request.
