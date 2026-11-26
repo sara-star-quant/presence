@@ -43,7 +43,7 @@
     "lib/notify.py": "bdb3105241b44a4cb30437b8ea2084c8562a57f87075430a908e97d1978f857d",
     "lib/presets.py": "831bdcc324a244ca1061b69aee9d95fff15dbd708110eae1d6fcfd8c870fffed",
     "lib/receipt.py": "b821382ca8643baba44ee4fec38438bb765babd0c5e464621d7825f6acbbe23b",
-    "lib/redact.py": "b77325edec1722fb28149e72a377e47326278961ebf5090203d7628a36e4c295",
+    "lib/redact.py": "3f8746f9d634b6440e8b4da946ce49eebe1b1e1db21d516e969685ef1c31b903",
     "lib/snapshot.py": "a7f9fa5dd66ddd2f3d85117890c67e202663facbafcb9f29621f43d1726ec078",
     "lib/telemetry.py": "a3a620515ffab3b3c1fda9476710fef6f291166c9a64f5659dad2b55ff084929",
     "lib/testinfra.py": "142e8ed9ad765bc6ceccd57b893075412970bef0c5779ffd2367a28893e8d6d0",

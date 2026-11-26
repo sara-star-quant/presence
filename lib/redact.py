@@ -94,7 +94,7 @@ def _check_luhn(s: str) -> bool:
     """Standard mod-10 (Luhn) check on the digits in ``s``.
 
     Strips non-digit characters first since PANs commonly appear with spaces or
-    dashes inside the matched span.
+    dashes inside the matched text.
     """
     digits = [int(c) for c in s if c.isdigit()]
     if not 13 <= len(digits) <= 19:
