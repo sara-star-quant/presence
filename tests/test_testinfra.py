@@ -89,3 +89,23 @@ def test_many_subdirectories_are_checked_in_bounded_time(tmp_path):
     start = time.monotonic()
     can_be_verified(tmp_path)
     assert time.monotonic() - start < 2.0
+
+
+@pytest.mark.parametrize(
+    "package",
+    [
+        {"dependencies": "x"}, {"devDependencies": 5}, {"dependencies": ["a"]}, {"dependencies": None, "devDependencies": None},
+        {"scripts": []}, {"scripts": {"test": 5}}, {"scripts": "jest"}, [], "text", 5, None,
+        {"dependencies": {"a": 1}, "devDependencies": "x"},
+    ],
+    ids=lambda p: json.dumps(p)[:30],
+)
+def test_a_malformed_package_json_is_judged_without_raising(tmp_path, package):
+    """The repository is untrusted input: whatever its package.json holds, the check answers, never raises."""
+    _w(tmp_path, "package.json", json.dumps(package))
+    assert can_be_verified(tmp_path) is False
+
+
+def test_a_runner_dependency_still_counts_next_to_a_malformed_sibling_field(tmp_path):
+    _w(tmp_path, "package.json", json.dumps({"dependencies": "x", "devDependencies": {"vitest": "^2"}}))
+    assert can_be_verified(tmp_path) is True
