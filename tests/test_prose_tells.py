@@ -13,7 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 # `unlock` is a feature name (/presence-unlock), so it is not in the list.
 TELLS = [
-    "stale", "drift", "leverage", "leveraging", "seamless", "seamlessly", "robust", "comprehensive", "streamline", "holistic",
+    "stale", "drift", "span", "spans", "leverage", "leveraging", "seamless", "seamlessly", "robust", "comprehensive", "streamline", "holistic",
     "cutting-edge", "state-of-the-art", "production-ready", "game-changer", "empower", "delve", "moreover", "furthermore",
     "in conclusion", "important to note", "worth noting", "rapidly evolving", "fast-paced", "plays a crucial",
     "on the other hand", "there are many factors", "by embracing", "thrilled", "humbled", "excited to share",
@@ -32,7 +32,7 @@ def _docs() -> list[Path]:
 def _prose(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
     text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)  # code blocks hold commands and code, not prose
-    return re.sub(r"`[^`\n]+`", "", text)  # a word in a code span is quoted as an example or a name
+    return re.sub(r"`[^`\n]+`", "", text)  # a word in inline code is quoted as an example or a name
 
 
 @pytest.mark.parametrize("path", _docs(), ids=lambda p: str(p.relative_to(ROOT)))
