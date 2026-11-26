@@ -10,7 +10,7 @@ See: [architecture.md](architecture.md), [../skills/project-model/SKILL.md](../s
 
 ## Outcome telemetry
 
-Records what Claude committed (commit SHA, message) and watches for reverts, amends, and PR closes in subsequent sessions. Surfaces "X of your tracked commits were reverted since your last visit" in the SessionStart context. Stored in `~/.claude/presence/telemetry/`.
+A local outcome log, not analytics: nothing leaves the machine. Records what Claude committed (commit SHA, message) and watches for reverts, amends, and PR closes in subsequent sessions. Surfaces "X of your tracked commits were reverted since your last visit" in the SessionStart context. Stored in `~/.claude/presence/telemetry/`.
 
 See: [architecture.md](architecture.md), `lib/telemetry.py`.
 

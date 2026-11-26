@@ -776,8 +776,8 @@ Next steps:
   5. To switch presets:    /presence-preset use solo-dev|team-oss|enterprise-strict|zerotrust
   6. To wipe state:        /presence-reset --all
 
-The Zero-Trust preset's at-rest encryption (AES-GCM, key in OS keychain) is
-opt-in via the cryptography library:
+The Zero-Trust preset's at-rest encryption (AES-GCM, key in the OS keychain) needs
+the cryptography library, and the installer refuses --preset zerotrust without it:
   pip install --user cryptography
 Other presets and Zero-Trust controls (integrity check, redaction, gates,
 audit log) are stdlib-only and require no extra install.

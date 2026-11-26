@@ -138,3 +138,12 @@ def test_the_flag_only_applies_to_install(clone, tmp_path):
 
 def test_help_lists_the_flag():
     assert "--preset" in (ROOT / "install.sh").read_text()
+
+
+def test_the_closing_note_does_not_call_zerotrust_encryption_optional(clone, tmp_path):
+    """Choosing zerotrust at install time refuses without the library, so the note must not say it is opt-in."""
+    r = _install(clone, tmp_path)
+    assert r.returncode == 0, r.stderr
+    out = r.stdout + r.stderr
+    assert "opt-in via the cryptography library" not in out
+    assert "refuses --preset zerotrust" in out
