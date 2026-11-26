@@ -30,12 +30,15 @@ import json
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 
 # Setup paths
 PRESENCE_STATE = Path(os.environ.get("PRESENCE_STATE", Path.home() / ".claude" / "presence"))
 SOCKET_PATH = PRESENCE_STATE / "presence.sock"
 PID_PATH = PRESENCE_STATE / "presence.pid"
+LOCK_PATH = PRESENCE_STATE / "presence.lock"
+PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or Path(__file__).resolve().parent.parent)
 
 IDLE_TIMEOUT = 300  # 5 minutes before auto-exit
 
@@ -43,10 +46,23 @@ IDLE_TIMEOUT = 300  # 5 minutes before auto-exit
 _common = None  # populated in PresenceDaemon.__init__
 
 
+def _code_stamp() -> tuple:
+    """Modification times of what an update rewrites. A change means this process holds the old code."""
+    stamp = []
+    for rel in ("lib/__init__.py", "MANIFEST.lock", ".claude-plugin/plugin.json"):
+        try:
+            stamp.append((PLUGIN_ROOT / rel).stat().st_mtime_ns)
+        except OSError:
+            stamp.append(0)
+    return tuple(stamp)
+
+
 class PresenceDaemon:
     def __init__(self):
         self.last_request_time = time.time()
         self.running = True
+        self.owns = False  # true once this process holds the lock; only the owner may touch the socket and pid files
+        self.stamp = _code_stamp()
 
         # Pre-import all hook modules so dispatch is just a function call.
         # Without this, each request would pay the import cost on first fire
@@ -137,9 +153,13 @@ class PresenceDaemon:
                 # kill the daemon process.
                 pass
             except Exception:  # noqa: BLE001  outermost guard inside the daemon
-                # The hook's own safe_main() should have caught everything;
-                # if something escapes, swallow it here so the daemon stays up.
-                pass
+                # The hook's own safe_main() should have caught everything. If something escapes, the daemon stays
+                # up, but the failure is written to daemon.log (stderr) and counted, never dropped silently.
+                traceback.print_exc()
+                try:
+                    _common._bump_counter("error")
+                except Exception:  # noqa: BLE001
+                    pass
             finally:
                 sys.stdout = original_stdout
                 if original_stdout_buffer is not None:
@@ -161,6 +181,17 @@ class PresenceDaemon:
             except Exception:  # noqa: BLE001
                 pass
             self.last_request_time = time.time()
+            if self.running and _code_stamp() != self.stamp:
+                # The plugin was updated under this process. This reply used the old code once; retire so the next
+                # request starts a daemon on the new one.
+                self.running = False
+                asyncio.get_running_loop().call_later(0.2, self._retire)
+
+    def _retire(self):
+        if self.owns:
+            SOCKET_PATH.unlink(missing_ok=True)
+            PID_PATH.unlink(missing_ok=True)
+        os._exit(0)  # noqa: SLF001  the event loop is mid-serve; there is nothing left to flush
 
     async def _idle_watchdog(self):
         while self.running:
@@ -182,7 +213,19 @@ class PresenceDaemon:
         except OSError:
             pass
 
-        # Clean up any stale socket from a prior crashed daemon.
+        # One daemon per state directory. Two hooks starting together both spawn one; the loser exits here, before
+        # it can delete the winner's socket. The lock dies with the process, so a crash never leaves it held.
+        try:
+            import fcntl
+            self._lock = open(LOCK_PATH, "a", encoding="utf-8")  # noqa: SIM115  held for the life of the process
+            fcntl.flock(self._lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        except (ImportError, OSError):
+            pass  # no flock here: fall back to the old behaviour rather than refuse to start
+        self.owns = True
+
+        # Clean up any stale socket from a prior crashed daemon (safe: only the lock holder gets here).
         SOCKET_PATH.unlink(missing_ok=True)
 
         # Write PID for the client to find us by (and to kill stale instances).
@@ -222,8 +265,9 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        SOCKET_PATH.unlink(missing_ok=True)
-        PID_PATH.unlink(missing_ok=True)
+        if daemon.owns:
+            SOCKET_PATH.unlink(missing_ok=True)
+            PID_PATH.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

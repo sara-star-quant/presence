@@ -8,6 +8,10 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use std::thread;
 
+// How long to wait for the daemon's answer. The host kills a hook at 5 to 10 seconds (hooks/hooks.json), so waiting
+// less than that only turns a slow hook into a silently dropped one, a Stop block included.
+const READ_TIMEOUT_MS: u64 = 8000;
+
 fn get_state_dir() -> PathBuf {
     if let Ok(val) = env::var("PRESENCE_STATE") {
         PathBuf::from(val)
@@ -52,6 +56,24 @@ fn get_plugin_root() -> PathBuf {
     PathBuf::from(".")
 }
 
+// Run the hook in a fresh interpreter, the same path the bash wrapper takes. Used when the daemon cannot boot or died
+// mid-request, so a gate decision still happens.
+fn run_direct(python_bin: &str, plugin_root: &Path, hook_name: &str, stdin_data: &str) {
+    let cli_py = plugin_root.join("lib").join("cli.py");
+    let mut child = Command::new(python_bin)
+        .arg(cli_py)
+        .arg("hook")
+        .arg(hook_name)
+        .env("CLAUDE_PLUGIN_ROOT", plugin_root.to_string_lossy().to_string())
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn fallback python");
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(stdin_data.as_bytes());
+    }
+    let _ = child.wait();
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -88,7 +110,6 @@ fn main() {
 
     let state_dir = get_state_dir();
     let sock_path = state_dir.join("presence.sock");
-    let pid_path = state_dir.join("presence.pid");
 
     let payload = format!(
         "{{\"hook\": \"{}\", \"stdin\": {}}}\n",
@@ -100,16 +121,10 @@ fn main() {
     let mut stream = match UnixStream::connect(&sock_path) {
         Ok(s) => s,
         Err(_) => {
-            // Daemon not running or dead.
-            // Check pid and kill if exists
-            if let Ok(pid_str) = fs::read_to_string(&pid_path) {
-                if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                    let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
-                }
-            }
-            let _ = fs::remove_file(&sock_path);
-            let _ = fs::remove_file(&pid_path);
-
+            // No daemon is answering. The daemon owns its socket and pid files and takes a lock at start, so a
+            // second one exits at once and a stale socket is replaced by whichever process holds the lock. This
+            // client never kills by pid file (a stale pid can name an unrelated process) and never deletes
+            // another process's files.
             let plugin_root = get_plugin_root();
             let daemon_py = plugin_root.join("lib").join("daemon.py");
             let python_bin = resolve_python(&state_dir);
@@ -141,31 +156,30 @@ fn main() {
             match connected_stream {
                 Some(s) => s,
                 None => {
-                    // Fallback: run the hook directly via python if daemon fails to boot
-                    let cli_py = plugin_root.join("lib").join("cli.py");
-                    let mut child = Command::new(&python_bin)
-                        .arg(cli_py)
-                        .arg("hook")
-                        .arg(&hook_name)
-                        .env("CLAUDE_PLUGIN_ROOT", plugin_root.to_string_lossy().to_string())
-                        .stdin(Stdio::piped())
-                        .spawn()
-                        .expect("failed to spawn fallback python");
-                    
-                    if let Some(mut stdin) = child.stdin.take() {
-                        let _ = stdin.write_all(stdin_data.as_bytes());
-                    }
-                    let _ = child.wait();
+                    // The daemon did not come up: run the hook directly so the decision is not lost.
+                    run_direct(&python_bin, &plugin_root, &hook_name, &stdin_data);
                     return;
                 }
             }
         }
     };
 
-    stream.set_read_timeout(Some(Duration::from_millis(500))).ok();
-    let _ = stream.write_all(payload.as_bytes());
-    let _ = stream.shutdown(Shutdown::Write);  // signal EOF to daemon
+    stream.set_read_timeout(Some(Duration::from_millis(READ_TIMEOUT_MS))).ok();
+    let sent = stream.write_all(payload.as_bytes()).is_ok();
+    let _ = stream.shutdown(Shutdown::Write); // signal EOF to daemon
     let mut response = String::new();
-    let _ = stream.read_to_string(&mut response);
-    print!("{}", response);
+    let read = if sent { stream.read_to_string(&mut response) } else { Err(io::Error::from(io::ErrorKind::BrokenPipe)) };
+    match read {
+        Ok(_) => print!("{}", response),
+        Err(e) if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {
+            // The daemon may still be running the hook, so do not run it a second time. Say so where a log reads it.
+            eprintln!("presence: the daemon did not answer within {} ms; this hook's output was dropped", READ_TIMEOUT_MS);
+        }
+        Err(_) => {
+            // The daemon died or reset the connection before answering: run the hook directly.
+            let plugin_root = get_plugin_root();
+            let python_bin = resolve_python(&state_dir);
+            run_direct(&python_bin, &plugin_root, &hook_name, &stdin_data);
+        }
+    }
 }

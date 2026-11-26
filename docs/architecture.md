@@ -144,7 +144,7 @@ By default, every hook fire spawns a fresh `bash` -> `python3 hook_*.py` process
 2. `lib/daemon.py` is a warm Python process that pre-imports all 6 hook modules and dispatches by name on each socket message.
 3. The bash wrapper (`hooks/scripts/_common.sh::exec_hook`) prefers `lib/presence-client` when present; falls through to the classical Python exec when not.
 
-The daemon auto-spawns on first request, auto-exits after 5 min of idleness, auto-respawns on the next request. Socket is `0o600`. PID file at `~/.claude/presence/presence.pid` is used by the Rust client to clean up leftover processes.
+The daemon auto-spawns on first request, auto-exits after 5 min of idleness, auto-respawns on the next request. Socket is `0o600`. A lock file (`presence.lock`) allows one daemon per state directory: a second one exits at once, and only the lock holder replaces a leftover socket or pid file. The client never kills a process and waits 8 s for an answer (the host stops a hook at 5 to 10 s). If the daemon dies mid-request the client runs the hook directly; if it times out the hook is not re-run. After a plugin update the daemon answers one more request and retires, so the next request starts it on the new code. An error that escapes a hook inside the daemon is written to `daemon.log` and counted.
 
 Trade-off: cold-hook latency drops from ~80 ms to ~9 ms (-89%), but installing the fast path requires either `cargo` (`./install.sh --build-ext`) or a network call to GitHub Releases (`./install.sh --download-ext`). Both are opt-in. The default path is unchanged stdlib-only Python.
 
