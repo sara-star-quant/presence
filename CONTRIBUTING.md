@@ -122,3 +122,7 @@ Commit messages, PR descriptions, docs and release notes state facts a reader ca
 - Plain ASCII, active voice, one sentence per line break.
 
 `tests/test_prose_tells.py` fails on the document-level words above; the commit-msg hook in your own git setup can enforce the rest.
+
+## CI
+
+The one required check is `CI result`. A pull request that changes only documentation runs the docs checks and finishes in about a minute; any other change runs every job, and `CI result` fails if one of them did not run.
