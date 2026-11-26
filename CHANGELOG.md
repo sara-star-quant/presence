@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.16.1
+
+The optional daemon no longer drops a gate decision.
+
+If you installed the Rust client (`--build-ext` or `--download-ext`), run the installer again to get presence-client 0.2.3. The daemon fixes apply on update alone, the client fixes need the new binary. Without the client nothing changes for you.
+
+- Fixed: a hook slower than 500 ms lost its output through the daemon, a Stop block or a commit deny included. The client now waits 8 s, and the host limits are 5 to 10 s. It no longer kills the process named in the pid file, which can belong to something else after a reboot.
+- Fixed: two hooks starting together started two daemons that deleted each other's socket. One lock now allows one daemon, and a daemon that dies mid-request is replaced by a direct run of the hook.
+- Fixed: an error that escaped a hook inside the daemon was swallowed, and an update left the old code serving for up to five minutes. Errors now reach `daemon.log` and the error count, and the daemon retires after its next reply once the plugin changed, see [architecture](docs/architecture.md).
+- Limit: a hook that times out is not run again, because the daemon may still be running it. Its output is dropped with a message on stderr.
+
 ## v0.16.0
 
 The gate skips what it cannot verify; zerotrust encrypts the model.
