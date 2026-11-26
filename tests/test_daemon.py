@@ -320,3 +320,124 @@ def test_daemon_handles_malformed_json(short_state_dir):
         assert proc.poll() is None
     finally:
         _stop_daemon(proc)
+
+
+# --- a gate decision is never lost, whoever else is starting, failing or updating -------------------------------
+
+
+def _alive(sock: Path) -> bool:
+    try:
+        return _send_request(sock, {"hook": "nope", "stdin": ""}) == b"Unknown hook"
+    except OSError:
+        return False
+
+
+def test_a_second_daemon_on_the_same_state_exits_and_leaves_the_first_serving(short_state_dir):
+    """Two hooks starting at once used to start two daemons, the second deleting the first one's socket."""
+    state = short_state_dir
+    first = _spawn_daemon(state)
+    try:
+        sock = state / "presence.sock"
+        assert _wait_for_socket(sock)
+        second = _spawn_daemon(state)
+        try:
+            assert second.wait(timeout=15) == 0
+        finally:
+            _stop_daemon(second)
+        assert first.poll() is None and sock.exists() and _alive(sock)
+        assert (state / "presence.pid").read_text().strip() == str(first.pid)
+    finally:
+        _stop_daemon(first)
+
+
+def test_a_hook_that_raises_is_logged_and_counted_not_swallowed(short_state_dir, monkeypatch, capsys):
+    import asyncio
+    import importlib
+
+    monkeypatch.setenv("PRESENCE_STATE", str(short_state_dir))
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(REPO_ROOT))
+    import _common
+    importlib.reload(_common)
+    import daemon
+    importlib.reload(daemon)
+    d = daemon.PresenceDaemon()
+
+    def boom():
+        raise RuntimeError("hook exploded")
+    d.hooks["stop"] = boom
+
+    class Reader:
+        async def read(self):
+            return json.dumps({"hook": "stop", "stdin": "{}"}).encode()
+
+    class Writer:
+        def write(self, _b): pass
+        async def drain(self): pass
+        def close(self): pass
+        async def wait_closed(self): pass
+
+    asyncio.run(d.handle_client(Reader(), Writer()))
+    assert "hook exploded" in capsys.readouterr().err
+    assert _common.read_counter("error") == 1
+
+
+def _plugin_root(tmp):
+    root = tmp / "plugin"
+    (root / "lib").mkdir(parents=True)
+    (root / ".claude-plugin").mkdir()
+    (root / "lib" / "__init__.py").write_text('__version__ = "1"\n')
+    (root / "MANIFEST.lock").write_text("a\n")
+    (root / ".claude-plugin" / "plugin.json").write_text("{}\n")
+    return root
+
+
+def test_the_daemon_retires_after_a_reply_once_the_installed_plugin_changed(short_state_dir, tmp_path):
+    """An update used to leave a warm daemon serving the old code until it idled out five minutes later."""
+    state = short_state_dir
+    root = _plugin_root(tmp_path)
+    env = {**os.environ, "PRESENCE_STATE": str(state), "CLAUDE_PLUGIN_ROOT": str(root), "PYTHONPATH": str(REPO_ROOT / "lib")}
+    proc = subprocess.Popen([sys.executable, str(DAEMON_PY)], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        sock = state / "presence.sock"
+        assert _wait_for_socket(sock)
+        assert _alive(sock) and proc.poll() is None  # unchanged: stays up
+        (root / "MANIFEST.lock").write_text("b changed\n")
+        os.utime(root / "MANIFEST.lock", (time.time() + 5, time.time() + 5))
+        assert _alive(sock)  # this request is still answered
+        assert proc.wait(timeout=10) == 0
+        assert not sock.exists() and not (state / "presence.pid").exists()
+    finally:
+        _stop_daemon(proc)
+
+
+def test_a_stop_block_comes_back_through_the_daemon(short_state_dir, tmp_path):
+    """The gate's whole job: an unverified claim after an edit is blocked, over the socket, end to end."""
+    state = short_state_dir
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for cmd in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"]):
+        subprocess.run(["git", *cmd], cwd=repo, check=True, capture_output=True)
+    (repo / "pytest.ini").write_text("[pytest]\n")
+    (repo / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True, capture_output=True)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "settings.json").write_text(json.dumps({"preset": "solo-dev", "overrides": {"confidence.stop_action": "block"}}))
+    proc = _spawn_daemon(state)
+    try:
+        sock = state / "presence.sock"
+        assert _wait_for_socket(sock)
+        (repo / "a.py").write_text("x = 2\n")
+        _send_request(sock, {"hook": "post-tool-edit", "stdin": json.dumps(
+            {"cwd": str(repo), "session_id": "s1", "tool_name": "Edit", "tool_input": {"file_path": str(repo / "a.py")}})})
+        out = _send_request(sock, {"hook": "stop", "stdin": json.dumps(
+            {"cwd": str(repo), "session_id": "s1", "last_assistant_message": "Done, it works now."})})
+        assert b'"decision":"block"' in out.replace(b" ", b""), out
+    finally:
+        _stop_daemon(proc)
+
+
+def test_the_client_waits_as_long_as_the_host_lets_a_hook_run_and_never_kills_by_pid_file():
+    src = (REPO_ROOT / "ext" / "src" / "client.rs").read_text()
+    assert "from_millis(500)" not in src
+    assert 'arg("-9")' not in src, "a pid file can be stale and name an unrelated process"
