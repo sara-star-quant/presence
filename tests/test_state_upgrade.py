@@ -91,7 +91,7 @@ def test_upgrade_does_not_rewrite_old_records(upgraded):
 
 
 def test_fixtures_cover_the_last_five_minors():
-    assert {"v0.7.1", "v0.8.1", "v0.9.2", "v0.10.0", "v0.11.0", "v0.11.1", "v0.11.2", "v0.11.3", "v0.12.0", "v0.13.0", "v0.13.1", "v0.14.0", "v0.14.1", "v0.15.0", "v0.16.0"} <= set(TAGS)
+    assert {"v0.7.1", "v0.8.1", "v0.9.2", "v0.10.0", "v0.11.0", "v0.11.1", "v0.11.2", "v0.11.3", "v0.12.0", "v0.13.0", "v0.13.1", "v0.14.0", "v0.14.1", "v0.15.0", "v0.16.0", "v0.16.1"} <= set(TAGS)
 
 
 @pytest.mark.parametrize("tag", TAGS)
