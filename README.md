@@ -142,7 +142,7 @@ Pre-1.0 (0.16.x). Read this before depending on it.
   | 2.1.327 | tested, real payloads captured and live suite passed 2026-11-18 |
   | 2.1.329 | live suite passed 2026-11-26; payloads not yet captured |
 - **Evidence.** A commit can carry a signed receipt of what ran before it, and CI attests the test run for its tree; both can be checked without presence ([`docs/receipts.md`](docs/receipts.md), experimental).
-- **Testing.** 1331 tests across Linux (x86_64, arm64, Python 3.12 to 3.14) and macOS (Python 3.13). The snapshot, audit, and redaction parsers are fuzzed with Hypothesis on every PR and with Atheris under ClusterFuzzLite nightly.
+- **Testing.** Over 1,300 tests across Linux (x86_64, arm64, Python 3.12 to 3.14) and macOS (Python 3.13). The snapshot, audit, and redaction parsers are fuzzed with Hypothesis on every PR and with Atheris under ClusterFuzzLite nightly.
 - **Maintenance.** Single maintainer; see [`GOVERNANCE.md`](GOVERNANCE.md) for the continuity plan.
 
 ## Performance and platforms
