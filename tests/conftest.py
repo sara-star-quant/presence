@@ -17,6 +17,23 @@ os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 os.environ["PRESENCE_NO_DAEMON"] = "1"
 
 
+@pytest.fixture(autouse=True)
+def _never_touch_the_real_keychain(monkeypatch):
+    """A test that reaches the machine's keychain passes on a developer Mac and fails on a CI runner without one, and
+    leaves an item behind. Tests that need a key patch the backend; anything else fails here, loudly."""
+    import subprocess
+
+    import crypto
+    real_run = subprocess.run
+
+    def guarded(args, *a, **kw):
+        if isinstance(args, (list, tuple)) and args and str(args[0]) in ("security", "secret-tool"):
+            raise AssertionError(f"test called the real keychain: {args[0]} {args[1] if len(args) > 1 else ''}")
+        return real_run(args, *a, **kw)
+
+    monkeypatch.setattr(crypto.subprocess, "run", guarded)
+
+
 @pytest.fixture
 def isolated_state(tmp_path, monkeypatch):
     """Point PRESENCE_STATE at a tmp dir so each test gets clean state."""

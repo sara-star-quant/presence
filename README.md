@@ -16,7 +16,7 @@ A Claude Code plugin that compares an agent's success claims with test and build
 One install, no per-project setup, four additions to Claude Code:
 
 1. **Calibrated confidence.** The Stop hook checks whether a success claim ("fixed", "done", "works") is backed by a passing test or build since the last change to the code, judged against the working tree so edits made by a shell command or a checkout count too. An optional gate does the same for `git commit` and `git push`, and a commit can carry a receipt of what ran before it ([`docs/receipts.md`](docs/receipts.md)).
-2. **Outcome telemetry.** Tracks what Claude committed, then watches for reverts, amends, and PR closes. Later sessions see "your last 3 changes here were reverted within 24h".
+2. **Outcome log (the `telemetry` setting; local only).** Tracks what Claude committed, then watches for reverts, amends, and PR closes. Later sessions see "your last 3 changes here were reverted within 24h".
 3. **Event digest.** File changes, test failures, and build results that happened between turns surface at the next prompt.
 4. **Living project model.** Claude builds and reuses notes about each repo it touches, instead of re-deriving the architecture every session.
 
