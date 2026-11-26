@@ -3,11 +3,12 @@
 The gate counts a passing run of a test or build tool it recognises (lib/verify.py). In a repository that has no
 such runner it can never be satisfied, so it would flag every code claim for good. This looks for the markers
 of those runners, in the repository root, the working directory and one level below (a monorepo keeps its
-package.json in a subfolder), and nothing else: it never runs anything and reads a marker file only up to 64 KB.
+package.json in a subfolder), and nothing else: it never runs anything, reads a marker file only up to 64 KB and looks at no more than the first 2000 entries of a folder.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -23,6 +24,8 @@ _FILES = (
 )
 _TEST_DIRS = ("tests", "test", "spec", "__tests__")
 _JS_RUNNERS = ("jest", "vitest", "mocha")
+_MAX_ENTRIES = 2000
+_TEST_FILE = re.compile(r"(?:test_.+\.py|.+_test\.(?:py|go)|.+\.(?:test|spec)\.[jt]sx?|.+_spec\.rb)\Z")
 
 
 def _text(p: Path, limit: int = _READ) -> str:
@@ -40,8 +43,21 @@ def _mapping(value) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _has_test_file(d: Path) -> bool:
+    """A test file beside the code (test_x.py, x_test.go, x.test.ts, x_spec.rb), looking at the first entries only."""
+    with os.scandir(d) as entries:
+        for i, entry in enumerate(entries):
+            if i >= _MAX_ENTRIES:
+                return False
+            if _TEST_FILE.match(entry.name):
+                return True
+    return False
+
+
 def _has_runner(d: Path) -> bool:
     if any((d / name).exists() for name in _FILES) or any((d / name).is_dir() for name in _TEST_DIRS):
+        return True
+    if _has_test_file(d):
         return True
     if any(re.search(r"\bpytest\b", _text(d / name)) for name in ("pyproject.toml", "setup.cfg")):
         return True

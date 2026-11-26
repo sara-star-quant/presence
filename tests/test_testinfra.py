@@ -154,3 +154,28 @@ def test_a_marker_that_is_a_named_pipe_does_not_hang_the_check(tmp_path, name):
     lib = str(Path(__file__).resolve().parent.parent / "lib")
     out = subprocess.run([sys.executable, "-c", code, lib, str(tmp_path)], capture_output=True, text=True, timeout=10, check=False)
     assert out.stdout.strip() == "False"
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["test_ok.py", "calc_test.py", "calc_test.go", "calc.test.js", "calc.test.ts", "calc.spec.tsx", "calc_spec.rb"],
+)
+def test_a_test_file_next_to_the_code_is_a_runner_marker(tmp_path, name):
+    """A small repository keeps its tests beside the code with no config file; they are still tests."""
+    _w(tmp_path, name, "")
+    assert can_be_verified(tmp_path) is True
+
+
+@pytest.mark.parametrize("name", ["testimony.py", "contest.py", "latest_notes.md", "protest.js", "attest.go"])
+def test_a_file_that_only_contains_the_word_test_is_not_a_marker(tmp_path, name):
+    _w(tmp_path, name, "")
+    assert can_be_verified(tmp_path) is False
+
+
+def test_a_directory_with_many_files_is_scanned_within_a_bound(tmp_path):
+    import time
+    for i in range(30_000):
+        (tmp_path / f"f{i}.txt").touch()
+    start = time.monotonic()
+    assert can_be_verified(tmp_path) is False
+    assert time.monotonic() - start < 2.0
