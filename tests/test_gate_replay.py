@@ -17,12 +17,12 @@ CWD = "/work/repo"
 class Session:
     """Builds a transcript in the shape Claude Code writes."""
 
-    def __init__(self):
-        self.lines, self.t, self.n = [], 1_000_000, 0
+    def __init__(self, cwd=CWD):
+        self.lines, self.t, self.n, self.cwd = [], 1_000_000, 0, cwd
 
     def _add(self, obj):
         self.t += 10
-        obj.setdefault("cwd", CWD)
+        obj.setdefault("cwd", self.cwd)
         obj["timestamp"] = f"2026-11-15T10:{self.t // 60 % 60:02d}:{self.t % 60:02d}Z"
         obj["sessionId"] = "s1"
         self.lines.append(json.dumps(obj))
@@ -224,3 +224,57 @@ def test_sample_draws_resolved_claim_turns_only_and_is_reproducible():
     assert pick == gr.sample_ids(turns, 10)
     byid = {t["id"]: t for t in turns}
     assert all(byid[i]["claim"] and byid[i]["outcome"] != "unresolved" for i in pick) and len(pick) == 10
+
+
+# --- the runner state of the repository a turn happened in -----------------------------------------------
+
+
+def _repo(tmp_path, name, marker=True):
+    d = tmp_path / name
+    d.mkdir()
+    if marker:
+        (d / "pytest.ini").write_text("[pytest]\n")
+    return d
+
+
+def _turns_in(tmp_path, cwd, name="s1.jsonl"):
+    s = Session(cwd=str(cwd)).prompt().edit(f"{cwd}/lib/a.py").final("Done, it works now.")
+    turns, _ = gr.replay(s.write(tmp_path, name))
+    return turns
+
+
+def test_a_turn_records_whether_its_repository_has_a_runner_the_gate_recognises(tmp_path):
+    with_runner = _turns_in(tmp_path, _repo(tmp_path, "a"), "a.jsonl")
+    without = _turns_in(tmp_path, _repo(tmp_path, "b", marker=False), "b.jsonl")
+    gone = _turns_in(tmp_path, tmp_path / "does-not-exist", "c.jsonl")
+    assert [t["runner"] for t in with_runner] == ["runner"]
+    assert [t["runner"] for t in without] == ["no_runner"]
+    assert [t["runner"] for t in gone] == ["unknown"]
+
+
+def test_fired_keeps_its_earlier_meaning_so_old_and_new_runs_stay_comparable(tmp_path):
+    t = _turns_in(tmp_path, _repo(tmp_path, "b", marker=False))[0]
+    assert t["fired"] is True and t["runner"] == "no_runner"  # the live gate no longer fires here; the replay still counts it
+
+
+def test_the_summary_splits_code_claims_by_runner_state(tmp_path):
+    turns = (_turns_in(tmp_path, _repo(tmp_path, "a"), "a.jsonl") + _turns_in(tmp_path, _repo(tmp_path, "b", marker=False), "b.jsonl")
+             + _turns_in(tmp_path, tmp_path / "gone", "c.jsonl"))
+    out = gr.summarize(turns)
+    assert "by runner state" in out.lower()
+    for state in ("runner", "no_runner", "unknown"):
+        assert f"| {state} |" in out
+
+
+def test_the_runner_split_prints_no_rate_below_the_resolved_threshold(tmp_path):
+    out = gr.summarize(_turns_in(tmp_path, _repo(tmp_path, "a")))
+    split = out.lower().split("by runner state", 1)[1]
+    assert "not enough evidence" in split and "%)" not in split.split("risk ratio")[0].replace("fire rate", "")
+
+
+def test_the_ledger_keeps_the_runner_state_but_never_a_path(tmp_path):
+    cwd = _repo(tmp_path, "secret-project-name")
+    ledger = tmp_path / "ledger.json"
+    gr.merge_ledger(ledger, _turns_in(tmp_path, cwd))
+    text = ledger.read_text()
+    assert '"runner": "runner"' in text and "secret-project-name" not in text and str(tmp_path) not in text

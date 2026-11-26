@@ -29,6 +29,11 @@ dropped, and 111 of 131 eligible turns were edits to docs or outside the project
 rule and edit scope came from that finding, and these definitions follow the shipped gate. The first
 run's numbers are the baseline; later runs are not comparable with it by design.
 
+Revision note 2 (v0.15.x): each turn now records the runner state of its repository (``runner``, ``no_runner``
+or ``unknown``, read from the filesystem as it is now) and the report splits code claims by it. ``fired`` keeps
+its earlier meaning so runs stay comparable; the live gate no longer fires where there is no runner, so the
+``runner`` rows are the ones that estimate what a user sees.
+
 The replay reads transcripts, which hold no working copy, so it models the gate's event-order
 fallback: an edit the transcript shows, a run it shows. The live gate also sees edits made through a
 shell or a checkout (lib/worktree.py), so the live fire rate can differ. The ``basis`` field on
@@ -53,6 +58,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+from testinfra import can_be_verified  # noqa: E402
 from verify import classify_command, edit_scope, has_unhedged_success_claim, scan_events  # noqa: E402
 
 WINDOW = 1800
@@ -152,6 +158,16 @@ def _outcome(later: list[dict]) -> str:
     return "unresolved"
 
 
+def _runner_state(cwd: str, cache: dict[str, str]) -> str:
+    """\"runner\" when the session's repository holds a marker of a runner the gate recognises, \"no_runner\" when it does
+    not, \"unknown\" when the directory is gone. Read from the filesystem as it is now, so it can differ from then."""
+    if not cwd or not Path(cwd).is_dir():
+        return "unknown"
+    if cwd not in cache:
+        cache[cwd] = "runner" if can_be_verified(cwd) else "no_runner"
+    return cache[cwd]
+
+
 def replay(path: Path) -> tuple[list[dict], int]:
     """Turns for one transcript, and the number of lines that could not be read."""
     entries, skipped = _read(path)
@@ -159,6 +175,7 @@ def replay(path: Path) -> tuple[list[dict], int]:
     sid = hashlib.sha256(str(path).encode()).hexdigest()[:8]
     turns = []
     turn_no = -1
+    runners: dict[str, str] = {}
     for i, ev in enumerate(events):
         if ev["kind"] != "final":
             continue
@@ -172,6 +189,7 @@ def replay(path: Path) -> tuple[list[dict], int]:
             "eligible": claim and bool(scopes),
             "fired": claim and scan["has_recent_edit"] and not scan["verified_since_edit"],
             "edit_class": "code" if "code" in scopes else "docs" if "docs" in scopes else "outside" if scopes else "none",
+            "runner": _runner_state(ev.get("cwd", ""), runners),
             "outcome": _outcome(events[i + 1:]),
         })
     return turns, skipped
@@ -243,6 +261,19 @@ def summarize(turns: list[dict]) -> str:
         fire = f"{len(fired) / len(rows):.0%}" if rows else "n/a"
         out.append(f"| {cls} | {len(rows)} | {len(fired)} | {fire} | {fc['false_done']} / {fc['true_done']} / {fc['unresolved']} "
                    f"| {qc['false_done']} / {qc['true_done']} / {qc['unresolved']} | {rate(fc)} | {rate(qc)} |")
+    out += ["", "Code claims by runner state (a repository with no recognised runner can never satisfy the gate; the live gate",
+            "leaves those alone, so the rows to read are \"runner\"; state is read from the filesystem as it is now):", "",
+            "| runner state | eligible | fired | fire rate | fired: false / true / unresolved | false-done rate, fired |",
+            "|---|---|---|---|---|---|"]
+    for state in ("runner", "no_runner", "unknown"):
+        rows = [t for t in turns if t["eligible"] and t["edit_class"] == "code" and t.get("runner", "unknown") == state]
+        fired = [t for t in rows if t["fired"]]
+        fc = _counts(fired)
+        n = fc["false_done"] + fc["true_done"]
+        rate = (f"{fc['false_done'] / n:.0%} ({wilson(fc['false_done'], n)[0]:.0%} to {wilson(fc['false_done'], n)[1]:.0%}, n={n})"
+                if n >= MIN_RESOLVED else f"not enough evidence ({n} resolved)")
+        fire = f"{len(fired) / len(rows):.0%}" if rows else "n/a"
+        out.append(f"| {state} | {len(rows)} | {len(fired)} | {fire} | {fc['false_done']} / {fc['true_done']} / {fc['unresolved']} | {rate} |")
     code = [t for t in turns if t["eligible"] and t["edit_class"] == "code"]
     rr = _risk_ratio(code) if sum(t["outcome"] != "unresolved" for t in code) >= MIN_RESOLVED else None
     out += ["", "Risk ratio, code edits (false-done rate when fired over when not; 95% bootstrap over sessions): "
