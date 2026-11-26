@@ -14,6 +14,7 @@ from pathlib import Path
 _SKIP = {"node_modules", "venv", ".venv", "target", "dist", "build", "__pycache__", "vendor", "site-packages"}
 _MAX_SUBDIRS = 200
 _READ = 65536
+_PKG_READ = 1_000_000  # a package.json cut in the middle does not parse, so it gets more room than the other markers
 _NPM_PLACEHOLDER = re.compile(r"no test specified")
 _FILES = (
     "pytest.ini", "conftest.py", "tsconfig.json", "go.mod", "Cargo.toml", ".rspec", "phpunit.xml", "phpunit.xml.dist",
@@ -24,10 +25,10 @@ _TEST_DIRS = ("tests", "test", "spec", "__tests__")
 _JS_RUNNERS = ("jest", "vitest", "mocha")
 
 
-def _text(p: Path) -> str:
+def _text(p: Path, limit: int = _READ) -> str:
     try:
         with open(p, encoding="utf-8", errors="replace") as f:
-            return f.read(_READ)
+            return f.read(limit)
     except OSError:
         return ""
 
@@ -47,7 +48,7 @@ def _has_runner(d: Path) -> bool:
     pkg = d / "package.json"
     if pkg.is_file():
         try:
-            data = json.loads(_text(pkg))
+            data = json.loads(_text(pkg, _PKG_READ))
         except (ValueError, RecursionError):
             return False
         if not isinstance(data, dict):
@@ -61,6 +62,14 @@ def _has_runner(d: Path) -> bool:
         deps = {**_mapping(data.get("dependencies")), **_mapping(data.get("devDependencies"))}
         return any(name in deps for name in _JS_RUNNERS)
     return False
+
+
+def _readable_runner(d: Path) -> bool:
+    """_has_runner, treating a directory that cannot be read (permissions, a vanished folder) as having none."""
+    try:
+        return _has_runner(d)
+    except OSError:
+        return False
 
 
 def can_be_verified(cwd) -> bool:
@@ -80,4 +89,4 @@ def can_be_verified(cwd) -> bool:
         except OSError:
             continue
         seen.extend(subs[:_MAX_SUBDIRS])
-    return any(_has_runner(d) for d in seen)
+    return any(_readable_runner(d) for d in seen)
